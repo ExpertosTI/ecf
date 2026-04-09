@@ -39,8 +39,7 @@ certs/
 backups/
 *.sql.gz
 
-# XSD (descargados manualmente — ver xsd/README.md)
-xsd/*.xsd
+# XSD: incluidos en repo (documentos públicos DGII). Actualizar con: bash scripts/actualizar_xsd.sh
 
 # Docker
 docker-compose.override.yml
@@ -67,9 +66,6 @@ docker-compose.override.yml
 *.cer
 certs/
 nginx/certs/
-
-# XSD oficiales DGII (descargar manualmente)
-xsd/
 
 # Logs
 *.log

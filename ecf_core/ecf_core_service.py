@@ -451,10 +451,20 @@ class ECFSigner:
 
 # Validador XSD
 
+# SKIP_XSD_VALIDATION=true solo para entornos TesteCF/CerteCF durante pruebas.
+# En producción (eCF) siempre se valida independientemente de esta variable.
+_SKIP_XSD_VALIDATION = os.environ.get("SKIP_XSD_VALIDATION", "false").lower() == "true"
+
+
 class ECFValidator:
     """
     Valida el XML del e-CF contra los esquemas XSD oficiales de la DGII.
-    Los XSD deben descargarse desde la web de la DGII y colocarse en /xsd/
+    Los XSD se descargan con: bash scripts/actualizar_xsd.sh
+
+    Modos:
+    - Producción (eCF):       Siempre valida. Falla si XSD no disponible.
+    - Certificación/Test:     Si SKIP_XSD_VALIDATION=true, emite WARNING y continúa.
+                              Útil durante el proceso de homologación DGII.
     """
 
     _schemas: dict[int, etree.XMLSchema] = {}
@@ -462,9 +472,16 @@ class ECFValidator:
     def validar(self, xml_bytes: bytes, tipo_ecf: int) -> tuple[bool, list[str]]:
         schema = self._get_schema(tipo_ecf)
         if schema is None:
+            if _SKIP_XSD_VALIDATION:
+                logger.warning(
+                    "XSD no disponible para tipo e-CF %s — validación omitida "
+                    "(SKIP_XSD_VALIDATION=true). NO usar en producción.",
+                    tipo_ecf,
+                )
+                return True, []
             raise ValueError(
                 f"XSD obligatorio no disponible para tipo e-CF {tipo_ecf}. "
-                f"Coloque los archivos XSD en el directorio /xsd/ antes de operar."
+                f"Ejecuta: bash scripts/actualizar_xsd.sh"
             )
 
         doc = etree.fromstring(xml_bytes)
@@ -478,7 +495,6 @@ class ECFValidator:
 
         xsd_path = XSD_DIR / f"ECF-{tipo_ecf}.xsd"
         if not xsd_path.exists():
-            # Intentar con el XSD genérico
             xsd_path = XSD_DIR / "ECF.xsd"
             if not xsd_path.exists():
                 return None

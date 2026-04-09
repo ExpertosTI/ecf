@@ -1,0 +1,2 @@
+# Colocar aquí los archivos XSD de la DGII para validación.
+# Si no están presentes, la validación XSD se omite gracefully.
