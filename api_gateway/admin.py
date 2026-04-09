@@ -587,6 +587,45 @@ async def retry_dlq_message(
 
 
 # ---------------------------------------------------------------------------
+# DGII Integration: cufe_secret por tenant
+# ---------------------------------------------------------------------------
+
+class CufeSecretUpdate(BaseModel):
+    cufe_secret: str = Field(..., min_length=8, max_length=128,
+                             description="Clave secreta CUFE registrada ante la DGII para este tenant")
+
+
+@router.put("/tenants/{tenant_id}/cufe-secret", status_code=200)
+async def set_cufe_secret(
+    tenant_id: str,
+    payload: CufeSecretUpdate,
+    _: None = Depends(require_admin),
+):
+    """
+    Registra el cufe_secret de un tenant (entregado por la DGII durante homologación).
+    El secreto se cifra con AES-256-GCM antes de almacenarse.
+    """
+    db = _get_pool()
+    try:
+        vault = CertVault()
+        encrypted = vault.cifrar_campo(payload.cufe_secret)
+    except CertVaultError as e:
+        raise HTTPException(status_code=500, detail=f"Vault no disponible: {e}")
+
+    async with db.acquire() as conn:
+        updated = await conn.fetchval(
+            "UPDATE public.tenants SET cufe_secret = $1, updated_at = NOW() "
+            "WHERE id = $2 AND deleted_at IS NULL RETURNING id",
+            encrypted, uuid.UUID(tenant_id),
+        )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Tenant no encontrado")
+
+    logger.info("cufe_secret actualizado para tenant %s", tenant_id)
+    return {"tenant_id": tenant_id, "mensaje": "cufe_secret registrado y cifrado correctamente"}
+
+
+# ---------------------------------------------------------------------------
 # System stats
 # ---------------------------------------------------------------------------
 
