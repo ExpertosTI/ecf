@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Vista de lista de ecf.log -->
+    <record id="ecf_log_view_tree" model="ir.ui.view">
+        <field name="name">ecf.log.tree</field>
+        <field name="model">ecf.log</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="create_date" string="Fecha"/>
+                <field name="move_id"/>
+                <field name="ncf"/>
+                <field name="tipo_ecf" string="Tipo"/>
+                <field name="estado"
+                       decoration-success="estado == 'aprobado'"
+                       decoration-danger="estado == 'rechazado'"
+                       decoration-warning="estado in ('condicionado', 'pendiente')"
+                       decoration-muted="estado == 'anulado'"
+                       widget="badge"/>
+                <field name="cufe"/>
+                <field name="error_msg"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Vista de formulario de ecf.log -->
+    <record id="ecf_log_view_form" model="ir.ui.view">
+        <field name="name">ecf.log.form</field>
+        <field name="model">ecf.log</field>
+        <field name="arch" type="xml">
+            <form string="Registro e-CF" create="false" edit="false">
+                <header>
+                    <field name="estado" widget="statusbar"
+                           statusbar_visible="pendiente,enviado,aprobado"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Comprobante">
+                            <field name="ncf"/>
+                            <field name="tipo_ecf"/>
+                            <field name="ecf_id"/>
+                            <field name="move_id"/>
+                        </group>
+                        <group string="Resultado DGII">
+                            <field name="estado"/>
+                            <field name="cufe"/>
+                            <field name="approved_at"/>
+                        </group>
+                    </group>
+                    <group string="QR Code" invisible="not qr_code">
+                        <field name="qr_code"/>
+                    </group>
+                    <group string="Error" invisible="not error_msg">
+                        <field name="error_msg"/>
+                    </group>
+                    <group string="Respuesta Raw" invisible="not raw_response">
+                        <field name="raw_response"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Acción y menú -->
+    <record id="ecf_log_action" model="ir.actions.act_window">
+        <field name="name">Historial e-CF</field>
+        <field name="res_model">ecf.log</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{'search_default_group_by_estado': 1}</field>
+    </record>
+
+    <menuitem id="ecf_menu_root"
+              name="e-CF DGII"
+              parent="account.menu_finance"
+              sequence="90"/>
+
+    <menuitem id="ecf_menu_log"
+              name="Historial e-CF"
+              parent="ecf_menu_root"
+              action="ecf_log_action"
+              sequence="10"/>
+</odoo>

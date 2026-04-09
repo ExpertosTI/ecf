@@ -1,0 +1,86 @@
+# SaaS ECF DGII — .gitignore
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Certificados y llaves — NUNCA commitar
+*.p12
+*.pfx
+*.pem
+*.key
+*.crt
+certs/
+
+# Backups
+backups/
+*.sql.gz
+
+# XSD (descargados manualmente — ver xsd/README.md)
+xsd/*.xsd
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Docker
+docker-compose.override.yml
+
+# Certificados y llaves (NUNCA subir)
+*.p12
+*.pfx
+*.pem
+*.key
+*.crt
+*.cer
+certs/
+nginx/certs/
+
+# XSD oficiales DGII (descargar manualmente)
+xsd/
+
+# Logs
+*.log
+logs/
+
+# Datos persistentes
+pgdata/
+redisdata/
+
+# Node (portal admin)
+node_modules/
+.next/
+portal_admin/node_modules/
+.!*

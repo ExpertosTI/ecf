@@ -1,0 +1,44 @@
+# Dockerfile.api — SaaS ECF DGII
+# Imagen base para API Gateway, Worker y Scheduler
+
+FROM python:3.11.9-slim AS base
+
+# Dependencias del sistema para lxml y cryptography
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libxml2-dev \
+    libxslt1-dev \
+    libffi-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Usuario no-root (requisito de seguridad DGII)
+RUN groupadd -r ecfapp && useradd -r -g ecfapp -d /app -s /sbin/nologin ecfapp
+
+WORKDIR /app
+
+# Instalar dependencias Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar codigo fuente
+COPY ecf_core/ ./ecf_core/
+COPY api_gateway/ ./api_gateway/
+
+# XSD schemas (directorio opcional — crear si no existe)
+RUN mkdir -p /app/xsd
+COPY xsd/ ./xsd/
+
+# Permisos
+RUN chown -R ecfapp:ecfapp /app
+
+USER ecfapp
+
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default: API Gateway
+CMD ["uvicorn", "api_gateway.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

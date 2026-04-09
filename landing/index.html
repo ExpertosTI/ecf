@@ -1,0 +1,1774 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Renace ECF — Facturación Electrónica DGII para Odoo</title>
+    <meta name="description" content="Hub SaaS de facturación electrónica (e-CF) certificado por la DGII. Conecta tu Odoo con la DGII en minutos. Multi-tenant, seguro, escalable.">
+    <meta name="theme-color" content="#0A0F1C">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ═══════════════════════════════════════════
+           DESIGN TOKENS — renace.tech identity
+           ═══════════════════════════════════════════ */
+        :root {
+            --bg-deep:      #0A0F1C;
+            --bg-card:      #111828;
+            --bg-card-alt:  #162032;
+            --bg-glass:     rgba(17, 24, 40, 0.65);
+
+            --accent:       #00E5A0;
+            --accent-dim:   #00C488;
+            --accent-glow:  rgba(0, 229, 160, 0.15);
+            --accent-2:     #6C63FF;
+            --accent-2-glow:rgba(108, 99, 255, 0.12);
+
+            --text-primary: #F1F5F9;
+            --text-muted:   #94A3B8;
+            --text-dim:     #64748B;
+
+            --border:       rgba(255,255,255,0.06);
+            --border-accent:rgba(0,229,160,0.25);
+
+            --radius:       12px;
+            --radius-lg:    20px;
+            --radius-sm:    8px;
+
+            --font-sans:    'Inter', system-ui, -apple-system, sans-serif;
+            --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+        }
+
+        /* ═══════════════════════════════════════════
+           RESET & BASE
+           ═══════════════════════════════════════════ */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        a { color: var(--accent); text-decoration: none; transition: color .2s; }
+        a:hover { color: var(--accent-dim); }
+        img { max-width: 100%; display: block; }
+
+        /* ═══════════════════════════════════════════
+           LAYOUT
+           ═══════════════════════════════════════════ */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+        section {
+            padding: 100px 0;
+            position: relative;
+        }
+        .section-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-label::before {
+            content: '';
+            width: 24px;
+            height: 1px;
+            background: var(--accent);
+        }
+        .section-title {
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1.15;
+            margin-bottom: 20px;
+        }
+        .section-subtitle {
+            font-size: 1.125rem;
+            color: var(--text-muted);
+            max-width: 640px;
+            line-height: 1.7;
+        }
+
+        /* ═══════════════════════════════════════════
+           NAVIGATION
+           ═══════════════════════════════════════════ */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px) saturate(1.4);
+            -webkit-backdrop-filter: blur(20px) saturate(1.4);
+            background: rgba(10, 15, 28, 0.82);
+            border-bottom: 1px solid var(--border);
+            transition: box-shadow .3s;
+        }
+        .nav.scrolled { box-shadow: 0 4px 30px rgba(0,0,0,0.3); }
+        .nav-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 800;
+            font-size: 1.15rem;
+            color: var(--text-primary);
+        }
+        .nav-logo .logo-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: 900;
+            color: #0A0F1C;
+        }
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+        .nav-links a {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            transition: color .2s;
+        }
+        .nav-links a:hover { color: var(--text-primary); }
+        .nav-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 20px;
+            background: var(--accent);
+            color: #0A0F1C;
+            font-weight: 600;
+            font-size: 0.875rem;
+            border-radius: 8px;
+            transition: all .2s;
+        }
+        .nav-cta:hover {
+            background: var(--accent-dim);
+            color: #0A0F1C;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 20px rgba(0, 229, 160, 0.3);
+        }
+        .mobile-toggle { display: none; background: none; border: none; color: var(--text-primary); cursor: pointer; }
+
+        /* ═══════════════════════════════════════════
+           HERO
+           ═══════════════════════════════════════════ */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding-top: 64px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,229,160,0.08), transparent),
+                radial-gradient(ellipse 60% 50% at 80% 20%, rgba(108,99,255,0.06), transparent);
+            pointer-events: none;
+        }
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            align-items: center;
+        }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: var(--accent-glow);
+            border: 1px solid var(--border-accent);
+            border-radius: 100px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--accent);
+            margin-bottom: 24px;
+        }
+        .hero-badge .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: pulse 2s ease infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .hero h1 {
+            font-size: clamp(2.5rem, 5.5vw, 4rem);
+            font-weight: 900;
+            letter-spacing: -0.04em;
+            line-height: 1.08;
+            margin-bottom: 24px;
+        }
+        .hero h1 .gradient {
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero-desc {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            max-width: 520px;
+            line-height: 1.7;
+            margin-bottom: 40px;
+        }
+        .hero-actions {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 32px;
+            background: var(--accent);
+            color: #0A0F1C;
+            font-weight: 700;
+            font-size: 1rem;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            transition: all .25s;
+        }
+        .btn-primary:hover {
+            background: var(--accent-dim);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0,229,160,0.25);
+            color: #0A0F1C;
+        }
+        .btn-outline {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 32px;
+            background: transparent;
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 1rem;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all .25s;
+        }
+        .btn-outline:hover {
+            border-color: var(--text-dim);
+            background: rgba(255,255,255,0.03);
+            color: var(--text-primary);
+        }
+
+        /* Hero Visual — Animated terminal */
+        .hero-visual {
+            position: relative;
+        }
+        .terminal {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow:
+                0 40px 80px rgba(0,0,0,0.4),
+                0 0 0 1px rgba(255,255,255,0.03);
+        }
+        .terminal-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 18px;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid var(--border);
+        }
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .terminal-dot:nth-child(1) { background: #ff5f57; }
+        .terminal-dot:nth-child(2) { background: #ffbd2e; }
+        .terminal-dot:nth-child(3) { background: #28c840; }
+        .terminal-bar span {
+            margin-left: auto;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+        .terminal-body {
+            padding: 24px;
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            line-height: 2;
+            color: var(--text-muted);
+        }
+        .terminal-body .cmd { color: var(--accent); }
+        .terminal-body .str { color: #fbbf24; }
+        .terminal-body .num { color: var(--accent-2); }
+        .terminal-body .ok { color: #34d399; }
+        .terminal-body .err { color: #f87171; }
+        .terminal-body .dim { color: var(--text-dim); }
+
+        /* Floating badge */
+        .float-badge {
+            position: absolute;
+            padding: 10px 16px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: float 6s ease-in-out infinite;
+        }
+        .float-badge.top-right { top: -20px; right: -30px; animation-delay: -2s; }
+        .float-badge.bottom-left { bottom: 30px; left: -40px; animation-delay: -4s; }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        /* ═══════════════════════════════════════════
+           TRUST BAR
+           ═══════════════════════════════════════════ */
+        .trust-bar {
+            padding: 64px 0;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+        .trust-items {
+            display: flex;
+            justify-content: center;
+            gap: 64px;
+            flex-wrap: wrap;
+        }
+        .trust-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .trust-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            background: var(--accent-glow);
+            border: 1px solid var(--border-accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+        .trust-text strong {
+            display: block;
+            font-size: 0.95rem;
+            font-weight: 700;
+        }
+        .trust-text span {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+        }
+
+        /* ═══════════════════════════════════════════
+           FEATURES GRID
+           ═══════════════════════════════════════════ */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 60px;
+        }
+        .feature-card {
+            padding: 36px 32px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            transition: all .3s;
+            position: relative;
+            overflow: hidden;
+        }
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0;
+            transition: opacity .3s;
+        }
+        .feature-card:hover {
+            border-color: var(--border-accent);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        .feature-card:hover::before { opacity: 1; }
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+        }
+        .feature-icon.green  { background: var(--accent-glow); border: 1px solid rgba(0,229,160,0.2); }
+        .feature-icon.purple { background: var(--accent-2-glow); border: 1px solid rgba(108,99,255,0.2); }
+        .feature-icon.blue   { background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2); }
+        .feature-icon.amber  { background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.2); }
+        .feature-card h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        .feature-card p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            line-height: 1.65;
+        }
+
+        /* ═══════════════════════════════════════════
+           ARCHITECTURE SECTION
+           ═══════════════════════════════════════════ */
+        .arch-diagram {
+            margin-top: 60px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 48px;
+            position: relative;
+            overflow: hidden;
+        }
+        .arch-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .arch-node {
+            text-align: center;
+            padding: 24px 20px;
+            min-width: 140px;
+            background: var(--bg-card-alt);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            transition: all .3s;
+        }
+        .arch-node:hover {
+            border-color: var(--border-accent);
+            box-shadow: 0 0 30px var(--accent-glow);
+        }
+        .arch-node .node-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        .arch-node .node-label {
+            font-weight: 700;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+        .arch-node .node-desc {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+        .arch-arrow {
+            font-size: 1.5rem;
+            color: var(--accent);
+            font-weight: 300;
+            animation: arrowPulse 2s ease infinite;
+        }
+        @keyframes arrowPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* ═══════════════════════════════════════════
+           API REFERENCE
+           ═══════════════════════════════════════════ */
+        .api-table {
+            margin-top: 48px;
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .api-table thead th {
+            text-align: left;
+            padding: 14px 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-dim);
+            border-bottom: 1px solid var(--border);
+        }
+        .api-table tbody tr {
+            transition: background .2s;
+        }
+        .api-table tbody tr:hover {
+            background: rgba(255,255,255,0.02);
+        }
+        .api-table tbody td {
+            padding: 16px 20px;
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        .method-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        .method-badge.post { background: rgba(0,229,160,0.12); color: var(--accent); }
+        .method-badge.get  { background: rgba(108,99,255,0.12); color: var(--accent-2); }
+        .method-badge.patch { background: rgba(255,170,0,0.12); color: #ffaa00; }
+        .endpoint-path {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            color: var(--text-primary);
+        }
+        .endpoint-desc {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* ═══════════════════════════════════════════
+           E-CF TYPES TABLE
+           ═══════════════════════════════════════════ */
+        .ecf-types {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
+            margin-top: 48px;
+        }
+        .ecf-type-card {
+            padding: 20px 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            transition: border-color .2s;
+        }
+        .ecf-type-card:hover { border-color: var(--border-accent); }
+        .ecf-code {
+            font-family: var(--font-mono);
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--accent);
+            min-width: 42px;
+        }
+        .ecf-type-card .type-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .ecf-type-card .type-prefix {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--text-dim);
+        }
+
+        /* ═══════════════════════════════════════════
+           SECURITY SECTION
+           ═══════════════════════════════════════════ */
+        .security-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-top: 48px;
+        }
+        .security-item {
+            display: flex;
+            gap: 16px;
+            padding: 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+        .security-item .sec-icon {
+            font-size: 1.4rem;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .security-item h4 {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 6px;
+        }
+        .security-item p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        /* ═══════════════════════════════════════════
+           ODOO SECTION
+           ═══════════════════════════════════════════ */
+        .odoo-features {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-top: 48px;
+        }
+        .odoo-card {
+            padding: 32px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+        }
+        .odoo-card h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .odoo-card ul {
+            list-style: none;
+            padding: 0;
+        }
+        .odoo-card li {
+            padding: 6px 0;
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .odoo-card li::before {
+            content: '→';
+            color: var(--accent);
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        /* ═══════════════════════════════════════════
+           DGII COMPLIANCE
+           ═══════════════════════════════════════════ */
+        .compliance-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 48px;
+        }
+        .compliance-card {
+            padding: 32px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            text-align: center;
+        }
+        .compliance-card .big-check {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+        }
+        .compliance-card h4 {
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .compliance-card p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        /* ═══════════════════════════════════════════
+           PRICING
+           ═══════════════════════════════════════════ */
+        .pricing-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 60px;
+        }
+        .price-card {
+            padding: 40px 36px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            transition: all .3s;
+            position: relative;
+        }
+        .price-card.featured {
+            border-color: var(--accent);
+            box-shadow: 0 0 60px rgba(0,229,160,0.08);
+        }
+        .price-card.featured::before {
+            content: 'Popular';
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 4px 18px;
+            background: var(--accent);
+            color: #0A0F1C;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border-radius: 100px;
+        }
+        .price-card .plan-name {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 12px;
+        }
+        .price-card .plan-price {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+        .price-card .plan-price span {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-dim);
+        }
+        .price-card .plan-desc {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 28px;
+            line-height: 1.5;
+        }
+        .price-card ul {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 32px;
+        }
+        .price-card li {
+            padding: 8px 0;
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .price-card li::before {
+            content: '✓';
+            color: var(--accent);
+            font-weight: 700;
+        }
+        .price-card .btn-plan {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            text-align: center;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all .25s;
+            cursor: pointer;
+            border: none;
+        }
+        .price-card .btn-plan.primary {
+            background: var(--accent);
+            color: #0A0F1C;
+        }
+        .price-card .btn-plan.primary:hover {
+            background: var(--accent-dim);
+            box-shadow: 0 4px 20px rgba(0,229,160,0.3);
+        }
+        .price-card .btn-plan.outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+        .price-card .btn-plan.outline:hover {
+            border-color: var(--text-dim);
+        }
+
+        /* ═══════════════════════════════════════════
+           CTA
+           ═══════════════════════════════════════════ */
+        .cta-section {
+            text-align: center;
+            padding: 120px 0;
+        }
+        .cta-section .section-title {
+            max-width: 700px;
+            margin: 0 auto 32px;
+        }
+
+        /* ═══════════════════════════════════════════
+           FOOTER
+           ═══════════════════════════════════════════ */
+        .footer {
+            padding: 48px 0;
+            border-top: 1px solid var(--border);
+        }
+        .footer-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .footer-copy {
+            font-size: 0.82rem;
+            color: var(--text-dim);
+        }
+        .footer-links {
+            display: flex;
+            gap: 24px;
+        }
+        .footer-links a {
+            font-size: 0.82rem;
+            color: var(--text-dim);
+        }
+        .footer-links a:hover { color: var(--text-primary); }
+
+        /* ═══════════════════════════════════════════
+           RESPONSIVE
+           ═══════════════════════════════════════════ */
+        @media (max-width: 1024px) {
+            .hero-grid { grid-template-columns: 1fr; gap: 48px; }
+            .hero-visual { order: -1; }
+            .features-grid { grid-template-columns: repeat(2, 1fr); }
+            .pricing-cards { grid-template-columns: repeat(2, 1fr); }
+            .compliance-grid { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 768px) {
+            section { padding: 64px 0; }
+            .nav-links { display: none; }
+            .mobile-toggle { display: block; }
+            .features-grid,
+            .security-grid,
+            .odoo-features,
+            .pricing-cards,
+            .compliance-grid { grid-template-columns: 1fr; }
+            .hero h1 { font-size: 2.2rem; }
+            .arch-flow { flex-direction: column; }
+            .arch-arrow { transform: rotate(90deg); }
+            .trust-items { gap: 32px; }
+            .float-badge { display: none; }
+            .footer-inner { flex-direction: column; gap: 16px; text-align: center; }
+            .api-table { font-size: 0.8rem; }
+            .api-table thead { display: none; }
+            .api-table tbody td { display: block; padding: 8px 16px; }
+            .api-table tbody tr { border-bottom: 1px solid var(--border); padding: 12px 0; }
+        }
+
+        /* ═══════════════════════════════════════════
+           SCROLL ANIMATIONS
+           ═══════════════════════════════════════════ */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ═══════════════════════════════════════════
+           ANALYSIS NOTE
+           ═══════════════════════════════════════════ */
+        .analysis-box {
+            margin-top: 48px;
+            padding: 32px;
+            background: linear-gradient(135deg, rgba(0,229,160,0.05), rgba(108,99,255,0.05));
+            border: 1px solid var(--border-accent);
+            border-radius: var(--radius-lg);
+        }
+        .analysis-box h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .analysis-box p, .analysis-box li {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            line-height: 1.7;
+        }
+        .analysis-box ul {
+            list-style: none;
+            padding: 0;
+            margin-top: 12px;
+        }
+        .analysis-box li {
+            padding: 4px 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .analysis-box li::before {
+            content: '✓';
+            color: var(--accent);
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     NAVIGATION
+     ═══════════════════════════════════════════ -->
+<nav class="nav" id="nav">
+    <div class="container nav-inner">
+        <a href="#" class="nav-logo">
+            <div class="logo-icon">R</div>
+            renace<span style="color: var(--accent)">.ecf</span>
+        </a>
+        <ul class="nav-links">
+            <li><a href="#funcionalidades">Funcionalidades</a></li>
+            <li><a href="#arquitectura">Arquitectura</a></li>
+            <li><a href="#api">API</a></li>
+            <li><a href="#odoo">Odoo</a></li>
+            <li><a href="#seguridad">Seguridad</a></li>
+            <li><a href="#planes">Planes</a></li>
+        </ul>
+        <a href="#contacto" class="nav-cta">Solicitar Demo →</a>
+        <button class="mobile-toggle" onclick="this.previousElementSibling.previousElementSibling.classList.toggle('show')" aria-label="Menú">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        </button>
+    </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════
+     HERO
+     ═══════════════════════════════════════════ -->
+<section class="hero" id="inicio">
+    <div class="container">
+        <div class="hero-grid">
+            <div>
+                <div class="hero-badge">
+                    <span class="dot"></span>
+                    Certificado DGII — Ambiente TesteCF / CerteCF / Producción
+                </div>
+                <h1>
+                    Facturación electrónica<br>
+                    <span class="gradient">e-CF para Odoo</span><br>
+                    sin complicaciones
+                </h1>
+                <p class="hero-desc">
+                    Plataforma integral que conecta tu entorno Odoo con la DGII.
+                    Administra tenants, certificados y secuencias NCF con la <strong>Admin API</strong>
+                    e intégrate a la perfección con la API RESTful.
+                </p>
+                <div class="hero-actions">
+                    <a href="#contacto" class="btn-primary">Comenzar Ahora →</a>
+                    <a href="#api" class="btn-outline">Ver API Docs</a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="float-badge top-right">
+                    <span style="color: #34d399; font-weight: 700;">✓</span>
+                    DGII Aprobado
+                </div>
+                <div class="float-badge bottom-left">
+                    <span style="font-size: 1.1rem;">🔒</span>
+                    AES-256-GCM
+                </div>
+                <div class="terminal">
+                    <div class="terminal-bar">
+                        <div class="terminal-dot"></div>
+                        <div class="terminal-dot"></div>
+                        <div class="terminal-dot"></div>
+                        <span>POST /v1/ecf/emitir</span>
+                    </div>
+                    <div class="terminal-body">
+<span class="dim">// Emitir factura desde Odoo</span><br>
+<span class="cmd">curl</span> -X POST https://ecf.renace.tech/v1/ecf/emitir \<br>
+&nbsp;&nbsp;-H <span class="str">"X-API-Key: sk_live_..."</span> \<br>
+&nbsp;&nbsp;-d <span class="str">'{ "tipo_ecf": "31", ... }'</span><br>
+<br>
+<span class="dim">→ Response 200</span><br>
+{<br>
+&nbsp;&nbsp;<span class="str">"ncf"</span>:&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"E310000000001"</span>,<br>
+&nbsp;&nbsp;<span class="str">"ecf_id"</span>:&nbsp;<span class="str">"a1b2c3d4-..."</span>,<br>
+&nbsp;&nbsp;<span class="str">"estado"</span>:&nbsp;<span class="ok">"pendiente"</span>,<br>
+&nbsp;&nbsp;<span class="str">"mensaje"</span>:<span class="str">"Encolado para envío DGII"</span><br>
+}<br>
+<br>
+<span class="dim">// Webhook callback a Odoo...</span><br>
+<span class="ok">✓ e-CF APROBADO</span> — CUFE: <span class="num">8f4a2b...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     TRUST BAR
+     ═══════════════════════════════════════════ -->
+<div class="trust-bar">
+    <div class="container">
+        <div class="trust-items">
+            <div class="trust-item">
+                <div class="trust-icon">📄</div>
+                <div class="trust-text">
+                    <strong>10 Tipos e-CF</strong>
+                    <span>31, 32, 33, 34, 41, 43, 44, 45, 46, 47</span>
+                </div>
+            </div>
+            <div class="trust-item">
+                <div class="trust-icon">⚡</div>
+                <div class="trust-text">
+                    <strong>25+ Endpoints REST</strong>
+                    <span>Emisión, admin, certs, reportes, DLQ</span>
+                </div>
+            </div>
+            <div class="trust-item">
+                <div class="trust-icon">🏢</div>
+                <div class="trust-text">
+                    <strong>Multi-Tenant</strong>
+                    <span>Schema isolation por RNC</span>
+                </div>
+            </div>
+            <div class="trust-item">
+                <div class="trust-icon">🔁</div>
+                <div class="trust-text">
+                    <strong>5 Reintentos</strong>
+                    <span>Backoff exponencial + DLQ</span>
+                </div>
+            </div>
+            <div class="trust-item">
+                <div class="trust-icon">📊</div>
+                <div class="trust-text">
+                    <strong>Reportes 606/607/608</strong>
+                    <span>Formato DGII nativo</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     FUNCIONALIDADES
+     ═══════════════════════════════════════════ -->
+<section id="funcionalidades">
+    <div class="container">
+        <div class="section-label reveal">Funcionalidades</div>
+        <h2 class="section-title reveal">Todo lo que necesitas para<br>facturar electrónicamente</h2>
+        <p class="section-subtitle reveal">
+            Desde la generación del XML hasta la aprobación DGII, cada paso está
+            automatizado, auditado y listo para producción.
+        </p>
+        <div class="features-grid">
+            <div class="feature-card reveal">
+                <div class="feature-icon green">📝</div>
+                <h3>Generación XML e-CF</h3>
+                <p>Construcción automática de XML conforme al namespace DGII <code>dgii.gov.do/ecf</code>. Soporte para Encabezado, Emisor, Comprador, DetallesItems, Paginación y Resumen.</p>
+            </div>
+            <div class="feature-card reveal">
+                <div class="feature-icon purple">✍️</div>
+                <h3>Firma Digital XAdES-BES</h3>
+                <p>Firma RSA-SHA256 con certificados .p12. Canonicalización C14N exclusiva, bloque <code>&lt;ds:Signature&gt;</code> completo, y CUFE SHA-384 de 96 caracteres.</p>
+            </div>
+            <div class="feature-card reveal">
+                <div class="feature-icon blue">🔍</div>
+                <h3>Validación XSD Local</h3>
+                <p>Validación contra schemas oficiales DGII antes del envío. Detecta errores de estructura antes de consumir cuota o la API de la DGII.</p>
+            </div>
+            <div class="feature-card reveal">
+                <div class="feature-icon amber">🔐</div>
+                <h3>Autenticación Semilla</h3>
+                <p>Flujo completo Seed DGII: solicitud de semilla, firma con certificado, obtención de Bearer token, cache de 23 horas, y re-autenticación automática.</p>
+            </div>
+            <div class="feature-card reveal">
+                <div class="feature-icon green">📤</div>
+                <h3>Envío Asíncrono a DGII</h3>
+                <p>Cola Redis de alta velocidad con workers paralelos. Procesamiento asíncrono que no bloquea tu ERP. Envío vía <code>/fe/recepcion/api/ecf</code>.</p>
+            </div>
+            <div class="feature-card reveal">
+                <div class="feature-icon purple">🔁</div>
+                <h3>Reintentos Inteligentes</h3>
+                <p>5 reintentos con backoff exponencial (30s → 1h). Cola de reintentos separada, Dead Letter Queue para fallos permanentes. Zero pérdida de documentos.</p>
+            </div>
+            <div class="feature-card reveal">
+                <div class="feature-icon blue">❌</div>
+                <h3>Anulación de e-CF</h3>
+                <p>Endpoint dedicado para anulación con motivos DGII (01-09). Flujo separado con autenticación propia y persistencia de resultado.</p>
+            </div>
+            <div class="feature-card reveal">
+                <div class="feature-icon amber">📊</div>
+                <h3>Reportes 606 / 607 / 608</h3>
+                <p>Generación automática de reportes fiscales en formato nativo DGII. Reporte 606 (compras), 607 (ventas aprobadas/condicionadas), 608 (anulaciones).</p>
+            </div>
+            <div class="feature-card reveal">
+                <div class="feature-icon green">🔗</div>
+                <h3>Webhook HMAC-SHA256</h3>
+                <p>Callback verificado criptográficamente a Odoo con resultado de DGII. Incluye NCF, CUFE, QR, estado, y detalles de error cuando aplica.</p>
+            </div>
+            <div class="feature-card reveal">
+                <div class="feature-icon purple">🆔</div>
+                <h3>NCF Atómico</h3>
+                <p>Generación de NCF con función PostgreSQL <code>next_ncf()</code>. Secuencias atómicas que previenen duplicados incluso bajo carga concurrente.</p>
+            </div>
+            <div class="feature-card reveal">
+                <div class="feature-icon blue">🏷️</div>
+                <h3>QR Code & Security Code</h3>
+                <p>Generación automática de Security Code (hash del XML firmado) y URL QR conforme al formato DGII para verificación fiscal.</p>
+            </div>
+            <div class="feature-card reveal">
+                <div class="feature-icon amber">📈</div>
+                <h3>Métricas Prometheus</h3>
+                <p>Endpoint <code>/metrics</code> para monitoreo en tiempo real. Latencia, throughput, errores por tenant, estado de colas y workers.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     TIPOS E-CF
+     ═══════════════════════════════════════════ -->
+<section style="padding-top: 0;">
+    <div class="container">
+        <div class="section-label reveal">Comprobantes Soportados</div>
+        <h2 class="section-title reveal">10 tipos de e-CF</h2>
+        <p class="section-subtitle reveal">Todos los comprobantes fiscales electrónicos definidos por la DGII de República Dominicana.</p>
+        <div class="ecf-types reveal">
+            <div class="ecf-type-card">
+                <div class="ecf-code">31</div>
+                <div><div class="type-name">Factura de Crédito Fiscal</div><div class="type-prefix">E31</div></div>
+            </div>
+            <div class="ecf-type-card">
+                <div class="ecf-code">32</div>
+                <div><div class="type-name">Factura de Consumo</div><div class="type-prefix">E32</div></div>
+            </div>
+            <div class="ecf-type-card">
+                <div class="ecf-code">33</div>
+                <div><div class="type-name">Nota de Débito</div><div class="type-prefix">E33</div></div>
+            </div>
+            <div class="ecf-type-card">
+                <div class="ecf-code">34</div>
+                <div><div class="type-name">Nota de Crédito</div><div class="type-prefix">E34</div></div>
+            </div>
+            <div class="ecf-type-card">
+                <div class="ecf-code">41</div>
+                <div><div class="type-name">Compras</div><div class="type-prefix">E41</div></div>
+            </div>
+            <div class="ecf-type-card">
+                <div class="ecf-code">43</div>
+                <div><div class="type-name">Gastos Menores</div><div class="type-prefix">E43</div></div>
+            </div>
+            <div class="ecf-type-card">
+                <div class="ecf-code">44</div>
+                <div><div class="type-name">Regímenes Especiales</div><div class="type-prefix">E44</div></div>
+            </div>
+            <div class="ecf-type-card">
+                <div class="ecf-code">45</div>
+                <div><div class="type-name">Gubernamental</div><div class="type-prefix">E45</div></div>
+            </div>
+            <div class="ecf-type-card">
+                <div class="ecf-code">46</div>
+                <div><div class="type-name">Exportaciones</div><div class="type-prefix">E46</div></div>
+            </div>
+            <div class="ecf-type-card">
+                <div class="ecf-code">47</div>
+                <div><div class="type-name">Pagos al Exterior</div><div class="type-prefix">E47</div></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     ARCHITECTURE
+     ═══════════════════════════════════════════ -->
+<section id="arquitectura">
+    <div class="container">
+        <div class="section-label reveal">Arquitectura</div>
+        <h2 class="section-title reveal">Hub multi-tenant<br>con aislamiento total</h2>
+        <p class="section-subtitle reveal">
+            Cada tenant opera en su propio schema PostgreSQL con certificados cifrados.
+            Un único hub centralizado gestiona múltiples instancias de Odoo simultáneamente.
+        </p>
+        <div class="arch-diagram reveal">
+            <div class="arch-flow">
+                <div class="arch-node">
+                    <div class="node-icon">🏢</div>
+                    <div class="node-label">Odoo Tenant A</div>
+                    <div class="node-desc">ecf_connector module</div>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-node" style="border-color: var(--accent); box-shadow: 0 0 40px rgba(0,229,160,0.1);">
+                    <div class="node-icon">⚡</div>
+                    <div class="node-label">API Gateway</div>
+                    <div class="node-desc">FastAPI + Auth + Rate Limit</div>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-node">
+                    <div class="node-icon">📨</div>
+                    <div class="node-label">Redis Queue</div>
+                    <div class="node-desc">pending / retry / dlq</div>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-node">
+                    <div class="node-icon">⚙️</div>
+                    <div class="node-label">Worker Pool</div>
+                    <div class="node-desc">XML → Firma → Envío</div>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-node" style="border-color: var(--accent-2);">
+                    <div class="node-icon">🏛️</div>
+                    <div class="node-label">DGII</div>
+                    <div class="node-desc">TesteCF / CerteCF / eCF</div>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 24px; color: var(--text-dim); font-size: 0.8rem; font-family: var(--font-mono);">
+                ← webhook HMAC-SHA256 callback ←
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════
+             ARCHITECTURE (PORTAL + API)
+             ═══════════════════════════════════════════ -->
+        <div style="margin-top: 48px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px;" class="reveal">
+            <div class="arch-node" style="padding: 24px;">
+                <div style="font-size: 1.5rem; margin-bottom: 12px; color: var(--accent);">💻</div>
+                <div class="node-label" style="font-size: 1.1rem;">Admin API</div>
+                <div class="node-desc" style="font-size: 0.85rem; line-height: 1.5; margin-top: 8px;">Gestiona tenants, sube certificados, rota API keys y monitorea colas con endpoints protegidos por ADMIN_API_KEY.</div>
+            </div>
+            <div class="arch-node" style="padding: 24px;">
+                <div style="font-size: 1.5rem; margin-bottom: 12px; color: var(--accent-2);">⚡</div>
+                <div class="node-label" style="font-size: 1.1rem;">API RESTful</div>
+                <div class="node-desc" style="font-size: 0.85rem; line-height: 1.5; margin-top: 8px;">Integración directa para sistemas a medida. Emite, anula y consulta documentos fiscales automatizando todo el proceso de facturación.</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     API REFERENCE
+     ═══════════════════════════════════════════ -->
+<section id="api">
+    <div class="container">
+        <div class="section-label reveal">API REST</div>
+        <h2 class="section-title reveal">25+ endpoints.<br>Dos APIs, una plataforma.</h2>
+        <p class="section-subtitle reveal">
+            API RESTful para tenants con autenticación por API Key, rate limiting,
+            idempotencia y respuestas JSON. Admin API separada para gestión de tenants,
+            certificados y operaciones de plataforma.
+        </p>
+
+        <table class="api-table reveal">
+            <thead>
+                <tr>
+                    <th style="width: 80px;">Método</th>
+                    <th style="width: 300px;">Endpoint</th>
+                    <th>Descripción</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="method-badge post">POST</span></td>
+                    <td><span class="endpoint-path">/v1/ecf/emitir</span></td>
+                    <td class="endpoint-desc">Emitir e-CF: asigna NCF atómico, valida, persiste y encola para envío a DGII</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge get">GET</span></td>
+                    <td><span class="endpoint-path">/v1/ecf/{ncf}/estado</span></td>
+                    <td class="endpoint-desc">Consultar estado actual del e-CF: pendiente, enviado, aprobado, rechazado, condicionado</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge get">GET</span></td>
+                    <td><span class="endpoint-path">/v1/ecf/{ncf}/xml</span></td>
+                    <td class="endpoint-desc">Descargar XML firmado — retención de 11 años conforme normativa</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge post">POST</span></td>
+                    <td><span class="endpoint-path">/v1/ecf/validar</span></td>
+                    <td class="endpoint-desc">Validación local sin encolamiento — verifica estructura, XSD, y reglas de negocio</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge post">POST</span></td>
+                    <td><span class="endpoint-path">/v1/ecf/anular</span></td>
+                    <td class="endpoint-desc">Solicitar anulación ante DGII con motivo oficial (01-09)</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge post">POST</span></td>
+                    <td><span class="endpoint-path">/v1/ecf/estado-batch</span></td>
+                    <td class="endpoint-desc">Consultar estado de hasta 100 NCFs simultáneamente</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge get">GET</span></td>
+                    <td><span class="endpoint-path">/v1/reportes/606</span></td>
+                    <td class="endpoint-desc">Reporte de Compras — formato DGII por año/mes</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge get">GET</span></td>
+                    <td><span class="endpoint-path">/v1/reportes/607</span></td>
+                    <td class="endpoint-desc">Reporte de Ventas — formato DGII por año/mes</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge get">GET</span></td>
+                    <td><span class="endpoint-path">/v1/reportes/608</span></td>
+                    <td class="endpoint-desc">Reporte de Anulaciones — formato DGII por año/mes</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3 class="section-subtitle reveal" style="margin-top:3rem; font-size:1.3rem; font-weight:600;">Admin API</h3>
+        <table class="api-table reveal">
+            <thead>
+                <tr>
+                    <th style="width: 80px;">Método</th>
+                    <th style="width: 300px;">Endpoint</th>
+                    <th>Descripción</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="method-badge post">POST</span></td>
+                    <td><span class="endpoint-path">/admin/tenants</span></td>
+                    <td class="endpoint-desc">Crear tenant con schema aislado, claves y secuencias NCF</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge get">GET</span></td>
+                    <td><span class="endpoint-path">/admin/tenants</span></td>
+                    <td class="endpoint-desc">Listar tenants con filtros por estado y búsqueda</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge patch">PATCH</span></td>
+                    <td><span class="endpoint-path">/admin/tenants/{id}</span></td>
+                    <td class="endpoint-desc">Actualizar estado, límites y webhook de un tenant</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge post">POST</span></td>
+                    <td><span class="endpoint-path">/admin/tenants/{id}/cert</span></td>
+                    <td class="endpoint-desc">Subir certificado .p12 — cifrado AES-256-GCM en vault</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge post">POST</span></td>
+                    <td><span class="endpoint-path">/admin/tenants/{id}/rotate-key</span></td>
+                    <td class="endpoint-desc">Rotar API Key del tenant con período de gracia</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge get">GET</span></td>
+                    <td><span class="endpoint-path">/admin/stats</span></td>
+                    <td class="endpoint-desc">Estadísticas de la plataforma — tenants, colas, certs por vencer</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge get">GET</span></td>
+                    <td><span class="endpoint-path">/admin/dlq</span></td>
+                    <td class="endpoint-desc">Ver mensajes en Dead Letter Queue para diagnóstico</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge get">GET</span></td>
+                    <td><span class="endpoint-path">/health</span></td>
+                    <td class="endpoint-desc">Health check con estado de DB y Redis</td>
+                </tr>
+                <tr>
+                    <td><span class="method-badge get">GET</span></td>
+                    <td><span class="endpoint-path">/metrics</span></td>
+                    <td class="endpoint-desc">Métricas Prometheus — latencia, throughput, colas</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     ODOO MODULE
+     ═══════════════════════════════════════════ -->
+<section id="odoo" style="background: linear-gradient(180deg, transparent, rgba(108,99,255,0.03), transparent);">
+    <div class="container">
+        <div class="section-label reveal">Módulo Odoo 18</div>
+        <h2 class="section-title reveal">Integración nativa con<br>tu ERP favorito</h2>
+        <p class="section-subtitle reveal">
+            Módulo <code>ecf_connector</code> para Odoo 18 que conecta directamente con el Hub SaaS.
+            Emisión automática o manual, trazabilidad completa, y configuración por compañía.
+        </p>
+
+        <div class="odoo-features">
+            <div class="odoo-card reveal">
+                <h4>📋 Emisión de e-CF</h4>
+                <ul>
+                    <li>Emisión automática al confirmar factura (toggle)</li>
+                    <li>Emisión manual desde botón "Enviar e-CF"</li>
+                    <li>Prevalidación: tipo e-CF, RNC/cédula, líneas, impuestos, moneda</li>
+                    <li>Detección automática de tipo de identificación (RNC/Cédula/Pasaporte)</li>
+                    <li>Soporte multi-moneda con tipo de cambio invertido correcto</li>
+                    <li>10 tipos de e-CF precargados como data semilla</li>
+                </ul>
+            </div>
+            <div class="odoo-card reveal">
+                <h4>🔔 Callbacks y Trazabilidad</h4>
+                <ul>
+                    <li>Webhook HMAC-SHA256 recibe resultado de DGII automáticamente</li>
+                    <li>Estado actualizado en factura y log en tiempo real</li>
+                    <li>Mensaje en chatter con estado, NCF, CUFE y errores</li>
+                    <li>Modelo <code>ecf.log</code> con historial completo de cada envío</li>
+                    <li>Consulta manual de estado desde la factura</li>
+                    <li>Timestamp de aprobación registrado automáticamente</li>
+                </ul>
+            </div>
+            <div class="odoo-card reveal">
+                <h4>❌ Anulación</h4>
+                <ul>
+                    <li>Wizard de anulación con motivos oficiales DGII (01-09)</li>
+                    <li>Código de motivo seleccionable desde lista desplegable</li>
+                    <li>Nota opcional del operador</li>
+                    <li>Confirmación antes del envío al SaaS</li>
+                    <li>Resultado registrado en log y chatter</li>
+                </ul>
+            </div>
+            <div class="odoo-card reveal">
+                <h4>⚙️ Configuración</h4>
+                <ul>
+                    <li>Configuración por compañía vía <code>res.config.settings</code></li>
+                    <li>URL del SaaS, API Key y Webhook Secret configurables</li>
+                    <li>Ambiente seleccionable (Certificación / Producción)</li>
+                    <li>RNC de empresa vinculado a <code>company.vat</code></li>
+                    <li>Grupos de seguridad: Usuario e-CF y Manager e-CF</li>
+                    <li>ACL diferenciadas por rol</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SECURITY
+     ═══════════════════════════════════════════ -->
+<section id="seguridad">
+    <div class="container">
+        <div class="section-label reveal">Seguridad</div>
+        <h2 class="section-title reveal">Seguridad de nivel<br>empresarial en cada capa</h2>
+        <p class="section-subtitle reveal">
+            Certificados cifrados, comunicaciones firmadas, aislamiento de datos total,
+            y cumplimiento con las mejores prácticas de la industria.
+        </p>
+
+        <div class="security-grid">
+            <div class="security-item reveal">
+                <div class="sec-icon">🔐</div>
+                <div>
+                    <h4>Vault de Certificados AES-256-GCM</h4>
+                    <p>Los certificados .p12 se cifran con AES-256-GCM antes de almacenarse. Master Key en variable de entorno, IV+Tag para autenticidad. Imposible de descifrar sin la clave maestra.</p>
+                </div>
+            </div>
+            <div class="security-item reveal">
+                <div class="sec-icon">🏢</div>
+                <div>
+                    <h4>Aislamiento Multi-Tenant por Schema</h4>
+                    <p>Cada tenant tiene su propio schema PostgreSQL. Las queries solo acceden al schema del tenant autenticado. Sin riesgo de cruce de datos entre empresas.</p>
+                </div>
+            </div>
+            <div class="security-item reveal">
+                <div class="sec-icon">🔑</div>
+                <div>
+                    <h4>API Keys con SHA-256</h4>
+                    <p>Las API Keys se almacenan como hashes SHA-256 — nunca en texto plano. Validación en cada request con rate limiting por tenant (60 req/min configurable).</p>
+                </div>
+            </div>
+            <div class="security-item reveal">
+                <div class="sec-icon">🛡️</div>
+                <div>
+                    <h4>TLS + Security Headers</h4>
+                    <p>HTTPS obligatorio vía Traefik con Let's Encrypt. HSTS, X-Frame-Options, X-Content-Type-Options, y CSP configurados. Redirección HTTP → HTTPS automática.</p>
+                </div>
+            </div>
+            <div class="security-item reveal">
+                <div class="sec-icon">✍️</div>
+                <div>
+                    <h4>Webhooks firmados HMAC-SHA256</h4>
+                    <p>Cada callback a Odoo incluye firma HMAC-SHA256 verificable. El módulo Odoo valida la firma antes de procesar — protege contra callbacks falsificados.</p>
+                </div>
+            </div>
+            <div class="security-item reveal">
+                <div class="sec-icon">📋</div>
+                <div>
+                    <h4>Auditoría Completa</h4>
+                    <p>Tabla <code>system_audit_log</code> para acciones administrativas. Log de cambio de estado por e-CF (<code>ecf_estado_log</code>). Access logs en Traefik formato JSON.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     DGII COMPLIANCE
+     ═══════════════════════════════════════════ -->
+<section id="dgii">
+    <div class="container">
+        <div class="section-label reveal">Cumplimiento DGII</div>
+        <h2 class="section-title reveal">¿La DGII acepta un Hub<br>multi-tenant conectado a Odoo?</h2>
+        <p class="section-subtitle reveal">
+            Sí. La normativa DGII no restringe la arquitectura interna del proveedor de servicios
+            — solo exige cumplimiento técnico y operativo del e-CF.
+        </p>
+
+        <div class="compliance-grid">
+            <div class="compliance-card reveal">
+                <div class="big-check">✅</div>
+                <h4>Certificado por Tenant</h4>
+                <p>Cada tenant firma con su propio certificado digital emitido por la DGII. No se comparten certificados entre empresas. La DGII identifica al emisor por su certificado y RNC.</p>
+            </div>
+            <div class="compliance-card reveal">
+                <div class="big-check">✅</div>
+                <h4>NCF por Contribuyente</h4>
+                <p>Las secuencias autorizadas se asignan por RNC en la DGII. Nuestro sistema genera NCFs atómicamente dentro del rango autorizado de cada tenant.</p>
+            </div>
+            <div class="compliance-card reveal">
+                <div class="big-check">✅</div>
+                <h4>XML Conforme a Norma</h4>
+                <p>El XML generado cumple con los schemas XSD oficiales, namespace correcto, y estructura requerida. Validación previa al envío garantiza conformidad.</p>
+            </div>
+            <div class="compliance-card reveal">
+                <div class="big-check">✅</div>
+                <h4>Firma XAdES-BES / RSA-SHA256</h4>
+                <p>Firma digital conforme a Norma 06-2018 de la DGII. Certificado del emisor, canonicalización C14N, digest SHA-256, y bloque Signature completo.</p>
+            </div>
+            <div class="compliance-card reveal">
+                <div class="big-check">✅</div>
+                <h4>CUFE SHA-384</h4>
+                <p>Código Único de Factura Electrónica generado con SHA-384 (96 caracteres) conforme especificación. Incluido en el XML firmado y reportado a la DGII.</p>
+            </div>
+            <div class="compliance-card reveal">
+                <div class="big-check">✅</div>
+                <h4>Retención 11 Años</h4>
+                <p>XMLs firmados almacenados en PostgreSQL con respaldo. Endpoint <code>/xml</code> para descarga bajo demanda. Conforme al artículo 50 del Código Tributario.</p>
+            </div>
+        </div>
+
+        <div class="analysis-box reveal">
+            <h4>⚖️ Análisis Legal del Modelo Hub Multi-Tenant</h4>
+            <p>
+                La Norma General 06-2018 y sus resoluciones posteriores regulan <strong>qué</strong> debe contener
+                un e-CF y <strong>cómo</strong> debe firmarse/transmitirse, pero <strong>no dictan la arquitectura
+                del software</strong> del emisor. Lo que la DGII exige:
+            </p>
+            <ul>
+                <li><strong>Cada contribuyente firma con su propio certificado digital</strong> — cumplido, cada tenant tiene su .p12 en el vault cifrado</li>
+                <li><strong>El XML cumple con el schema XSD oficial</strong> — cumplido con validación previa al envío</li>
+                <li><strong>Los NCFs pertenecen al rango autorizado del emisor</strong> — cumplido con secuencias atómicas por tenant</li>
+                <li><strong>Los e-CFs se transmiten vía los endpoints oficiales de la DGII</strong> — cumplido, usamos <code>/fe/recepcion/api/ecf</code></li>
+                <li><strong>Los documentos se retienen por el período legal</strong> — cumplido, XMLs almacenados en PostgreSQL con respaldo</li>
+                <li><strong>El CUFE es correcto y verificable</strong> — cumplido, SHA-384 conforme a especificación</li>
+                <li><strong>La autenticación usa el flujo Semilla oficial</strong> — cumplido, cada tenant se autentica con su certificado</li>
+            </ul>
+            <p style="margin-top: 16px;">
+                Proveedores como <strong>DGII Libre</strong>, <strong>Softland</strong>, y <strong>Intellisys</strong> operan modelos similares
+                donde un servicio centralizado procesa e-CFs para múltiples contribuyentes, cada uno con su identidad fiscal independiente.
+                El modelo hub-and-spoke es una práctica aceptada en la industria dominicana.
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     PRICING
+     ═══════════════════════════════════════════ -->
+<section id="planes">
+    <div class="container">
+        <div class="section-label reveal">Planes</div>
+        <h2 class="section-title reveal">Precios transparentes,<br>sin sorpresas</h2>
+        <p class="section-subtitle reveal">
+            Cada plan incluye el módulo Odoo, soporte técnico, y actualizaciones.
+            Paga solo por lo que emites.
+        </p>
+
+        <div class="pricing-cards">
+            <div class="price-card reveal">
+                <div class="plan-name">Starter</div>
+                <div class="plan-price">US$49<span>/mes</span></div>
+                <p class="plan-desc">Para empresas que inician su facturación electrónica</p>
+                <ul>
+                    <li>Hasta 500 e-CF / mes</li>
+                    <li>1 empresa (RNC)</li>
+                    <li>Certificación + Producción</li>
+                    <li>Módulo Odoo 18 incluido</li>
+                    <li>Webhook automático</li>
+                    <li>Reportes 606/607/608</li>
+                    <li>Soporte por email</li>
+                </ul>
+                <button class="btn-plan outline" onclick="document.getElementById('contacto').scrollIntoView({behavior:'smooth'})">Comenzar →</button>
+            </div>
+            <div class="price-card featured reveal">
+                <div class="plan-name">Business</div>
+                <div class="plan-price">US$149<span>/mes</span></div>
+                <p class="plan-desc">Para empresas en crecimiento con volumen medio</p>
+                <ul>
+                    <li>Hasta 5,000 e-CF / mes</li>
+                    <li>Hasta 3 empresas (RNC)</li>
+                    <li>Todo lo del plan Starter</li>
+                    <li>API Key por empresa</li>
+                    <li>Métricas Prometheus</li>
+                    <li>Consulta batch (100 NCFs)</li>
+                    <li>Soporte prioritario</li>
+                </ul>
+                <button class="btn-plan primary" onclick="document.getElementById('contacto').scrollIntoView({behavior:'smooth'})">Comenzar →</button>
+            </div>
+            <div class="price-card reveal">
+                <div class="plan-name">Enterprise</div>
+                <div class="plan-price">Custom</div>
+                <p class="plan-desc">Para grupos empresariales y proveedores de servicio</p>
+                <ul>
+                    <li>e-CF ilimitados</li>
+                    <li>Empresas ilimitadas</li>
+                    <li>Todo lo del plan Business</li>
+                    <li>SLA garantizado 99.9%</li>
+                    <li>Deployment privado opcional</li>
+                    <li>Integración custom</li>
+                    <li>Account manager dedicado</li>
+                </ul>
+                <button class="btn-plan outline" onclick="document.getElementById('contacto').scrollIntoView({behavior:'smooth'})">Contactar Ventas →</button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     CTA
+     ═══════════════════════════════════════════ -->
+<section class="cta-section" id="contacto">
+    <div class="container">
+        <div class="section-label reveal" style="justify-content: center;">Comienza hoy</div>
+        <h2 class="section-title reveal">
+            Deja de pelear con la DGII.<br>
+            <span style="background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Automatiza tu facturación.</span>
+        </h2>
+        <p class="section-subtitle reveal" style="margin: 0 auto 40px; text-align: center;">
+            Configura tu Odoo, conecta el módulo, y emite tu primer e-CF en menos de una hora.
+            Nuestro equipo te acompaña en la certificación DGII.
+        </p>
+        <form id="contactForm" class="reveal" style="max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <input type="text" name="nombre" placeholder="Nombre *" required
+                    style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.95rem; outline: none; transition: border-color .2s;"
+                    onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+                <input type="text" name="empresa" placeholder="Empresa *" required
+                    style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.95rem; outline: none; transition: border-color .2s;"
+                    onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+            </div>
+            <input type="email" name="email" placeholder="Email corporativo *" required
+                style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.95rem; outline: none; transition: border-color .2s; width: 100%;"
+                onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+            <input type="tel" name="telefono" placeholder="Teléfono (opcional)"
+                style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.95rem; outline: none; transition: border-color .2s; width: 100%;"
+                onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+            <select name="plan" aria-label="Plan de interés" style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted); font-family: var(--font-sans); font-size: 0.95rem; outline: none; cursor: pointer;">
+                <option value="">Plan de interés</option>
+                <option value="basico">Básico — hasta 500 e-CF/mes</option>
+                <option value="profesional">Profesional — hasta 5,000 e-CF/mes</option>
+                <option value="enterprise">Enterprise — volumen ilimitado</option>
+            </select>
+            <textarea name="mensaje" placeholder="¿Algo que debamos saber?" rows="3"
+                style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.95rem; outline: none; resize: vertical; transition: border-color .2s;"
+                onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+            <button type="submit" class="btn-primary" style="font-size: 1.1rem; padding: 16px 40px; border: none; cursor: pointer; width: 100%;">
+                Solicitar Demo Gratuita →
+            </button>
+            <p id="formMsg" style="text-align: center; font-size: 0.85rem; color: var(--accent); display: none;"></p>
+            <p style="text-align: center; font-size: 0.82rem; color: var(--text-dim);">
+                Sin compromiso · Setup en el mismo día · Ambiente de pruebas incluido
+            </p>
+        </form>
+        <script>
+        document.getElementById('contactForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var form = e.target;
+            var btn = form.querySelector('button[type="submit"]');
+            var msg = document.getElementById('formMsg');
+            var data = Object.fromEntries(new FormData(form));
+
+            // Honeypot: si hay campos ocultos rellenados, silenciosamente ignorar
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+
+            // Enviar como mailto fallback (reemplazar con endpoint real en producción)
+            var subject = encodeURIComponent('Demo ECF — ' + (data.empresa || 'Sin empresa'));
+            var body = encodeURIComponent(
+                'Nombre: ' + data.nombre + '\n' +
+                'Empresa: ' + data.empresa + '\n' +
+                'Email: ' + data.email + '\n' +
+                'Teléfono: ' + (data.telefono || 'N/A') + '\n' +
+                'Plan: ' + (data.plan || 'No especificado') + '\n' +
+                'Mensaje: ' + (data.mensaje || 'N/A')
+            );
+            window.location.href = 'mailto:ecf@renace.tech?subject=' + subject + '&body=' + body;
+
+            setTimeout(function() {
+                msg.style.display = 'block';
+                msg.textContent = '¡Gracias! Se abrirá tu cliente de correo. Si no se abre, escríbenos a ecf@renace.tech';
+                btn.disabled = false;
+                btn.textContent = 'Solicitar Demo Gratuita →';
+            }, 500);
+        });
+        </script>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     FOOTER
+     ═══════════════════════════════════════════ -->
+<footer class="footer">
+    <div class="container footer-inner">
+        <div class="footer-copy">
+            © 2026 <strong>renace.tech</strong> — Facturación Electrónica e-CF · Santo Domingo, RD
+        </div>
+        <div class="footer-links">
+            <a href="https://renace.tech">renace.tech</a>
+            <a href="mailto:ecf@renace.tech">ecf@renace.tech</a>
+            <a href="#api">API Docs</a>
+            <a href="#dgii">Cumplimiento DGII</a>
+        </div>
+    </div>
+</footer>
+
+<!-- ═══════════════════════════════════════════
+     SCRIPTS
+     ═══════════════════════════════════════════ -->
+<script>
+    // Scroll-triggered reveal animations
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry, i) => {
+            if (entry.isIntersecting) {
+                setTimeout(() => entry.target.classList.add('visible'), i * 60);
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    reveals.forEach(el => observer.observe(el));
+
+    // Navbar scroll effect
+    const nav = document.getElementById('nav');
+    window.addEventListener('scroll', () => {
+        nav.classList.toggle('scrolled', window.scrollY > 20);
+    }, { passive: true });
+</script>
+</body>
+</html>
