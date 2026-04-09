@@ -112,8 +112,19 @@ if ALLOWED_ORIGINS:
 
 app.include_router(admin_router)
 
-# ── Portal Admin (static SPA) ──
+# ── Landing page (ruta raíz) ──
 import pathlib
+from fastapi.responses import FileResponse
+
+_landing_file = pathlib.Path(__file__).resolve().parent.parent / "landing" / "index.html"
+
+@app.get("/", include_in_schema=False)
+async def landing():
+    if _landing_file.is_file():
+        return FileResponse(str(_landing_file), media_type="text/html")
+    return JSONResponse({"service": "SaaS ECF DGII", "status": "running"})
+
+# ── Portal Admin (static SPA) ──
 _portal_dir = pathlib.Path(__file__).resolve().parent.parent / "portal_admin"
 if _portal_dir.is_dir():
     app.mount("/portal", StaticFiles(directory=str(_portal_dir), html=True), name="portal")
