@@ -22,7 +22,7 @@ CREATE TABLE public.tenants (
     plan                VARCHAR(30) NOT NULL DEFAULT 'basico' CHECK (plan IN ('basico','profesional','enterprise')),
     estado              VARCHAR(20) NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','activo','suspendido','cancelado')),
     schema_name         VARCHAR(63) NOT NULL UNIQUE,          -- schema PostgreSQL del tenant
-    ambiente            VARCHAR(10) NOT NULL DEFAULT 'certificacion' CHECK (ambiente IN ('certificacion','produccion')),
+    ambiente            VARCHAR(20) NOT NULL DEFAULT 'certificacion' CHECK (ambiente IN ('certificacion','produccion')),
     odoo_webhook_url    TEXT,                                 -- URL donde notificar callbacks
     odoo_webhook_secret VARCHAR(128),                         -- HMAC-SHA256 secret para validar
     max_ecf_mensual     INTEGER NOT NULL DEFAULT 1000,

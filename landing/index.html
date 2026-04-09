@@ -1012,7 +1012,7 @@
 &nbsp;&nbsp;-H <span class="str">"X-API-Key: sk_live_..."</span> \<br>
 &nbsp;&nbsp;-d <span class="str">'{ "tipo_ecf": "31", ... }'</span><br>
 <br>
-<span class="dim">→ Response 200</span><br>
+<span class="dim">→ Response 202 Accepted</span><br>
 {<br>
 &nbsp;&nbsp;<span class="str">"ncf"</span>:&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"E310000000001"</span>,<br>
 &nbsp;&nbsp;<span class="str">"ecf_id"</span>:&nbsp;<span class="str">"a1b2c3d4-..."</span>,<br>
@@ -1304,7 +1304,7 @@
                 <tr>
                     <td><span class="method-badge get">GET</span></td>
                     <td><span class="endpoint-path">/v1/ecf/{ncf}/xml</span></td>
-                    <td class="endpoint-desc">Descargar XML firmado — retención de 11 años conforme normativa</td>
+                    <td class="endpoint-desc">Descargar XML firmado — retención de 10 años conforme normativa</td>
                 </tr>
                 <tr>
                     <td><span class="method-badge post">POST</span></td>
@@ -1351,37 +1351,37 @@
             <tbody>
                 <tr>
                     <td><span class="method-badge post">POST</span></td>
-                    <td><span class="endpoint-path">/admin/tenants</span></td>
+                    <td><span class="endpoint-path">/v1/admin/tenants</span></td>
                     <td class="endpoint-desc">Crear tenant con schema aislado, claves y secuencias NCF</td>
                 </tr>
                 <tr>
                     <td><span class="method-badge get">GET</span></td>
-                    <td><span class="endpoint-path">/admin/tenants</span></td>
+                    <td><span class="endpoint-path">/v1/admin/tenants</span></td>
                     <td class="endpoint-desc">Listar tenants con filtros por estado y búsqueda</td>
                 </tr>
                 <tr>
                     <td><span class="method-badge patch">PATCH</span></td>
-                    <td><span class="endpoint-path">/admin/tenants/{id}</span></td>
+                    <td><span class="endpoint-path">/v1/admin/tenants/{id}</span></td>
                     <td class="endpoint-desc">Actualizar estado, límites y webhook de un tenant</td>
                 </tr>
                 <tr>
                     <td><span class="method-badge post">POST</span></td>
-                    <td><span class="endpoint-path">/admin/tenants/{id}/cert</span></td>
+                    <td><span class="endpoint-path">/v1/admin/tenants/{id}/cert</span></td>
                     <td class="endpoint-desc">Subir certificado .p12 — cifrado AES-256-GCM en vault</td>
                 </tr>
                 <tr>
                     <td><span class="method-badge post">POST</span></td>
-                    <td><span class="endpoint-path">/admin/tenants/{id}/rotate-key</span></td>
+                    <td><span class="endpoint-path">/v1/admin/tenants/{id}/rotate-key</span></td>
                     <td class="endpoint-desc">Rotar API Key del tenant con período de gracia</td>
                 </tr>
                 <tr>
                     <td><span class="method-badge get">GET</span></td>
-                    <td><span class="endpoint-path">/admin/stats</span></td>
+                    <td><span class="endpoint-path">/v1/admin/stats</span></td>
                     <td class="endpoint-desc">Estadísticas de la plataforma — tenants, colas, certs por vencer</td>
                 </tr>
                 <tr>
                     <td><span class="method-badge get">GET</span></td>
-                    <td><span class="endpoint-path">/admin/dlq</span></td>
+                    <td><span class="endpoint-path">/v1/admin/dlq</span></td>
                     <td class="endpoint-desc">Ver mensajes en Dead Letter Queue para diagnóstico</td>
                 </tr>
                 <tr>

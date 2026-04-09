@@ -131,7 +131,7 @@ services:
     networks:
       - ecf_net
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import redis; r=redis.from_url(\"redis://redis:6379/0\"); r.ping()' 2>/dev/null || exit 1"]
+      test: ["CMD-SHELL", "python -c 'import redis,os; r=redis.from_url(\"redis://redis:6379/0\", password=os.environ.get(\"REDIS_PASSWORD\",\"\")); r.ping()' 2>/dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

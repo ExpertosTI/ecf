@@ -53,6 +53,7 @@ REQUIRED_VARS=(
     "REDIS_PASSWORD"
     "VAULT_MASTER_KEY"
     "ECF_DOMAIN"
+    "ADMIN_API_KEY"
 )
 
 # En produccion, las variables DGII son obligatorias

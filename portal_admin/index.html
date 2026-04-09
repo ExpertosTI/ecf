@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Renace ECF — Panel Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep:      #0A0F1C;
+            --bg-card:      #111828;
+            --bg-card-alt:  #162032;
+            --bg-surface:   #1E293B;
+            --accent:       #00E5A0;
+            --accent-dim:   #00C488;
+            --accent-glow:  rgba(0, 229, 160, 0.12);
+            --accent-2:     #6C63FF;
+            --accent-2-glow:rgba(108, 99, 255, 0.10);
+            --danger:       #EF4444;
+            --danger-dim:   #DC2626;
+            --warning:      #F59E0B;
+            --text-primary: #F1F5F9;
+            --text-muted:   #94A3B8;
+            --text-dim:     #64748B;
+            --border:       rgba(255,255,255,0.08);
+            --border-accent:rgba(0,229,160,0.25);
+            --radius:       12px;
+            --radius-sm:    8px;
+            --font-sans:    'Inter', system-ui, sans-serif;
+            --font-mono:    'JetBrains Mono', monospace;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { -webkit-font-smoothing: antialiased; }
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* ── Login Screen ── */
+        .login-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px;
+        }
+        .login-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 48px 40px;
+            width: 100%;
+            max-width: 420px;
+            text-align: center;
+        }
+        .login-logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-family: var(--font-mono);
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+        .logo-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            font-weight: 900;
+            color: #0A0F1C;
+            flex-shrink: 0;
+        }
+        .logo-icon-sm {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 900;
+            color: #0A0F1C;
+            flex-shrink: 0;
+        }
+        .logo-text span { color: var(--accent); }
+        .login-subtitle {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-bottom: 32px;
+        }
+
+        /* ── Layout ── */
+        .app { display: none; }
+        .app.active { display: flex; min-height: 100vh; }
+        .sidebar {
+            width: 260px;
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            padding: 24px 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            overflow-y: auto;
+            z-index: 50;
+        }
+        .sidebar-brand {
+            font-family: var(--font-mono);
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent);
+            padding: 0 24px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sidebar-brand span { color: var(--text-dim); font-weight: 400; font-size: 0.75rem; }
+        .sidebar-section {
+            padding: 20px 12px 8px;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-dim);
+            padding-left: 24px;
+        }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 24px;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all .15s;
+            border-radius: 0;
+            border-left: 3px solid transparent;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.03); color: var(--text-primary); }
+        .nav-item.active {
+            color: var(--accent);
+            background: var(--accent-glow);
+            border-left-color: var(--accent);
+        }
+        .nav-item .icon { font-size: 1.1rem; width: 22px; text-align: center; }
+        .main {
+            margin-left: 260px;
+            flex: 1;
+            padding: 32px 40px;
+            max-width: 1200px;
+        }
+
+        /* ── Stats Cards ── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+        }
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 6px;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            font-family: var(--font-mono);
+            color: var(--accent);
+        }
+        .stat-value.warning { color: var(--warning); }
+        .stat-value.neutral { color: var(--text-primary); }
+
+        /* ── Page Header ── */
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 28px;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all .15s;
+            font-family: var(--font-sans);
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #0A0F1C;
+        }
+        .btn-primary:hover { background: var(--accent-dim); }
+        .btn-secondary {
+            background: var(--bg-surface);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover { border-color: var(--text-dim); }
+        .btn-danger {
+            background: rgba(239,68,68,0.12);
+            color: var(--danger);
+            border: 1px solid rgba(239,68,68,0.2);
+        }
+        .btn-danger:hover { background: rgba(239,68,68,0.2); }
+        .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-muted);
+            padding: 6px 12px;
+        }
+        .btn-ghost:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+
+        /* ── Table ── */
+        .table-wrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        thead th {
+            text-align: left;
+            padding: 14px 18px;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            background: rgba(255,255,255,0.02);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+        }
+        tbody td {
+            padding: 14px 18px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            color: var(--text-muted);
+        }
+        tbody tr:hover { background: rgba(255,255,255,0.02); }
+        tbody tr:last-child td { border-bottom: none; }
+        .mono { font-family: var(--font-mono); font-size: 0.8rem; }
+
+        /* ── Badges ── */
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        .badge-activo { background: rgba(0,229,160,0.12); color: var(--accent); }
+        .badge-pendiente { background: rgba(245,158,11,0.12); color: var(--warning); }
+        .badge-suspendido { background: rgba(239,68,68,0.12); color: var(--danger); }
+        .badge-cancelado { background: rgba(100,116,139,0.15); color: var(--text-dim); }
+        .badge-certificacion { background: var(--accent-2-glow); color: var(--accent-2); }
+        .badge-produccion { background: rgba(0,229,160,0.12); color: var(--accent); }
+
+        /* ── Forms ── */
+        .form-group { margin-bottom: 18px; }
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        .form-group .hint {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+        input[type="text"], input[type="email"], input[type="password"],
+        input[type="number"], input[type="url"], select, textarea {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-deep);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            font-family: var(--font-sans);
+            transition: border-color .15s;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+        select { cursor: pointer; }
+        textarea { resize: vertical; min-height: 80px; }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        /* ── Modal ── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            width: 100%;
+            max-width: 560px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 24px 28px 0;
+        }
+        .modal-header h2 { font-size: 1.15rem; font-weight: 700; }
+        .modal-body { padding: 24px 28px; }
+        .modal-footer {
+            padding: 16px 28px 24px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* ── Toast ── */
+        .toast-container {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 300;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .toast {
+            padding: 14px 20px;
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            font-weight: 500;
+            animation: slideIn .2s ease;
+            max-width: 380px;
+        }
+        .toast-success { background: rgba(0,229,160,0.15); color: var(--accent); border: 1px solid var(--border-accent); }
+        .toast-error { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.25); }
+        @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+        /* ── Detail Panel ── */
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .detail-item { margin-bottom: 12px; }
+        .detail-label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px; }
+        .detail-value { font-size: 0.9rem; color: var(--text-primary); word-break: break-all; }
+
+        /* ── Secret reveal ── */
+        .secret-box {
+            background: var(--bg-deep);
+            border: 1px solid var(--border-accent);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            margin: 12px 0;
+        }
+        .secret-box .label { font-size: 0.7rem; color: var(--accent); text-transform: uppercase; margin-bottom: 4px; }
+        .secret-box code {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            word-break: break-all;
+        }
+        .secret-box .warn {
+            display: block;
+            font-size: 0.7rem;
+            color: var(--warning);
+            margin-top: 8px;
+        }
+
+        /* ── Copy button ── */
+        .copy-btn {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 0.8rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .copy-btn:hover { color: var(--accent); background: var(--accent-glow); }
+
+        /* ── Empty state ── */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-dim);
+        }
+        .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
+        .empty-state p { font-size: 0.9rem; }
+
+        /* ── Clickable row ── */
+        .clickable { cursor: pointer; }
+
+        /* ── Tabs ── */
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+        .tab {
+            padding: 10px 20px;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all .15s;
+        }
+        .tab:hover { color: var(--text-primary); }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .main { margin-left: 0; padding: 20px 16px; }
+            .form-row { grid-template-columns: 1fr; }
+            .detail-grid { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        /* ── Logout ── */
+        .sidebar-footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════════════════ LOGIN ═══════════════════════ -->
+<div id="loginScreen" class="login-screen">
+    <div class="login-card">
+        <div class="login-logo">
+            <div class="logo-icon">R</div>
+            <span class="logo-text">renace<span>.ecf</span></span>
+        </div>
+        <div class="login-subtitle">Panel de Administración</div>
+        <form id="loginForm">
+            <div class="form-group" style="text-align:left;">
+                <label>URL del API</label>
+                <input type="url" id="apiUrl" value="http://localhost:8000" required>
+                <div class="hint">Ej: https://ecf.tu-dominio.do</div>
+            </div>
+            <div class="form-group" style="text-align:left;">
+                <label>Admin API Key</label>
+                <input type="password" id="adminKey" placeholder="Pega tu ADMIN_API_KEY aquí" required autocomplete="off">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%; margin-top:8px; padding: 12px;">
+                Conectar
+            </button>
+            <div id="loginError" style="color:var(--danger); font-size:0.8rem; margin-top:12px; display:none;"></div>
+        </form>
+    </div>
+</div>
+
+<!-- ═══════════════════════ APP ═══════════════════════ -->
+<div id="app" class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="logo-icon-sm">R</div>
+            <span class="logo-text">renace<span style="color:var(--accent)">.ecf</span></span>
+            <span>admin</span>
+        </div>
+        <div class="sidebar-section">Panel</div>
+        <div class="nav-item active" data-page="dashboard">
+            <span class="icon">📊</span> Dashboard
+        </div>
+        <div class="sidebar-section">Gestión</div>
+        <div class="nav-item" data-page="tenants">
+            <span class="icon">🏢</span> Empresas
+        </div>
+        <div class="nav-item" data-page="dlq">
+            <span class="icon">⚠️</span> Cola de Errores
+        </div>
+        <div class="sidebar-footer">
+            <div class="nav-item" id="logoutBtn" style="border:none; padding-left:0;">
+                <span class="icon">🚪</span> Cerrar Sesión
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Dashboard -->
+        <div id="page-dashboard" class="page">
+            <div class="page-header">
+                <h1 class="page-title">Dashboard</h1>
+                <button class="btn btn-secondary btn-sm" onclick="loadDashboard()">↻ Actualizar</button>
+            </div>
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card"><div class="stat-label">Empresas Activas</div><div class="stat-value" id="statActivos">—</div></div>
+                <div class="stat-card"><div class="stat-label">Total Registradas</div><div class="stat-value neutral" id="statTotal">—</div></div>
+                <div class="stat-card"><div class="stat-label">Certs por Vencer</div><div class="stat-value warning" id="statCerts">—</div></div>
+                <div class="stat-card"><div class="stat-label">Cola Pendiente</div><div class="stat-value neutral" id="statPending">—</div></div>
+                <div class="stat-card"><div class="stat-label">Reintentos</div><div class="stat-value warning" id="statRetry">—</div></div>
+                <div class="stat-card"><div class="stat-label">Errores (DLQ)</div><div class="stat-value warning" id="statDlq">—</div></div>
+            </div>
+            <div class="page-header" style="margin-top:8px;">
+                <h2 style="font-size:1.15rem;">Empresas Recientes</h2>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr>
+                        <th>RNC</th><th>Razón Social</th><th>Plan</th><th>Ambiente</th><th>Estado</th><th>e-CF / mes</th>
+                    </tr></thead>
+                    <tbody id="dashTenantRows"><tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-dim);">Cargando...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tenants List -->
+        <div id="page-tenants" class="page" style="display:none;">
+            <div class="page-header">
+                <h1 class="page-title">Empresas</h1>
+                <button class="btn btn-primary" onclick="openNewTenantModal()">+ Registrar Empresa</button>
+            </div>
+            <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+                <button class="btn btn-sm btn-secondary filter-btn active" data-filter="">Todas</button>
+                <button class="btn btn-sm btn-secondary filter-btn" data-filter="activo">Activas</button>
+                <button class="btn btn-sm btn-secondary filter-btn" data-filter="pendiente">Pendientes</button>
+                <button class="btn btn-sm btn-secondary filter-btn" data-filter="suspendido">Suspendidas</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr>
+                        <th>RNC</th><th>Razón Social</th><th>Plan</th><th>Ambiente</th><th>Estado</th><th>e-CF</th><th>Registrada</th><th></th>
+                    </tr></thead>
+                    <tbody id="tenantRows"><tr><td colspan="8" style="text-align:center; padding:30px;">Cargando...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tenant Detail -->
+        <div id="page-tenant-detail" class="page" style="display:none;">
+            <div class="page-header">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <button class="btn btn-ghost btn-sm" onclick="showPage('tenants')">← Volver</button>
+                    <h1 class="page-title" id="detailTitle">—</h1>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-secondary btn-sm" onclick="rotateKey()">🔄 Rotar API Key</button>
+                    <button class="btn btn-danger btn-sm" onclick="deactivateTenant()">Desactivar</button>
+                </div>
+            </div>
+            <div class="tabs">
+                <div class="tab active" data-tab="info">Información</div>
+                <div class="tab" data-tab="sequences">Secuencias NCF</div>
+                <div class="tab" data-tab="certs">Certificados</div>
+            </div>
+            <!-- Info Tab -->
+            <div id="tab-info">
+                <div class="detail-grid" id="detailInfo"></div>
+                <h3 style="font-size:0.95rem; margin:24px 0 12px;">Editar</h3>
+                <form id="editTenantForm">
+                    <div class="form-row">
+                        <div class="form-group"><label>Nombre Comercial</label><input type="text" id="editNombreComercial"></div>
+                        <div class="form-group"><label>Webhook URL (Odoo)</label><input type="url" id="editWebhookUrl"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Plan</label><select id="editPlan"><option value="">— sin cambio —</option><option value="basico">Básico</option><option value="profesional">Profesional</option><option value="enterprise">Enterprise</option></select></div>
+                        <div class="form-group"><label>Límite e-CF/mes</label><input type="number" id="editMaxEcf" min="100" max="1000000"></div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">Guardar Cambios</button>
+                </form>
+            </div>
+            <!-- Sequences Tab -->
+            <div id="tab-sequences" style="display:none;">
+                <div class="table-wrap" style="margin-bottom:20px;">
+                    <table>
+                        <thead><tr><th>Tipo</th><th>Prefijo</th><th>Actual</th><th>Máximo</th><th>Estado</th></tr></thead>
+                        <tbody id="seqRows"><tr><td colspan="5" style="text-align:center; padding:20px;">Cargando...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Certs Tab -->
+            <div id="tab-certs" style="display:none;">
+                <div style="margin-bottom:16px;">
+                    <button class="btn btn-primary btn-sm" onclick="openUploadCertModal()">📄 Subir Certificado .p12</button>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Serial</th><th>Subject</th><th>Válido Desde</th><th>Válido Hasta</th><th>Activo</th></tr></thead>
+                        <tbody id="certRows"><tr><td colspan="5" style="text-align:center; padding:20px;">Sin certificados</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- DLQ -->
+        <div id="page-dlq" class="page" style="display:none;">
+            <div class="page-header">
+                <h1 class="page-title">Cola de Errores (DLQ)</h1>
+                <button class="btn btn-secondary btn-sm" onclick="loadDLQ()">↻ Actualizar</button>
+            </div>
+            <div id="dlqContent"></div>
+        </div>
+    </main>
+</div>
+
+<!-- ═══════════════════════ MODALS ═══════════════════════ -->
+
+<!-- New Tenant Modal -->
+<div id="newTenantModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>Registrar Nueva Empresa</h2>
+            <button class="btn btn-ghost btn-sm" onclick="closeModal('newTenantModal')">✕</button>
+        </div>
+        <form id="newTenantForm">
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>RNC *</label>
+                        <input type="text" id="newRnc" required maxlength="11" placeholder="130000001">
+                        <div class="hint">9 u 11 dígitos, sin guiones</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Razón Social *</label>
+                        <input type="text" id="newRazonSocial" required placeholder="Mi Empresa SRL">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Email *</label>
+                        <input type="email" id="newEmail" required placeholder="admin@empresa.do">
+                    </div>
+                    <div class="form-group">
+                        <label>Teléfono</label>
+                        <input type="text" id="newTelefono" placeholder="809-555-0001">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Nombre Comercial</label>
+                    <input type="text" id="newNombreComercial" placeholder="Nombre público (opcional)">
+                </div>
+                <div class="form-group">
+                    <label>Dirección</label>
+                    <input type="text" id="newDireccion" placeholder="Calle Principal #123, Santo Domingo">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Plan</label>
+                        <select id="newPlan">
+                            <option value="basico">Básico — hasta 1,000 e-CF/mes</option>
+                            <option value="profesional">Profesional — hasta 10,000 e-CF/mes</option>
+                            <option value="enterprise">Enterprise — ilimitado</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Ambiente</label>
+                        <select id="newAmbiente">
+                            <option value="certificacion">Certificación (pruebas DGII)</option>
+                            <option value="produccion">Producción</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Webhook URL (Odoo)</label>
+                    <input type="url" id="newWebhookUrl" placeholder="https://mi-odoo.com/ecf/webhook">
+                    <div class="hint">URL donde se enviarán callbacks con estado de cada e-CF</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('newTenantModal')">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Crear Empresa</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Credentials Modal -->
+<div id="credentialsModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>🔑 Credenciales Generadas</h2>
+        </div>
+        <div class="modal-body">
+            <p style="color:var(--warning); font-size:0.85rem; margin-bottom:16px;">
+                ⚠️ Guarda estas credenciales ahora. <strong>No se pueden recuperar después.</strong>
+            </p>
+            <div class="secret-box">
+                <div class="label">API Key</div>
+                <code id="credApiKey">—</code>
+                <button class="copy-btn" onclick="copyText('credApiKey')">📋 Copiar</button>
+                <span class="warn">Configura esto en Odoo: Ajustes → e-CF DGII → API Key</span>
+            </div>
+            <div class="secret-box">
+                <div class="label">Webhook Secret</div>
+                <code id="credWebhookSecret">—</code>
+                <button class="copy-btn" onclick="copyText('credWebhookSecret')">📋 Copiar</button>
+                <span class="warn">Configura esto en Odoo: Ajustes → e-CF DGII → Webhook Secret</span>
+            </div>
+            <div style="margin-top:16px; padding:12px; background:var(--bg-deep); border-radius:var(--radius-sm); font-size:0.8rem; color:var(--text-muted);">
+                <strong>Próximos pasos:</strong><br>
+                1. Comparte el API Key y Webhook Secret con el contador/desarrollador<br>
+                2. Sube el certificado .p12 del contribuyente<br>
+                3. Verifica la conexión emitiendo un e-CF de prueba
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="closeModal('credentialsModal'); showPage('tenants');">Entendido</button>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Cert Modal -->
+<div id="uploadCertModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>Subir Certificado .p12</h2>
+            <button class="btn btn-ghost btn-sm" onclick="closeModal('uploadCertModal')">✕</button>
+        </div>
+        <form id="uploadCertForm">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Archivo .p12</label>
+                    <input type="file" id="certFile" accept=".p12,.pfx" required style="padding:8px; background:var(--bg-deep); border:1px solid var(--border); border-radius:var(--radius-sm); width:100%; color:var(--text-primary);">
+                    <div class="hint">Certificado digital emitido por la DGII (máx 50KB)</div>
+                </div>
+                <div class="form-group">
+                    <label>Contraseña del certificado</label>
+                    <input type="password" id="certPassword" required placeholder="Contraseña del .p12" autocomplete="new-password">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('uploadCertModal')">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Subir Certificado</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let API_URL = '';
+let ADMIN_KEY = '';
+let currentTenantId = null;
+let tenantsCache = [];
+
+// ═══════════════════════════════════════════
+// API HELPERS
+// ═══════════════════════════════════════════
+async function api(path, opts = {}) {
+    const url = `${API_URL}${path}`;
+    const headers = { 'Authorization': `Bearer ${ADMIN_KEY}` };
+    if (opts.body && !(opts.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(opts.body);
+    }
+    const res = await fetch(url, { ...opts, headers: { ...headers, ...opts.headers } });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+        const msg = data?.detail || `Error ${res.status}`;
+        throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    }
+    return data;
+}
+
+// ═══════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('loginError');
+    errEl.style.display = 'none';
+    API_URL = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+    ADMIN_KEY = document.getElementById('adminKey').value.trim();
+    try {
+        await api('/v1/admin/stats');
+        sessionStorage.setItem('ecf_api_url', API_URL);
+        sessionStorage.setItem('ecf_admin_key', ADMIN_KEY);
+        enterApp();
+    } catch (err) {
+        errEl.textContent = 'No se pudo conectar. Verifica la URL y la clave.';
+        errEl.style.display = 'block';
+    }
+});
+
+function enterApp() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').classList.add('active');
+    loadDashboard();
+}
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.clear();
+    location.reload();
+});
+
+// Auto-login from session
+(function checkSession() {
+    const url = sessionStorage.getItem('ecf_api_url');
+    const key = sessionStorage.getItem('ecf_admin_key');
+    if (url && key) {
+        API_URL = url;
+        ADMIN_KEY = key;
+        document.getElementById('apiUrl').value = url;
+        enterApp();
+    }
+})();
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+    item.addEventListener('click', () => showPage(item.dataset.page));
+});
+
+function showPage(page) {
+    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+    document.querySelectorAll('.nav-item[data-page]').forEach(n => n.classList.remove('active'));
+    const el = document.getElementById(`page-${page}`);
+    if (el) el.style.display = 'block';
+    const nav = document.querySelector(`.nav-item[data-page="${page}"]`);
+    if (nav) nav.classList.add('active');
+
+    if (page === 'dashboard') loadDashboard();
+    else if (page === 'tenants') loadTenants();
+    else if (page === 'dlq') loadDLQ();
+}
+
+// Tabs
+document.querySelectorAll('.tab[data-tab]').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('[id^="tab-"]').forEach(c => c.style.display = 'none');
+        document.getElementById(`tab-${tab.dataset.tab}`).style.display = 'block';
+    });
+});
+
+// Filters
+document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadTenants(btn.dataset.filter);
+    });
+});
+
+// ═══════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════
+async function loadDashboard() {
+    try {
+        const [stats, list] = await Promise.all([
+            api('/v1/admin/stats'),
+            api('/v1/admin/tenants'),
+        ]);
+        document.getElementById('statActivos').textContent = stats.tenants.activos;
+        document.getElementById('statTotal').textContent = stats.tenants.total;
+        document.getElementById('statCerts').textContent = stats.tenants.certs_por_vencer;
+        document.getElementById('statPending').textContent = stats.queues.pending;
+        document.getElementById('statRetry').textContent = stats.queues.retry;
+        document.getElementById('statDlq').textContent = stats.queues.dlq;
+
+        const rows = list.tenants.slice(0, 8);
+        document.getElementById('dashTenantRows').innerHTML = rows.length
+            ? rows.map(t => `<tr class="clickable" onclick="openTenantDetail('${t.id}')">
+                <td class="mono">${esc(t.rnc)}</td>
+                <td>${esc(t.razon_social)}</td>
+                <td>${esc(t.plan)}</td>
+                <td><span class="badge badge-${t.ambiente}">${esc(t.ambiente)}</span></td>
+                <td><span class="badge badge-${t.estado}">${esc(t.estado)}</span></td>
+                <td class="mono">${t.ecf_emitidos_mes} / ${t.max_ecf_mensual}</td>
+              </tr>`).join('')
+            : '<tr><td colspan="6" class="empty-state"><p>Aún no hay empresas registradas</p></td></tr>';
+    } catch (err) {
+        toast('Error cargando dashboard: ' + err.message, 'error');
+    }
+}
+
+// ═══════════════════════════════════════════
+// TENANTS LIST
+// ═══════════════════════════════════════════
+async function loadTenants(estado = '') {
+    try {
+        const path = estado ? `/v1/admin/tenants?estado=${estado}` : '/v1/admin/tenants';
+        const data = await api(path);
+        tenantsCache = data.tenants;
+        const tbody = document.getElementById('tenantRows');
+        if (!tenantsCache.length) {
+            tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="icon">🏢</div><p>No hay empresas registradas</p></div></td></tr>';
+            return;
+        }
+        tbody.innerHTML = tenantsCache.map(t => `
+            <tr class="clickable" onclick="openTenantDetail('${t.id}')">
+                <td class="mono">${esc(t.rnc)}</td>
+                <td><strong>${esc(t.razon_social)}</strong></td>
+                <td>${esc(t.plan)}</td>
+                <td><span class="badge badge-${t.ambiente}">${esc(t.ambiente)}</span></td>
+                <td><span class="badge badge-${t.estado}">${esc(t.estado)}</span></td>
+                <td class="mono">${t.ecf_emitidos_mes} / ${t.max_ecf_mensual}</td>
+                <td style="font-size:0.8rem;">${fmtDate(t.created_at)}</td>
+                <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openTenantDetail('${t.id}')">Ver →</button></td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        toast('Error cargando empresas: ' + err.message, 'error');
+    }
+}
+
+// ═══════════════════════════════════════════
+// TENANT DETAIL
+// ═══════════════════════════════════════════
+async function openTenantDetail(id) {
+    currentTenantId = id;
+    showPage('tenant-detail');
+    // Reset to info tab
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelector('.tab[data-tab="info"]').classList.add('active');
+    document.querySelectorAll('[id^="tab-"]').forEach(c => c.style.display = 'none');
+    document.getElementById('tab-info').style.display = 'block';
+
+    try {
+        const t = await api(`/v1/admin/tenants/${id}`);
+        document.getElementById('detailTitle').textContent = t.razon_social;
+
+        document.getElementById('detailInfo').innerHTML = `
+            <div class="detail-item"><div class="detail-label">RNC</div><div class="detail-value mono">${esc(t.rnc)}</div></div>
+            <div class="detail-item"><div class="detail-label">Razón Social</div><div class="detail-value">${esc(t.razon_social)}</div></div>
+            <div class="detail-item"><div class="detail-label">Nombre Comercial</div><div class="detail-value">${esc(t.nombre_comercial || '—')}</div></div>
+            <div class="detail-item"><div class="detail-label">Email</div><div class="detail-value">${esc(t.email)}</div></div>
+            <div class="detail-item"><div class="detail-label">Teléfono</div><div class="detail-value">${esc(t.telefono || '—')}</div></div>
+            <div class="detail-item"><div class="detail-label">Dirección</div><div class="detail-value">${esc(t.direccion || '—')}</div></div>
+            <div class="detail-item"><div class="detail-label">Plan</div><div class="detail-value"><span class="badge badge-activo">${esc(t.plan)}</span></div></div>
+            <div class="detail-item"><div class="detail-label">Estado</div><div class="detail-value"><span class="badge badge-${t.estado}">${esc(t.estado)}</span></div></div>
+            <div class="detail-item"><div class="detail-label">Ambiente</div><div class="detail-value"><span class="badge badge-${t.ambiente}">${esc(t.ambiente)}</span></div></div>
+            <div class="detail-item"><div class="detail-label">Schema DB</div><div class="detail-value mono">${esc(t.schema_name)}</div></div>
+            <div class="detail-item"><div class="detail-label">e-CF emitidos / mes</div><div class="detail-value mono">${t.ecf_emitidos_mes} / ${t.max_ecf_mensual}</div></div>
+            <div class="detail-item"><div class="detail-label">Webhook URL</div><div class="detail-value" style="font-size:0.8rem;">${esc(t.odoo_webhook_url || 'No configurado')}</div></div>
+            <div class="detail-item"><div class="detail-label">Cert. Vencimiento</div><div class="detail-value">${t.cert_vencimiento ? fmtDate(t.cert_vencimiento) : 'Sin certificado'}</div></div>
+            <div class="detail-item"><div class="detail-label">Creado</div><div class="detail-value">${fmtDate(t.created_at)}</div></div>
+        `;
+
+        // Prefill edit form
+        document.getElementById('editNombreComercial').value = t.nombre_comercial || '';
+        document.getElementById('editWebhookUrl').value = t.odoo_webhook_url || '';
+        document.getElementById('editPlan').value = '';
+        document.getElementById('editMaxEcf').value = t.max_ecf_mensual;
+
+        // Load sequences
+        loadSequences(id);
+        // Load certs
+        loadCerts(id);
+
+    } catch (err) {
+        toast('Error cargando detalle: ' + err.message, 'error');
+    }
+}
+
+async function loadSequences(id) {
+    try {
+        const data = await api(`/v1/admin/tenants/${id}/ncf-sequences`);
+        const tipos = { 31:'Crédito Fiscal', 32:'Consumo', 33:'Nota Débito', 34:'Nota Crédito', 41:'Compras', 43:'Gastos Menores', 44:'Reg. Especiales', 45:'Gubernamental', 46:'Exportaciones', 47:'Pagos Exterior' };
+        document.getElementById('seqRows').innerHTML = data.sequences.map(s => `
+            <tr>
+                <td>${s.tipo_ecf} — ${tipos[s.tipo_ecf] || 'Otro'}</td>
+                <td class="mono">${esc(s.prefijo)}</td>
+                <td class="mono">${s.secuencia_actual.toLocaleString()}</td>
+                <td class="mono">${s.secuencia_max.toLocaleString()}</td>
+                <td><span class="badge ${s.activo ? 'badge-activo' : 'badge-suspendido'}">${s.activo ? 'Activo' : 'Inactivo'}</span></td>
+            </tr>
+        `).join('');
+    } catch (err) { /* ignore */ }
+}
+
+async function loadCerts(id) {
+    try {
+        const data = await api(`/v1/admin/tenants/${id}/certs`);
+        if (!data.certificates.length) {
+            document.getElementById('certRows').innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-dim);">Sin certificados. Sube el .p12 del contribuyente.</td></tr>';
+            return;
+        }
+        document.getElementById('certRows').innerHTML = data.certificates.map(c => `
+            <tr>
+                <td class="mono">${esc(c.cert_serial || '—')}</td>
+                <td>${esc(c.cert_subject || '—')}</td>
+                <td>${fmtDate(c.valid_from)}</td>
+                <td>${fmtDate(c.valid_to)}</td>
+                <td><span class="badge ${c.activo ? 'badge-activo' : 'badge-cancelado'}">${c.activo ? 'Activo' : 'Inactivo'}</span></td>
+            </tr>
+        `).join('');
+    } catch (err) { /* ignore */ }
+}
+
+// Edit tenant
+document.getElementById('editTenantForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const updates = {};
+    const nc = document.getElementById('editNombreComercial').value.trim();
+    const wh = document.getElementById('editWebhookUrl').value.trim();
+    const pl = document.getElementById('editPlan').value;
+    const mx = document.getElementById('editMaxEcf').value;
+    if (nc) updates.nombre_comercial = nc;
+    if (wh) updates.odoo_webhook_url = wh;
+    if (pl) updates.plan = pl;
+    if (mx) updates.max_ecf_mensual = parseInt(mx);
+    if (!Object.keys(updates).length) { toast('No hay cambios', 'error'); return; }
+    try {
+        await api(`/v1/admin/tenants/${currentTenantId}`, { method: 'PATCH', body: updates });
+        toast('Empresa actualizada');
+        openTenantDetail(currentTenantId);
+    } catch (err) { toast(err.message, 'error'); }
+});
+
+// Rotate key
+async function rotateKey() {
+    if (!confirm('¿Rotar la API Key? La anterior dejará de funcionar inmediatamente.')) return;
+    try {
+        const data = await api(`/v1/admin/tenants/${currentTenantId}/rotate-key`, { method: 'POST' });
+        document.getElementById('credApiKey').textContent = data.api_key;
+        document.getElementById('credWebhookSecret').textContent = '(sin cambio — se conserva el anterior)';
+        openModal('credentialsModal');
+    } catch (err) { toast(err.message, 'error'); }
+}
+
+// Deactivate
+async function deactivateTenant() {
+    if (!confirm('¿Desactivar esta empresa? No podrá emitir más e-CF.')) return;
+    try {
+        await api(`/v1/admin/tenants/${currentTenantId}`, { method: 'DELETE' });
+        toast('Empresa desactivada');
+        showPage('tenants');
+    } catch (err) { toast(err.message, 'error'); }
+}
+
+// ═══════════════════════════════════════════
+// CREATE TENANT
+// ═══════════════════════════════════════════
+function openNewTenantModal() { openModal('newTenantModal'); }
+
+document.getElementById('newTenantForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = {
+        rnc: document.getElementById('newRnc').value.trim(),
+        razon_social: document.getElementById('newRazonSocial').value.trim(),
+        email: document.getElementById('newEmail').value.trim(),
+        plan: document.getElementById('newPlan').value,
+        ambiente: document.getElementById('newAmbiente').value,
+    };
+    const tel = document.getElementById('newTelefono').value.trim();
+    const nc = document.getElementById('newNombreComercial').value.trim();
+    const dir = document.getElementById('newDireccion').value.trim();
+    const wh = document.getElementById('newWebhookUrl').value.trim();
+    if (tel) body.telefono = tel;
+    if (nc) body.nombre_comercial = nc;
+    if (dir) body.direccion = dir;
+    if (wh) body.odoo_webhook_url = wh;
+
+    try {
+        const data = await api('/v1/admin/tenants', { method: 'POST', body });
+        closeModal('newTenantModal');
+        document.getElementById('newTenantForm').reset();
+        // Show credentials
+        document.getElementById('credApiKey').textContent = data.api_key;
+        document.getElementById('credWebhookSecret').textContent = data.webhook_secret;
+        openModal('credentialsModal');
+        toast('Empresa creada: ' + data.razon_social);
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+});
+
+// ═══════════════════════════════════════════
+// UPLOAD CERT
+// ═══════════════════════════════════════════
+function openUploadCertModal() { openModal('uploadCertModal'); }
+
+document.getElementById('uploadCertForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const file = document.getElementById('certFile').files[0];
+    const password = document.getElementById('certPassword').value;
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('cert_file', file);
+    formData.append('cert_password', password);
+
+    try {
+        const res = await fetch(`${API_URL}/v1/admin/tenants/${currentTenantId}/certs`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${ADMIN_KEY}` },
+            body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error subiendo certificado');
+        closeModal('uploadCertModal');
+        document.getElementById('uploadCertForm').reset();
+        toast(`Certificado subido — vence ${data.valid_to}`);
+        loadCerts(currentTenantId);
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+});
+
+// ═══════════════════════════════════════════
+// DLQ
+// ═══════════════════════════════════════════
+async function loadDLQ() {
+    try {
+        const data = await api('/v1/admin/dlq');
+        const el = document.getElementById('dlqContent');
+        if (!data.messages.length) {
+            el.innerHTML = '<div class="empty-state"><div class="icon">✅</div><p>No hay mensajes en la cola de errores</p></div>';
+            return;
+        }
+        el.innerHTML = `<p style="margin-bottom:16px; color:var(--text-muted); font-size:0.85rem;">${data.total} mensaje(s) en DLQ</p>` +
+            data.messages.map((msg, i) => `
+                <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:start; gap:12px;">
+                        <div style="flex:1;">
+                            <div style="font-family:var(--font-mono); font-size:0.8rem; color:var(--text-dim); margin-bottom:6px;">#${i}</div>
+                            <div style="font-size:0.85rem;"><strong>ECF:</strong> ${esc(msg.ecf_id || '—')}</div>
+                            <div style="font-size:0.85rem;"><strong>Tenant:</strong> ${esc(msg.tenant_id || '—')}</div>
+                            <div style="font-size:0.85rem; color:var(--danger);"><strong>Error:</strong> ${esc(msg.error || msg.ultimo_error || '—')}</div>
+                            <div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">Intentos: ${msg.intento || '?'}</div>
+                        </div>
+                        <div style="display:flex; gap:6px;">
+                            <button class="btn btn-secondary btn-sm" onclick="retryDLQ(${i})">↻ Reintentar</button>
+                            <button class="btn btn-danger btn-sm" onclick="removeDLQ(${i})">✕ Descartar</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+    } catch (err) {
+        toast('Error cargando DLQ: ' + err.message, 'error');
+    }
+}
+
+async function retryDLQ(index) {
+    try {
+        await api(`/v1/admin/dlq/${index}/retry`, { method: 'POST' });
+        toast('Mensaje reencolado');
+        loadDLQ();
+    } catch (err) { toast(err.message, 'error'); }
+}
+
+async function removeDLQ(index) {
+    if (!confirm('¿Descartar este mensaje? No se podrá recuperar.')) return;
+    try {
+        await api(`/v1/admin/dlq/${index}`, { method: 'DELETE' });
+        toast('Mensaje descartado');
+        loadDLQ();
+    } catch (err) { toast(err.message, 'error'); }
+}
+
+// ═══════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════
+function esc(s) {
+    if (s == null) return '';
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(s)));
+    return d.innerHTML;
+}
+
+function fmtDate(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('es-DO', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function toast(msg, type = 'success') {
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.textContent = msg;
+    document.getElementById('toastContainer').appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+}
+
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+function copyText(elId) {
+    const text = document.getElementById(elId).textContent;
+    navigator.clipboard.writeText(text).then(() => toast('Copiado al portapapeles'));
+}
+
+// Close modals on backdrop click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.classList.remove('active');
+    });
+});
+</script>
+</body>
+</html>

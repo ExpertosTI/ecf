@@ -24,6 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar codigo fuente
 COPY ecf_core/ ./ecf_core/
 COPY api_gateway/ ./api_gateway/
+COPY portal_admin/ ./portal_admin/
 
 # XSD schemas (directorio opcional — crear si no existe)
 RUN mkdir -p /app/xsd

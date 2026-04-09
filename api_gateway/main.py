@@ -18,12 +18,19 @@ import redis.asyncio as aioredis
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from api_gateway.admin import (
     router as admin_router,
     set_db_pool as admin_set_db_pool,
     set_redis as admin_set_redis,
+)
+from api_gateway.reportes import (
+    ExportFormat,
+    HEADERS_606, HEADERS_607, HEADERS_608,
+    _606_to_txt, _607_to_txt, _608_to_txt,
+    _build_response,
 )
 
 logger = logging.getLogger(__name__)
@@ -104,6 +111,12 @@ if ALLOWED_ORIGINS:
     )
 
 app.include_router(admin_router)
+
+# ── Portal Admin (static SPA) ──
+import pathlib
+_portal_dir = pathlib.Path(__file__).resolve().parent.parent / "portal_admin"
+if _portal_dir.is_dir():
+    app.mount("/portal", StaticFiles(directory=str(_portal_dir), html=True), name="portal")
 
 # Rate Limiting basado en Redis (soporta múltiples instancias)
 
@@ -305,7 +318,7 @@ async def emitir_ecf(
             # Asignar NCF de forma atómica (dentro de la transacción)
             ncf = await conn.fetchval(
                 "SELECT public.next_ncf($1, $2)",
-                uuid.UUID(tenant["id"]), payload.tipo_ecf
+                tenant["id"], payload.tipo_ecf
             )
 
             await conn.execute(f"""
@@ -350,7 +363,7 @@ async def emitir_ecf(
             # Incrementar contador mensual
             await conn.execute(
                 "UPDATE public.tenants SET ecf_emitidos_mes = ecf_emitidos_mes + 1 WHERE id = $1",
-                uuid.UUID(tenant["id"])
+                tenant["id"]
             )
 
     # Encolar para procesamiento async
@@ -438,10 +451,12 @@ async def descargar_xml(
 @app.get("/v1/reportes/606")
 async def reporte_606(
     anio: int, mes: int,
+    formato: ExportFormat = ExportFormat.json,
     tenant: dict = Depends(get_tenant),
     db: asyncpg.Pool = Depends(get_db),
 ):
-    """Genera el reporte 606 (Compras) del período indicado."""
+    """Genera el reporte 606 (Compras) del período indicado.
+    Formatos: json, txt (DGII), xlsx, pdf."""
     _validar_periodo(anio, mes)
     schema = _safe_schema(tenant["schema_name"])
     async with db.acquire() as conn:
@@ -454,16 +469,26 @@ async def reporte_606(
               AND EXTRACT(MONTH FROM fecha_comprobante) = $2
             ORDER BY fecha_comprobante, ncf
         """, anio, mes)
-    return {"periodo": f"{anio}-{mes:02d}", "registros": [dict(r) for r in rows]}
+    registros = [dict(r) for r in rows]
+    periodo = f"{anio}-{mes:02d}"
+    keys = ["ncf", "rnc_proveedor", "nombre_proveedor", "tipo_bienes",
+            "fecha_comprobante", "fecha_pago", "monto_servicios", "monto_bienes",
+            "total_monto", "itbis_facturado", "itbis_retenido", "isr_retencion"]
+    return _build_response(
+        registros, formato, "606", HEADERS_606, keys,
+        "606 — Compras", tenant["rnc"], periodo, _606_to_txt,
+    )
 
 
 @app.get("/v1/reportes/607")
 async def reporte_607(
     anio: int, mes: int,
+    formato: ExportFormat = ExportFormat.json,
     tenant: dict = Depends(get_tenant),
     db: asyncpg.Pool = Depends(get_db),
 ):
-    """Genera el reporte 607 (Ventas de Bienes y Servicios) del período."""
+    """Genera el reporte 607 (Ventas de Bienes y Servicios) del período.
+    Formatos: json, txt (DGII), xlsx, pdf."""
     _validar_periodo(anio, mes)
     schema = _safe_schema(tenant["schema_name"])
     async with db.acquire() as conn:
@@ -478,16 +503,27 @@ async def reporte_607(
               AND EXTRACT(MONTH FROM fecha_emision) = $2
             ORDER BY fecha_emision, ncf
         """, anio, mes)
-    return {"periodo": f"{anio}-{mes:02d}", "registros": [dict(r) for r in rows]}
+    registros = [dict(r) for r in rows]
+    periodo = f"{anio}-{mes:02d}"
+    keys = ["ncf", "tipo_ecf", "rnc_comprador", "nombre_comprador",
+            "tipo_rnc_comprador", "fecha_emision", "tipo_ingresos",
+            "monto_facturado", "itbis_facturado", "total", "tipo_pago",
+            "referencia_ncf", "estado"]
+    return _build_response(
+        registros, formato, "607", HEADERS_607, keys,
+        "607 — Ventas", tenant["rnc"], periodo, _607_to_txt,
+    )
 
 
 @app.get("/v1/reportes/608")
 async def reporte_608(
     anio: int, mes: int,
+    formato: ExportFormat = ExportFormat.json,
     tenant: dict = Depends(get_tenant),
     db: asyncpg.Pool = Depends(get_db),
 ):
-    """Genera el reporte 608 (Anulaciones) del periodo indicado. Requerido por DGII."""
+    """Genera el reporte 608 (Anulaciones) del periodo indicado. Requerido por DGII.
+    Formatos: json, txt (DGII), xlsx, pdf."""
     _validar_periodo(anio, mes)
     schema = _safe_schema(tenant["schema_name"])
     async with db.acquire() as conn:
@@ -502,7 +538,13 @@ async def reporte_608(
               AND EXTRACT(MONTH FROM l.created_at) = $2
             ORDER BY l.created_at, e.ncf
         """, anio, mes)
-    return {"periodo": f"{anio}-{mes:02d}", "registros": [dict(r) for r in rows]}
+    registros = [dict(r) for r in rows]
+    periodo = f"{anio}-{mes:02d}"
+    keys = ["ncf", "tipo_ecf", "fecha_emision", "tipo_anulacion", "fecha_anulacion"]
+    return _build_response(
+        registros, formato, "608", HEADERS_608, keys,
+        "608 — Anulaciones", tenant["rnc"], periodo, _608_to_txt,
+    )
 
 
 @app.get("/health")
