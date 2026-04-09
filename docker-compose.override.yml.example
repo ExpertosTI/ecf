@@ -1,0 +1,15 @@
+# Usa este override en tu servidor si ya tienes Nginx/Apache 
+# para Odoo y los puertos 80 y 443 ya están ocupados.
+#
+# Uso: cp docker-compose.override.yml.example docker-compose.override.yml
+
+services:
+  # Desactivamos el Traefik interno asignándole un perfil inactivo
+  traefik:
+    profiles:
+      - disabled
+
+  api:
+    # Exponemos la API localmente en el puerto 8000 para Nginx
+    ports:
+      - "127.0.0.1:8000:8000"
