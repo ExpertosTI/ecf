@@ -951,12 +951,10 @@
         </a>
         <ul class="nav-links">
             <li><a href="#funcionalidades">Funcionalidades</a></li>
-            <li><a href="#arquitectura">Arquitectura</a></li>
-            <li><a href="#api">API</a></li>
             <li><a href="#odoo">Odoo</a></li>
-            <li><a href="#seguridad">Seguridad</a></li>
             <li><a href="#planes">Planes</a></li>
         </ul>
+        <a href="/login" class="btn-outline" style="margin-right: 12px; padding: 10px 20px; border-color: var(--border); color: var(--text-primary);">Iniciar Sesión</a>
         <a href="#contacto" class="nav-cta">Solicitar Demo →</a>
         <button class="mobile-toggle" onclick="this.previousElementSibling.previousElementSibling.classList.toggle('show')" aria-label="Menú">
             <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
@@ -982,12 +980,11 @@
                 </h1>
                 <p class="hero-desc">
                     Plataforma integral que conecta tu entorno Odoo con la DGII.
-                    Administra tenants, certificados y secuencias NCF con la <strong>Admin API</strong>
-                    e intégrate a la perfección con la API RESTful.
+                    Conecta tu sistema en minutos y empieza a facturar electrónicamente sin dolores de cabeza técnicos ni configuraciones complejas.
                 </p>
                 <div class="hero-actions">
                     <a href="#contacto" class="btn-primary">Comenzar Ahora →</a>
-                    <a href="#api" class="btn-outline">Ver API Docs</a>
+                    
                 </div>
             </div>
             <div class="hero-visual">
@@ -1004,24 +1001,20 @@
                         <div class="terminal-dot"></div>
                         <div class="terminal-dot"></div>
                         <div class="terminal-dot"></div>
-                        <span>POST /v1/ecf/emitir</span>
+                        <span>Emisión Rápida y Segura</span>
                     </div>
                     <div class="terminal-body">
-<span class="dim">// Emitir factura desde Odoo</span><br>
-<span class="cmd">curl</span> -X POST https://ecf.renace.tech/v1/ecf/emitir \<br>
-&nbsp;&nbsp;-H <span class="str">"X-API-Key: sk_live_..."</span> \<br>
-&nbsp;&nbsp;-d <span class="str">'{ "tipo_ecf": "31", ... }'</span><br>
+<span class="dim">// ERP Odoo conectado</span><br>
+<span class="ok">✓ Factura generada en Odoo</span><br>
+<span class="ok">✓ Firma digital aplicada</span><br>
+<span class="ok">✓ Envío automático a DGII</span><br>
 <br>
-<span class="dim">→ Response 202 Accepted</span><br>
+<span class="dim">→ Respuesta de DGII</span><br>
 {<br>
+&nbsp;&nbsp;<span class="str">"estado"</span>: <span class="ok">"APROBADO"</span>,<br>
 &nbsp;&nbsp;<span class="str">"ncf"</span>:&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"E310000000001"</span>,<br>
-&nbsp;&nbsp;<span class="str">"ecf_id"</span>:&nbsp;<span class="str">"a1b2c3d4-..."</span>,<br>
-&nbsp;&nbsp;<span class="str">"estado"</span>:&nbsp;<span class="ok">"pendiente"</span>,<br>
-&nbsp;&nbsp;<span class="str">"mensaje"</span>:<span class="str">"Encolado para envío DGII"</span><br>
-}<br>
-<br>
-<span class="dim">// Webhook callback a Odoo...</span><br>
-<span class="ok">✓ e-CF APROBADO</span> — CUFE: <span class="num">8f4a2b...</span>
+&nbsp;&nbsp;<span class="str">"cufe"</span>:&nbsp;&nbsp;&nbsp;<span class="str">"8f4a2b9..."</span><br>
+}
                     </div>
                 </div>
             </div>
@@ -1039,9 +1032,32 @@
                 <div class="trust-icon">📄</div>
                 <div class="trust-text">
                     <strong>10 Tipos e-CF</strong>
-                    <span>31, 32, 33, 34, 41, 43, 44, 45, 46, 47</span>
+                    <span>Facturas, Notas, Compras</span>
                 </div>
             </div>
+            <div class="trust-item">
+                <div class="trust-icon">⚡</div>
+                <div class="trust-text">
+                    <strong>Fácil de Usar</strong>
+                    <span>Integración directa en clics</span>
+                </div>
+            </div>
+            <div class="trust-item">
+                <div class="trust-icon">🏢</div>
+                <div class="trust-text">
+                    <strong>Soporte Local</strong>
+                    <span>Hecho para Rep. Dominicana</span>
+                </div>
+            </div>
+            <div class="trust-item">
+                <div class="trust-icon">📊</div>
+                <div class="trust-text">
+                    <strong>Reportes 606/607</strong>
+                    <span>Generación automática</span>
+                </div>
+            </div>
+        </div>
+    </div>
             <div class="trust-item">
                 <div class="trust-icon">⚡</div>
                 <div class="trust-text">
@@ -1089,64 +1105,34 @@
             <div class="feature-card reveal">
                 <div class="feature-icon green">📝</div>
                 <h3>Generación XML e-CF</h3>
-                <p>Construcción automática de XML conforme al namespace DGII <code>dgii.gov.do/ecf</code>. Soporte para Encabezado, Emisor, Comprador, DetallesItems, Paginación y Resumen.</p>
+                <p>Generamos automáticamente el formato electrónico requerido por la DGII a partir de tus facturas.</p>
             </div>
             <div class="feature-card reveal">
                 <div class="feature-icon purple">✍️</div>
                 <h3>Firma Digital XAdES-BES</h3>
-                <p>Firma RSA-SHA256 con certificados .p12. Canonicalización C14N exclusiva, bloque <code>&lt;ds:Signature&gt;</code> completo, y CUFE SHA-384 de 96 caracteres.</p>
+                <p>Aplicamos tu firma digital de manera automática y segura a cada documento antes de enviarlo, sin que tengas que intervenir.</p>
             </div>
             <div class="feature-card reveal">
                 <div class="feature-icon blue">🔍</div>
                 <h3>Validación XSD Local</h3>
-                <p>Validación contra schemas oficiales DGII antes del envío. Detecta errores de estructura antes de consumir cuota o la API de la DGII.</p>
+                <p>Revisamos tus facturas para asegurar que cumplen las normas antes de enviarlas, evitando multas o rechazos.</p>
             </div>
             <div class="feature-card reveal">
                 <div class="feature-icon amber">🔐</div>
                 <h3>Autenticación Semilla</h3>
-                <p>Flujo completo Seed DGII: solicitud de semilla, firma con certificado, obtención de Bearer token, cache de 23 horas, y re-autenticación automática.</p>
+                <p>Gestionamos todo el acceso e intercambio con el portal de la DGII de manera transparente y segura.</p>
             </div>
             <div class="feature-card reveal">
                 <div class="feature-icon green">📤</div>
                 <h3>Envío Asíncrono a DGII</h3>
-                <p>Cola Redis de alta velocidad con workers paralelos. Procesamiento asíncrono que no bloquea tu ERP. Envío vía <code>/fe/recepcion/api/ecf</code>.</p>
+                <p>Procesamiento en segundo plano para que tu ERP nunca se ponga lento mientras aprueban la factura.</p>
             </div>
             <div class="feature-card reveal">
                 <div class="feature-icon purple">🔁</div>
                 <h3>Reintentos Inteligentes</h3>
-                <p>5 reintentos con backoff exponencial (30s → 1h). Cola de reintentos separada, Dead Letter Queue para fallos permanentes. Zero pérdida de documentos.</p>
+                <p>Si la DGII presenta fallas temporales, nos encargamos de reintentar el envío por ti sin perder ninguna factura.</p>
             </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon blue">❌</div>
-                <h3>Anulación de e-CF</h3>
-                <p>Endpoint dedicado para anulación con motivos DGII (01-09). Flujo separado con autenticación propia y persistencia de resultado.</p>
             </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon amber">📊</div>
-                <h3>Reportes 606 / 607 / 608</h3>
-                <p>Generación automática de reportes fiscales en formato nativo DGII. Reporte 606 (compras), 607 (ventas aprobadas/condicionadas), 608 (anulaciones).</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon green">🔗</div>
-                <h3>Webhook HMAC-SHA256</h3>
-                <p>Callback verificado criptográficamente a Odoo con resultado de DGII. Incluye NCF, CUFE, QR, estado, y detalles de error cuando aplica.</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon purple">🆔</div>
-                <h3>NCF Atómico</h3>
-                <p>Generación de NCF con función PostgreSQL <code>next_ncf()</code>. Secuencias atómicas que previenen duplicados incluso bajo carga concurrente.</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon blue">🏷️</div>
-                <h3>QR Code & Security Code</h3>
-                <p>Generación automática de Security Code (hash del XML firmado) y URL QR conforme al formato DGII para verificación fiscal.</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon amber">📈</div>
-                <h3>Métricas Prometheus</h3>
-                <p>Endpoint <code>/metrics</code> para monitoreo en tiempo real. Latencia, throughput, errores por tenant, estado de colas y workers.</p>
-            </div>
-        </div>
     </div>
 </section>
 
@@ -1204,54 +1190,6 @@
 </section>
 
 <!-- ═══════════════════════════════════════════
-     ARCHITECTURE
-     ═══════════════════════════════════════════ -->
-<section id="arquitectura">
-    <div class="container">
-        <div class="section-label reveal">Arquitectura</div>
-        <h2 class="section-title reveal">Hub multi-tenant<br>con aislamiento total</h2>
-        <p class="section-subtitle reveal">
-            Cada tenant opera en su propio schema PostgreSQL con certificados cifrados.
-            Un único hub centralizado gestiona múltiples instancias de Odoo simultáneamente.
-        </p>
-        <div class="arch-diagram reveal">
-            <div class="arch-flow">
-                <div class="arch-node">
-                    <div class="node-icon">🏢</div>
-                    <div class="node-label">Odoo Tenant A</div>
-                    <div class="node-desc">ecf_connector module</div>
-                </div>
-                <div class="arch-arrow">→</div>
-                <div class="arch-node" style="border-color: var(--accent); box-shadow: 0 0 40px rgba(0,229,160,0.1);">
-                    <div class="node-icon">⚡</div>
-                    <div class="node-label">API Gateway</div>
-                    <div class="node-desc">FastAPI + Auth + Rate Limit</div>
-                </div>
-                <div class="arch-arrow">→</div>
-                <div class="arch-node">
-                    <div class="node-icon">📨</div>
-                    <div class="node-label">Redis Queue</div>
-                    <div class="node-desc">pending / retry / dlq</div>
-                </div>
-                <div class="arch-arrow">→</div>
-                <div class="arch-node">
-                    <div class="node-icon">⚙️</div>
-                    <div class="node-label">Worker Pool</div>
-                    <div class="node-desc">XML → Firma → Envío</div>
-                </div>
-                <div class="arch-arrow">→</div>
-                <div class="arch-node" style="border-color: var(--accent-2);">
-                    <div class="node-icon">🏛️</div>
-                    <div class="node-label">DGII</div>
-                    <div class="node-desc">TesteCF / CerteCF / eCF</div>
-                </div>
-            </div>
-            <div style="text-align: center; margin-top: 24px; color: var(--text-dim); font-size: 0.8rem; font-family: var(--font-mono);">
-                ← webhook HMAC-SHA256 callback ←
-            </div>
-        </div>
-
-        <!-- ═══════════════════════════════════════════
              ARCHITECTURE (PORTAL + API)
              ═══════════════════════════════════════════ -->
         <div style="margin-top: 48px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px;" class="reveal">
@@ -1266,136 +1204,6 @@
                 <div class="node-desc" style="font-size: 0.85rem; line-height: 1.5; margin-top: 8px;">Integración directa para sistemas a medida. Emite, anula y consulta documentos fiscales automatizando todo el proceso de facturación.</div>
             </div>
         </div>
-    </div>
-</section>
-
-<!-- ═══════════════════════════════════════════
-     API REFERENCE
-     ═══════════════════════════════════════════ -->
-<section id="api">
-    <div class="container">
-        <div class="section-label reveal">API REST</div>
-        <h2 class="section-title reveal">25+ endpoints.<br>Dos APIs, una plataforma.</h2>
-        <p class="section-subtitle reveal">
-            API RESTful para tenants con autenticación por API Key, rate limiting,
-            idempotencia y respuestas JSON. Admin API separada para gestión de tenants,
-            certificados y operaciones de plataforma.
-        </p>
-
-        <table class="api-table reveal">
-            <thead>
-                <tr>
-                    <th style="width: 80px;">Método</th>
-                    <th style="width: 300px;">Endpoint</th>
-                    <th>Descripción</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><span class="method-badge post">POST</span></td>
-                    <td><span class="endpoint-path">/v1/ecf/emitir</span></td>
-                    <td class="endpoint-desc">Emitir e-CF: asigna NCF atómico, valida, persiste y encola para envío a DGII</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge get">GET</span></td>
-                    <td><span class="endpoint-path">/v1/ecf/{ncf}/estado</span></td>
-                    <td class="endpoint-desc">Consultar estado actual del e-CF: pendiente, enviado, aprobado, rechazado, condicionado</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge get">GET</span></td>
-                    <td><span class="endpoint-path">/v1/ecf/{ncf}/xml</span></td>
-                    <td class="endpoint-desc">Descargar XML firmado — retención de 10 años conforme normativa</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge post">POST</span></td>
-                    <td><span class="endpoint-path">/v1/ecf/validar</span></td>
-                    <td class="endpoint-desc">Validación local sin encolamiento — verifica estructura, XSD, y reglas de negocio</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge post">POST</span></td>
-                    <td><span class="endpoint-path">/v1/ecf/anular</span></td>
-                    <td class="endpoint-desc">Solicitar anulación ante DGII con motivo oficial (01-09)</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge post">POST</span></td>
-                    <td><span class="endpoint-path">/v1/ecf/estado-batch</span></td>
-                    <td class="endpoint-desc">Consultar estado de hasta 100 NCFs simultáneamente</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge get">GET</span></td>
-                    <td><span class="endpoint-path">/v1/reportes/606</span></td>
-                    <td class="endpoint-desc">Reporte de Compras — formato DGII por año/mes</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge get">GET</span></td>
-                    <td><span class="endpoint-path">/v1/reportes/607</span></td>
-                    <td class="endpoint-desc">Reporte de Ventas — formato DGII por año/mes</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge get">GET</span></td>
-                    <td><span class="endpoint-path">/v1/reportes/608</span></td>
-                    <td class="endpoint-desc">Reporte de Anulaciones — formato DGII por año/mes</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <h3 class="section-subtitle reveal" style="margin-top:3rem; font-size:1.3rem; font-weight:600;">Admin API</h3>
-        <table class="api-table reveal">
-            <thead>
-                <tr>
-                    <th style="width: 80px;">Método</th>
-                    <th style="width: 300px;">Endpoint</th>
-                    <th>Descripción</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><span class="method-badge post">POST</span></td>
-                    <td><span class="endpoint-path">/v1/admin/tenants</span></td>
-                    <td class="endpoint-desc">Crear tenant con schema aislado, claves y secuencias NCF</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge get">GET</span></td>
-                    <td><span class="endpoint-path">/v1/admin/tenants</span></td>
-                    <td class="endpoint-desc">Listar tenants con filtros por estado y búsqueda</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge patch">PATCH</span></td>
-                    <td><span class="endpoint-path">/v1/admin/tenants/{id}</span></td>
-                    <td class="endpoint-desc">Actualizar estado, límites y webhook de un tenant</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge post">POST</span></td>
-                    <td><span class="endpoint-path">/v1/admin/tenants/{id}/cert</span></td>
-                    <td class="endpoint-desc">Subir certificado .p12 — cifrado AES-256-GCM en vault</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge post">POST</span></td>
-                    <td><span class="endpoint-path">/v1/admin/tenants/{id}/rotate-key</span></td>
-                    <td class="endpoint-desc">Rotar API Key del tenant con período de gracia</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge get">GET</span></td>
-                    <td><span class="endpoint-path">/v1/admin/stats</span></td>
-                    <td class="endpoint-desc">Estadísticas de la plataforma — tenants, colas, certs por vencer</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge get">GET</span></td>
-                    <td><span class="endpoint-path">/v1/admin/dlq</span></td>
-                    <td class="endpoint-desc">Ver mensajes en Dead Letter Queue para diagnóstico</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge get">GET</span></td>
-                    <td><span class="endpoint-path">/health</span></td>
-                    <td class="endpoint-desc">Health check con estado de DB y Redis</td>
-                </tr>
-                <tr>
-                    <td><span class="method-badge get">GET</span></td>
-                    <td><span class="endpoint-path">/metrics</span></td>
-                    <td class="endpoint-desc">Métricas Prometheus — latencia, throughput, colas</td>
-                </tr>
-            </tbody>
-        </table>
     </div>
 </section>
 
@@ -1460,135 +1268,6 @@
 </section>
 
 <!-- ═══════════════════════════════════════════
-     SECURITY
-     ═══════════════════════════════════════════ -->
-<section id="seguridad">
-    <div class="container">
-        <div class="section-label reveal">Seguridad</div>
-        <h2 class="section-title reveal">Seguridad de nivel<br>empresarial en cada capa</h2>
-        <p class="section-subtitle reveal">
-            Certificados cifrados, comunicaciones firmadas, aislamiento de datos total,
-            y cumplimiento con las mejores prácticas de la industria.
-        </p>
-
-        <div class="security-grid">
-            <div class="security-item reveal">
-                <div class="sec-icon">🔐</div>
-                <div>
-                    <h4>Vault de Certificados AES-256-GCM</h4>
-                    <p>Los certificados .p12 se cifran con AES-256-GCM antes de almacenarse. Master Key en variable de entorno, IV+Tag para autenticidad. Imposible de descifrar sin la clave maestra.</p>
-                </div>
-            </div>
-            <div class="security-item reveal">
-                <div class="sec-icon">🏢</div>
-                <div>
-                    <h4>Aislamiento Multi-Tenant por Schema</h4>
-                    <p>Cada tenant tiene su propio schema PostgreSQL. Las queries solo acceden al schema del tenant autenticado. Sin riesgo de cruce de datos entre empresas.</p>
-                </div>
-            </div>
-            <div class="security-item reveal">
-                <div class="sec-icon">🔑</div>
-                <div>
-                    <h4>API Keys con SHA-256</h4>
-                    <p>Las API Keys se almacenan como hashes SHA-256 — nunca en texto plano. Validación en cada request con rate limiting por tenant (60 req/min configurable).</p>
-                </div>
-            </div>
-            <div class="security-item reveal">
-                <div class="sec-icon">🛡️</div>
-                <div>
-                    <h4>TLS + Security Headers</h4>
-                    <p>HTTPS obligatorio vía Traefik con Let's Encrypt. HSTS, X-Frame-Options, X-Content-Type-Options, y CSP configurados. Redirección HTTP → HTTPS automática.</p>
-                </div>
-            </div>
-            <div class="security-item reveal">
-                <div class="sec-icon">✍️</div>
-                <div>
-                    <h4>Webhooks firmados HMAC-SHA256</h4>
-                    <p>Cada callback a Odoo incluye firma HMAC-SHA256 verificable. El módulo Odoo valida la firma antes de procesar — protege contra callbacks falsificados.</p>
-                </div>
-            </div>
-            <div class="security-item reveal">
-                <div class="sec-icon">📋</div>
-                <div>
-                    <h4>Auditoría Completa</h4>
-                    <p>Tabla <code>system_audit_log</code> para acciones administrativas. Log de cambio de estado por e-CF (<code>ecf_estado_log</code>). Access logs en Traefik formato JSON.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ═══════════════════════════════════════════
-     DGII COMPLIANCE
-     ═══════════════════════════════════════════ -->
-<section id="dgii">
-    <div class="container">
-        <div class="section-label reveal">Cumplimiento DGII</div>
-        <h2 class="section-title reveal">¿La DGII acepta un Hub<br>multi-tenant conectado a Odoo?</h2>
-        <p class="section-subtitle reveal">
-            Sí. La normativa DGII no restringe la arquitectura interna del proveedor de servicios
-            — solo exige cumplimiento técnico y operativo del e-CF.
-        </p>
-
-        <div class="compliance-grid">
-            <div class="compliance-card reveal">
-                <div class="big-check">✅</div>
-                <h4>Certificado por Tenant</h4>
-                <p>Cada tenant firma con su propio certificado digital emitido por la DGII. No se comparten certificados entre empresas. La DGII identifica al emisor por su certificado y RNC.</p>
-            </div>
-            <div class="compliance-card reveal">
-                <div class="big-check">✅</div>
-                <h4>NCF por Contribuyente</h4>
-                <p>Las secuencias autorizadas se asignan por RNC en la DGII. Nuestro sistema genera NCFs atómicamente dentro del rango autorizado de cada tenant.</p>
-            </div>
-            <div class="compliance-card reveal">
-                <div class="big-check">✅</div>
-                <h4>XML Conforme a Norma</h4>
-                <p>El XML generado cumple con los schemas XSD oficiales, namespace correcto, y estructura requerida. Validación previa al envío garantiza conformidad.</p>
-            </div>
-            <div class="compliance-card reveal">
-                <div class="big-check">✅</div>
-                <h4>Firma XAdES-BES / RSA-SHA256</h4>
-                <p>Firma digital conforme a Norma 06-2018 de la DGII. Certificado del emisor, canonicalización C14N, digest SHA-256, y bloque Signature completo.</p>
-            </div>
-            <div class="compliance-card reveal">
-                <div class="big-check">✅</div>
-                <h4>CUFE SHA-384</h4>
-                <p>Código Único de Factura Electrónica generado con SHA-384 (96 caracteres) conforme especificación. Incluido en el XML firmado y reportado a la DGII.</p>
-            </div>
-            <div class="compliance-card reveal">
-                <div class="big-check">✅</div>
-                <h4>Retención 11 Años</h4>
-                <p>XMLs firmados almacenados en PostgreSQL con respaldo. Endpoint <code>/xml</code> para descarga bajo demanda. Conforme al artículo 50 del Código Tributario.</p>
-            </div>
-        </div>
-
-        <div class="analysis-box reveal">
-            <h4>⚖️ Análisis Legal del Modelo Hub Multi-Tenant</h4>
-            <p>
-                La Norma General 06-2018 y sus resoluciones posteriores regulan <strong>qué</strong> debe contener
-                un e-CF y <strong>cómo</strong> debe firmarse/transmitirse, pero <strong>no dictan la arquitectura
-                del software</strong> del emisor. Lo que la DGII exige:
-            </p>
-            <ul>
-                <li><strong>Cada contribuyente firma con su propio certificado digital</strong> — cumplido, cada tenant tiene su .p12 en el vault cifrado</li>
-                <li><strong>El XML cumple con el schema XSD oficial</strong> — cumplido con validación previa al envío</li>
-                <li><strong>Los NCFs pertenecen al rango autorizado del emisor</strong> — cumplido con secuencias atómicas por tenant</li>
-                <li><strong>Los e-CFs se transmiten vía los endpoints oficiales de la DGII</strong> — cumplido, usamos <code>/fe/recepcion/api/ecf</code></li>
-                <li><strong>Los documentos se retienen por el período legal</strong> — cumplido, XMLs almacenados en PostgreSQL con respaldo</li>
-                <li><strong>El CUFE es correcto y verificable</strong> — cumplido, SHA-384 conforme a especificación</li>
-                <li><strong>La autenticación usa el flujo Semilla oficial</strong> — cumplido, cada tenant se autentica con su certificado</li>
-            </ul>
-            <p style="margin-top: 16px;">
-                Proveedores como <strong>DGII Libre</strong>, <strong>Softland</strong>, y <strong>Intellisys</strong> operan modelos similares
-                donde un servicio centralizado procesa e-CFs para múltiples contribuyentes, cada uno con su identidad fiscal independiente.
-                El modelo hub-and-spoke es una práctica aceptada en la industria dominicana.
-            </p>
-        </div>
-    </div>
-</section>
-
-<!-- ═══════════════════════════════════════════
      PRICING
      ═══════════════════════════════════════════ -->
 <section id="planes">
@@ -1603,7 +1282,7 @@
         <div class="pricing-cards">
             <div class="price-card reveal">
                 <div class="plan-name">Starter</div>
-                <div class="plan-price">US$49<span>/mes</span></div>
+                <div class="plan-price">US$15<span>/mes</span></div>
                 <p class="plan-desc">Para empresas que inician su facturación electrónica</p>
                 <ul>
                     <li>Hasta 500 e-CF / mes</li>
@@ -1618,7 +1297,7 @@
             </div>
             <div class="price-card featured reveal">
                 <div class="plan-name">Business</div>
-                <div class="plan-price">US$149<span>/mes</span></div>
+                <div class="plan-price">US$49<span>/mes</span></div>
                 <p class="plan-desc">Para empresas en crecimiento con volumen medio</p>
                 <ul>
                     <li>Hasta 5,000 e-CF / mes</li>
