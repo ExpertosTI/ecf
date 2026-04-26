@@ -145,10 +145,10 @@ log "=========================================="
 
 mkdir -p "$BACKUP_DIR"
 
-if $DC -f "$COMPOSE_FILE" ps postgres 2>/dev/null | grep -q "running"; then
+if $DC "${COMPOSE_ARGS[@]}" ps postgres 2>/dev/null | grep -q "running"; then
     log "PostgreSQL activo. Realizando backup..."
     BACKUP_FILE="${BACKUP_DIR}/saas_ecf_${TIMESTAMP}.sql.gz"
-    $DC -f "$COMPOSE_FILE" exec -T postgres \
+    $DC "${COMPOSE_ARGS[@]}" exec -T postgres \
         pg_dump -U saas_ecf saas_ecf | gzip > "$BACKUP_FILE"
     BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
     log "Backup creado: ${BACKUP_FILE} (${BACKUP_SIZE})"
@@ -215,7 +215,7 @@ for migration in "${SCRIPT_DIR}"/db/0[0-9][0-9]_*.sql; do
             continue
         fi
         log "Aplicando migracion: ${MIGRATION_NAME}"
-        $DC -f "$COMPOSE_FILE" exec -T postgres \
+        $DC "${COMPOSE_ARGS[@]}" exec -T postgres \
             psql -U saas_ecf -d saas_ecf -f "/docker-entrypoint-initdb.d/${MIGRATION_NAME}" 2>&1 || \
             warn "Migracion ${MIGRATION_NAME} falló (puede ya estar aplicada)"
     fi
@@ -261,7 +261,7 @@ info "Servicios en red ecf_network: ${NETWORK_SERVICES}"
 
 # Verificar health de la API (vía puerto interno)
 sleep 3
-API_CONTAINER=$($DC -f "$COMPOSE_FILE" ps api --format "{{.ID}}" 2>/dev/null | head -1)
+API_CONTAINER=$($DC "${COMPOSE_ARGS[@]}" ps api --format "{{.ID}}" 2>/dev/null | head -1)
 if [ -n "$API_CONTAINER" ] && docker exec "$API_CONTAINER" curl -sf http://localhost:8000/health &>/dev/null; then
     log "API respondiendo correctamente (Internal Health OK)"
 else
@@ -269,7 +269,7 @@ else
 fi
 
 # Verificar workers
-WORKER_COUNT=$($DC -f "$COMPOSE_FILE" ps worker --format json 2>/dev/null | grep -c "running" || echo 0)
+WORKER_COUNT=$($DC "${COMPOSE_ARGS[@]}" ps worker --format json 2>/dev/null | grep -c "running" || echo 0)
 info "Workers activos: ${WORKER_COUNT}"
 
 # 6. RESUMEN
