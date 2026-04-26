@@ -30,8 +30,8 @@
         'mail',
     ],
     'data': [
-        'security/ir.model.access.csv',
         'security/ecf_security.xml',
+        'security/ir.model.access.csv',
         'data/ecf_tipo_data.xml',
         'data/ecf_cron_data.xml',
         'views/res_config_settings_views.xml',
