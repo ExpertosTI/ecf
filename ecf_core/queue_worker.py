@@ -249,7 +249,7 @@ class ECFQueueWorker:
                     f"DGII: {respuesta.estado.value} — {respuesta.mensaje}",
                 )
 
-            # Callback a Odoo con el estado final real
+            # Callback a Odoo con el ESTADO FINAL REAL (puede ser 'anulado' o 'anulacion_fallida')
             if tenant.get("odoo_webhook_url"):
                 ecf_data = await self._get_ecf(schema, ecf_id)
                 await self._callback_odoo(tenant, ecf_data, respuesta, estado_final)
@@ -421,7 +421,7 @@ class ECFQueueWorker:
                     security_code   = COALESCE($7, security_code),
                     qr_url          = COALESCE($8, qr_url),
                     sent_at         = CASE WHEN sent_at IS NULL THEN NOW() ELSE sent_at END,
-                    approved_at     = CASE WHEN $1 = 'aprobado' THEN NOW() ELSE NULL END,
+                    approved_at     = CASE WHEN $1 = 'aprobado' THEN NOW() ELSE approved_at END,
                     updated_at      = NOW()
                 WHERE id = $9
             """, estado, cufe, xml_firmado, json.dumps(respuesta), intento,

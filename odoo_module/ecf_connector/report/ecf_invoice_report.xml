@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         REPORTE DGII-COMPLIANT: Factura e-CF
+         Hereda el reporte estándar de Odoo e inyecta la sección DGII
+         ══════════════════════════════════════════════════════════════ -->
+
+    <!-- Acción de reporte: aparece en menú Imprimir de facturas aprobadas -->
+    <record id="report_ecf_invoice" model="ir.actions.report">
+        <field name="name">Factura e-CF DGII</field>
+        <field name="model">account.move</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">ecf_connector.report_ecf_invoice_document</field>
+        <field name="print_report_name">
+            'eCF-%s-%s' % (object.ecf_ncf or object.name, object.invoice_date or '')
+        </field>
+        <field name="binding_model_id" ref="account.model_account_move"/>
+        <field name="binding_view_types">form</field>
+        <field name="groups_id" eval="[(4, ref('ecf_connector.group_ecf_user'))]"/>
+    </record>
+
+    <!-- Template principal: wraps the standard invoice report -->
+    <template id="report_ecf_invoice">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="ecf_connector.report_ecf_invoice_document"
+                   t-lang="o.partner_id.lang"/>
+            </t>
+        </t>
+    </template>
+
+    <!-- Template del documento (con soporte de idioma del cliente) -->
+    <template id="report_ecf_invoice_document">
+        <!-- Re-browse con idioma del partner para campos traducibles -->
+        <t t-set="o" t-value="o.with_context(lang=o.partner_id.lang)"/>
+        <t t-call="web.external_layout">
+            <div class="page">
+
+                <!-- ═══════════════════════════════════════════════════
+                     ENCABEZADO DGII — Obligatorio según norma e-CF
+                     ═══════════════════════════════════════════════════ -->
+                <t t-if="o.ecf_ncf">
+                    <div class="ecf-dgii-header">
+                        <div class="ecf-badge-wrapper">
+                            <div class="ecf-badge">
+                                COMPROBANTE FISCAL ELECTRÓNICO
+                            </div>
+                            <div t-attf-class="ecf-ambiente #{o.company_id.ecf_ambiente == 'produccion' and 'ecf-produccion' or 'ecf-certificacion'}">
+                                <t t-esc="(o.company_id.ecf_ambiente or 'certificacion').upper()"/>
+                            </div>
+                        </div>
+
+                        <table class="ecf-data-table">
+                            <tr>
+                                <td class="ecf-label">NCF:</td>
+                                <td class="ecf-value ecf-ncf-value">
+                                    <strong><t t-esc="o.ecf_ncf"/></strong>
+                                </td>
+                                <t t-if="o.ecf_cufe">
+                                    <td class="ecf-label">CUFE:</td>
+                                    <td class="ecf-value ecf-cufe-value">
+                                        <t t-esc="(o.ecf_cufe or '')[:32]"/>...
+                                    </td>
+                                </t>
+                            </tr>
+                            <tr t-if="o.ecf_log_ids">
+                                <t t-set="last_log" t-value="o.ecf_log_ids.filtered(lambda l: l.estado == 'aprobado')[:1]"/>
+                                <t t-if="last_log">
+                                    <td class="ecf-label">Aprobado DGII:</td>
+                                    <td class="ecf-value">
+                                        <t t-esc="last_log.approved_at and last_log.approved_at.strftime('%d/%m/%Y %H:%M:%S') or 'N/D'"/>
+                                    </td>
+                                    <td class="ecf-label">Estado:</td>
+                                    <td class="ecf-value">
+                                        <strong><t t-esc="(o.ecf_estado or '').upper()"/></strong>
+                                    </td>
+                                </t>
+                            </tr>
+                        </table>
+
+                        <!-- QR Code: obligatorio cuando el e-CF está aprobado -->
+                        <t t-if="o.ecf_qr">
+                            <div class="ecf-qr-section">
+                                <img t-attf-src="/report/barcode/?barcode_type=QR&amp;value=#{o.ecf_qr | urlencode}&amp;width=120&amp;height=120"
+                                     class="ecf-qr-img"
+                                     alt="QR CUFE DGII"/>
+                                <div class="ecf-qr-label">Verificar en DGII</div>
+                            </div>
+                        </t>
+                        <!-- Fallback QR cuando hay CUFE pero no URL QR directa -->
+                        <t t-if="not o.ecf_qr and o.ecf_cufe">
+                            <div class="ecf-qr-section">
+                                <img t-attf-src="/report/barcode/?barcode_type=QR&amp;value=#{o.ecf_cufe | urlencode}&amp;width=120&amp;height=120"
+                                     class="ecf-qr-img"
+                                     alt="QR CUFE DGII"/>
+                                <div class="ecf-qr-label">Verificar CUFE</div>
+                            </div>
+                        </t>
+
+                        <div class="ecf-separator"/>
+                    </div>
+                </t>
+
+                <!-- Aviso si aún no tiene e-CF aprobado -->
+                <t t-if="not o.ecf_ncf">
+                    <div class="ecf-pending-notice">
+                        ⚠️ Este documento aún no tiene Comprobante Fiscal Electrónico (e-CF) asignado.
+                    </div>
+                </t>
+
+                <!-- ═══════════════════════════════════════════════════
+                     CUERPO ESTÁNDAR DE LA FACTURA (reutiliza el template de Odoo)
+                     ═══════════════════════════════════════════════════ -->
+                <t t-call="account.report_invoice_document"/>
+
+                <!-- ═══════════════════════════════════════════════════
+                     PIE DGII: leyenda legal obligatoria
+                     ═══════════════════════════════════════════════════ -->
+                <div class="ecf-footer-legal" t-if="o.ecf_ncf">
+                    <p>
+                        Este documento es un Comprobante Fiscal Electrónico (e-CF) emitido ante
+                        la Dirección General de Impuestos Internos (DGII) de la República Dominicana.
+                        NCF: <strong><t t-esc="o.ecf_ncf"/></strong>.
+                        Conserve este comprobante para sus registros fiscales.
+                        Sistema: <a href="https://renace.tech">Renace.tech</a>
+                    </p>
+                </div>
+
+            </div>
+        </t>
+    </template>
+
+</odoo>

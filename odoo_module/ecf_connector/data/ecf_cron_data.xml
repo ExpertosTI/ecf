@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ═══════════════════════════════════════════════════
+         Cron: Detectar facturas diferidas listas para emitir e-CF
+         Frecuencia: cada hora
+         ═══════════════════════════════════════════════════ -->
+    <record id="ir_cron_ecf_detectar_listos" model="ir.cron">
+        <field name="name">ECF DGII — Detectar Facturas Pendientes Listas para Emitir</field>
+        <field name="model_id" ref="model_account_move"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_detectar_ecf_listos()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">hours</field>
+        <field name="numbercall">-1</field>
+        <field name="doall" eval="False"/>
+        <field name="active" eval="True"/>
+    </record>
+</odoo>

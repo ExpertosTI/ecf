@@ -975,8 +975,8 @@
                 </div>
                 <h1>
                     Facturación electrónica<br>
-                    <span class="gradient">e-CF para Odoo</span><br>
-                    sin complicaciones
+                    <span class="gradient">SaaS e-CF para Odoo</span><br>
+                    de clase mundial
                 </h1>
                 <p class="hero-desc">
                     Plataforma integral que conecta tu entorno Odoo con la DGII.
@@ -1038,31 +1038,8 @@
             <div class="trust-item">
                 <div class="trust-icon">⚡</div>
                 <div class="trust-text">
-                    <strong>Fácil de Usar</strong>
-                    <span>Integración directa en clics</span>
-                </div>
-            </div>
-            <div class="trust-item">
-                <div class="trust-icon">🏢</div>
-                <div class="trust-text">
-                    <strong>Soporte Local</strong>
-                    <span>Hecho para Rep. Dominicana</span>
-                </div>
-            </div>
-            <div class="trust-item">
-                <div class="trust-icon">📊</div>
-                <div class="trust-text">
-                    <strong>Reportes 606/607</strong>
-                    <span>Generación automática</span>
-                </div>
-            </div>
-        </div>
-    </div>
-            <div class="trust-item">
-                <div class="trust-icon">⚡</div>
-                <div class="trust-text">
-                    <strong>25+ Endpoints REST</strong>
-                    <span>Emisión, admin, certs, reportes, DLQ</span>
+                    <strong>High-Performance</strong>
+                    <span>Backoff exponencial + DLQ</span>
                 </div>
             </div>
             <div class="trust-item">
@@ -1073,22 +1050,13 @@
                 </div>
             </div>
             <div class="trust-item">
-                <div class="trust-icon">🔁</div>
-                <div class="trust-text">
-                    <strong>5 Reintentos</strong>
-                    <span>Backoff exponencial + DLQ</span>
-                </div>
-            </div>
-            <div class="trust-item">
                 <div class="trust-icon">📊</div>
                 <div class="trust-text">
-                    <strong>Reportes 606/607/608</strong>
-                    <span>Formato DGII nativo</span>
+                    <strong>Reportes 606/607</strong>
+                    <span>Generación automática</span>
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
 <!-- ═══════════════════════════════════════════
      FUNCIONALIDADES
@@ -1216,7 +1184,7 @@
         <h2 class="section-title reveal">Integración nativa con<br>tu ERP favorito</h2>
         <p class="section-subtitle reveal">
             Módulo <code>ecf_connector</code> para Odoo 18 que conecta directamente con el Hub SaaS.
-            Emisión automática o manual, trazabilidad completa, y configuración por compañía.
+            Optimizado para alto volumen, flujos diferidos de POS y cumplimiento estricto DGII.
         </p>
 
         <div class="odoo-features">
@@ -1243,24 +1211,43 @@
                 </ul>
             </div>
             <div class="odoo-card reveal">
-                <h4>❌ Anulación</h4>
+                <h4>🏧 POS Diferido (Premium)</h4>
                 <ul>
-                    <li>Wizard de anulación con motivos oficiales DGII (01-09)</li>
-                    <li>Código de motivo seleccionable desde lista desplegable</li>
-                    <li>Nota opcional del operador</li>
-                    <li>Confirmación antes del envío al SaaS</li>
-                    <li>Resultado registrado en log y chatter</li>
+                    <li>Flujo de envíos/créditos sin factura inmediata</li>
+                    <li>Marcado de facturas "Pendientes de Conciliación"</li>
+                    <li>Detección automática de pago completo</li>
+                    <li>Acción masiva para emitir e-CF tras cobro</li>
+                    <li>Integración transparente con ventas POS estándar</li>
+                </ul>
+            </div>
+            <div class="odoo-card reveal">
+                <h4>📊 Dashboard e-CF</h4>
+                <ul>
+                    <li>Vista Kanban por estados (Aprobado, Rechazado, etc.)</li>
+                    <li>KPIs mensuales y gráficos de rendimiento</li>
+                    <li>Filtros avanzados por RNC, Ambiente y Fecha</li>
+                    <li>Acceso rápido a facturas listas para emitir</li>
+                    <li>Visibilidad total del cumplimiento fiscal</li>
+                </ul>
+            </div>
+            <div class="odoo-card reveal">
+                <h4>🖨️ Impresión DGII</h4>
+                <ul>
+                    <li>Tickets térmicos con <strong>Small QR</strong> nativo</li>
+                    <li>Facturas PDF con badge de ambiente y NCF</li>
+                    <li>Inclusión obligatoria de CUFE y Leyenda Legal</li>
+                    <li>Logo de empresa y datos DGII automatizados</li>
+                    <li>Soporte para múltiples impresoras y formatos</li>
                 </ul>
             </div>
             <div class="odoo-card reveal">
                 <h4>⚙️ Configuración</h4>
                 <ul>
                     <li>Configuración por compañía vía <code>res.config.settings</code></li>
-                    <li>URL del SaaS, API Key y Webhook Secret configurables</li>
+                    <li>Botón de <strong>Test de Conexión</strong> con latencia</li>
                     <li>Ambiente seleccionable (Certificación / Producción)</li>
-                    <li>RNC de empresa vinculado a <code>company.vat</code></li>
+                    <li>Trigger de emisión manual por defecto (Seguridad)</li>
                     <li>Grupos de seguridad: Usuario e-CF y Manager e-CF</li>
-                    <li>ACL diferenciadas por rol</li>
                 </ul>
             </div>
         </div>

@@ -1,53 +1,69 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
+    <!-- ═══════════════════════════════════════════════════
+         10 Tipos de e-CF — República Dominicana
+         Fuente: Normas Complementarias DGII e-CF
+         noupdate="1" → solo se crean, nunca se sobreescriben
+         ═══════════════════════════════════════════════════ -->
+
     <record id="ecf_tipo_31" model="ecf.tipo">
         <field name="codigo">31</field>
         <field name="nombre">Factura de Crédito Fiscal Electrónica</field>
         <field name="prefijo">E31</field>
+        <field name="consumidor_final" eval="False"/>
     </record>
     <record id="ecf_tipo_32" model="ecf.tipo">
         <field name="codigo">32</field>
         <field name="nombre">Factura de Consumo Electrónica</field>
         <field name="prefijo">E32</field>
+        <field name="consumidor_final" eval="True"/>
     </record>
     <record id="ecf_tipo_33" model="ecf.tipo">
         <field name="codigo">33</field>
         <field name="nombre">Nota de Débito Electrónica</field>
         <field name="prefijo">E33</field>
+        <field name="consumidor_final" eval="False"/>
     </record>
     <record id="ecf_tipo_34" model="ecf.tipo">
         <field name="codigo">34</field>
         <field name="nombre">Nota de Crédito Electrónica</field>
         <field name="prefijo">E34</field>
+        <field name="consumidor_final" eval="False"/>
     </record>
     <record id="ecf_tipo_41" model="ecf.tipo">
         <field name="codigo">41</field>
         <field name="nombre">Compras Electrónico</field>
         <field name="prefijo">E41</field>
+        <field name="consumidor_final" eval="False"/>
     </record>
     <record id="ecf_tipo_43" model="ecf.tipo">
         <field name="codigo">43</field>
         <field name="nombre">Gastos Menores Electrónico</field>
         <field name="prefijo">E43</field>
+        <field name="consumidor_final" eval="True"/>
     </record>
     <record id="ecf_tipo_44" model="ecf.tipo">
         <field name="codigo">44</field>
         <field name="nombre">Regímenes Especiales Electrónico</field>
         <field name="prefijo">E44</field>
+        <field name="consumidor_final" eval="False"/>
     </record>
     <record id="ecf_tipo_45" model="ecf.tipo">
         <field name="codigo">45</field>
         <field name="nombre">Gubernamental Electrónico</field>
         <field name="prefijo">E45</field>
+        <field name="consumidor_final" eval="False"/>
     </record>
     <record id="ecf_tipo_46" model="ecf.tipo">
         <field name="codigo">46</field>
         <field name="nombre">Comprobante para Exportaciones Electrónico</field>
         <field name="prefijo">E46</field>
+        <field name="consumidor_final" eval="False"/>
     </record>
     <record id="ecf_tipo_47" model="ecf.tipo">
         <field name="codigo">47</field>
         <field name="nombre">Comprobante para Pagos al Exterior Electrónico</field>
         <field name="prefijo">E47</field>
+        <field name="consumidor_final" eval="False"/>
     </record>
 </odoo>

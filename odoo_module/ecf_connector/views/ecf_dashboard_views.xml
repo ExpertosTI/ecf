@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══════════════════════════════════════════════
+         DASHBOARD e-CF — Vista Kanban con KPIs
+         ══════════════════════════════════════════════ -->
+
+    <!-- Acción del Dashboard -->
+    <record id="ecf_dashboard_action" model="ir.actions.act_window">
+        <field name="name">Dashboard e-CF</field>
+        <field name="res_model">ecf.log</field>
+        <field name="view_mode">kanban,list,graph</field>
+        <field name="context">{'search_default_group_by_estado': 1}</field>
+    </record>
+
+    <!-- Vista Kanban: agrupada por estado con colores -->
+    <record id="ecf_log_kanban_view" model="ir.ui.view">
+        <field name="name">ecf.log.kanban</field>
+        <field name="model">ecf.log</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="estado"
+                    class="o_kanban_small_column"
+                    group_create="false">
+                <field name="ncf"/>
+                <field name="estado"/>
+                <field name="move_id"/>
+                <field name="tipo_ecf"/>
+                <field name="cufe"/>
+                <field name="approved_at"/>
+                <field name="ambiente"/>
+                <field name="create_date"/>
+                <field name="error_msg"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div t-attf-class="oe_kanban_card oe_kanban_global_click #{record.estado.raw_value == 'aprobado' and 'oe_kanban_color_10' or record.estado.raw_value == 'rechazado' and 'oe_kanban_color_1' or record.estado.raw_value == 'condicionado' and 'oe_kanban_color_2' or ''}">
+                            <div class="oe_kanban_content">
+                                <div class="o_kanban_record_top">
+                                    <strong><field name="ncf"/></strong>
+                                    <small class="text-muted ms-2">Tipo <field name="tipo_ecf"/></small>
+                                </div>
+                                <div class="o_kanban_record_body">
+                                    <field name="move_id"/>
+                                </div>
+                                <div class="o_kanban_record_bottom">
+                                    <div class="oe_kanban_bottom_left">
+                                        <field name="create_date" widget="date"/>
+                                    </div>
+                                    <div class="oe_kanban_bottom_right">
+                                        <span t-if="record.ambiente.raw_value"
+                                              class="badge rounded-pill"
+                                              t-attf-class="badge rounded-pill #{record.ambiente.raw_value == 'produccion' and 'text-bg-success' or 'text-bg-warning'}">
+                                            <t t-esc="record.ambiente.raw_value"/>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div t-if="record.error_msg.raw_value"
+                                     class="alert alert-danger mt-1 p-1 small">
+                                    <field name="error_msg"/>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Vista Gráfico: barras por estado del mes -->
+    <record id="ecf_log_graph_view" model="ir.ui.view">
+        <field name="name">ecf.log.graph</field>
+        <field name="model">ecf.log</field>
+        <field name="arch" type="xml">
+            <graph string="e-CF por Estado" type="bar">
+                <field name="estado" type="row"/>
+                <field name="create_date" interval="month" type="col"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Vista de búsqueda con filtros predefinidos -->
+    <record id="ecf_log_search_view" model="ir.ui.view">
+        <field name="name">ecf.log.search</field>
+        <field name="model">ecf.log</field>
+        <field name="arch" type="xml">
+            <search string="Buscar e-CF">
+                <field name="ncf" string="NCF"/>
+                <field name="move_id" string="Factura"/>
+                <filter string="Aprobados" name="aprobados" domain="[('estado','=','aprobado')]"/>
+                <filter string="Rechazados" name="rechazados" domain="[('estado','=','rechazado')]"/>
+                <filter string="Condicionados" name="condicionados" domain="[('estado','=','condicionado')]"/>
+                <filter string="Pendientes" name="pendientes" domain="[('estado','=','pendiente')]"/>
+                <filter string="Anulados" name="anulados" domain="[('estado','in',['anulado','anulacion_fallida'])]"/>
+                <separator/>
+                <filter string="Certificación" name="certificacion" domain="[('ambiente','=','certificacion')]"/>
+                <filter string="Producción" name="produccion" domain="[('ambiente','=','produccion')]"/>
+                <separator/>
+                <filter string="Este mes" name="este_mes"
+                        domain="[('create_date','&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Agrupar por">
+                    <filter name="group_by_estado" string="Estado" context="{'group_by': 'estado'}"/>
+                    <filter name="group_by_tipo" string="Tipo e-CF" context="{'group_by': 'tipo_ecf'}"/>
+                    <filter name="group_by_ambiente" string="Ambiente" context="{'group_by': 'ambiente'}"/>
+                    <filter name="group_by_month" string="Mes" context="{'group_by': 'create_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Menú Dashboard -->
+    <menuitem id="ecf_menu_dashboard"
+              name="Dashboard e-CF"
+              parent="ecf_log_views.ecf_menu_root"
+              action="ecf_dashboard_action"
+              sequence="1"
+              groups="ecf_connector.group_ecf_user"/>
+
+</odoo>

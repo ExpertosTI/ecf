@@ -1,10 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- res_config_settings_views.xml ya está embebido en account_move_views.xml (líneas 100-136).
-         Este archivo es el referenciado por __manifest__.py.
-         Se deja vacío porque la vista de configuración ya la define account_move_views.xml.
-         Si desea separarla, mueva el record res_config_settings_view_ecf aquí. -->
-
     <!-- Hereda res.config.settings para añadir sección ECF -->
     <record id="res_config_settings_view_ecf_form" model="ir.ui.view">
         <field name="name">res.config.settings.view.ecf.form</field>
@@ -13,8 +8,11 @@
         <field name="arch" type="xml">
             <xpath expr="//div[hasclass('settings')]" position="inside">
                 <div class="app_settings_block" data-string="e-CF DGII" string="e-CF DGII" data-key="ecf_connector">
-                    <h2>SaaS Facturación Electrónica (e-CF)</h2>
+                    <h2>SaaS Facturación Electrónica (e-CF) — Renace.tech</h2>
+
                     <div class="row mt16 o_settings_container">
+
+                        <!-- URL SaaS -->
                         <div class="col-12 col-lg-6 o_setting_box">
                             <div class="o_setting_left_pane"/>
                             <div class="o_setting_right_pane">
@@ -23,14 +21,18 @@
                                 <field name="ecf_saas_url"/>
                             </div>
                         </div>
+
+                        <!-- API Key -->
                         <div class="col-12 col-lg-6 o_setting_box">
                             <div class="o_setting_left_pane"/>
                             <div class="o_setting_right_pane">
                                 <label for="ecf_api_key"/>
-                                <div class="text-muted">API Key asignada a esta empresa</div>
+                                <div class="text-muted">API Key del tenant (sk_cert_... o sk_prod_...)</div>
                                 <field name="ecf_api_key" password="True"/>
                             </div>
                         </div>
+
+                        <!-- Webhook Secret -->
                         <div class="col-12 col-lg-6 o_setting_box">
                             <div class="o_setting_left_pane"/>
                             <div class="o_setting_right_pane">
@@ -39,14 +41,18 @@
                                 <field name="ecf_webhook_secret" password="True"/>
                             </div>
                         </div>
+
+                        <!-- Ambiente -->
                         <div class="col-12 col-lg-6 o_setting_box">
                             <div class="o_setting_left_pane"/>
                             <div class="o_setting_right_pane">
                                 <label for="ecf_ambiente"/>
-                                <div class="text-muted">Ambiente DGII (certificación o producción)</div>
+                                <div class="text-muted">Ambiente DGII (certificación → producción)</div>
                                 <field name="ecf_ambiente"/>
                             </div>
                         </div>
+
+                        <!-- RNC Empresa -->
                         <div class="col-12 col-lg-6 o_setting_box">
                             <div class="o_setting_left_pane"/>
                             <div class="o_setting_right_pane">
@@ -55,6 +61,8 @@
                                 <field name="ecf_rnc_empresa"/>
                             </div>
                         </div>
+
+                        <!-- Emisión automática (DESACTIVADO POR DEFECTO) -->
                         <div class="col-12 col-lg-6 o_setting_box">
                             <div class="o_setting_left_pane">
                                 <field name="ecf_emision_automatica"/>
@@ -62,10 +70,26 @@
                             <div class="o_setting_right_pane">
                                 <label for="ecf_emision_automatica"/>
                                 <div class="text-muted">
-                                    Si está activo, el e-CF se emite al confirmar la factura.
+                                    <strong>⚠️ DESACTIVADO por defecto.</strong>
+                                    Si se activa, el e-CF se emitirá automáticamente al
+                                    confirmar facturas en modo "Inmediato". Las facturas
+                                    en modo "Diferido" (POS) siempre requieren acción manual.
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Botón Test Conexión -->
+                        <div class="col-12 o_setting_box">
+                            <div class="o_setting_left_pane"/>
+                            <div class="o_setting_right_pane">
+                                <button name="action_test_conexion_ecf"
+                                        type="object"
+                                        string="🔌 Probar Conexión al SaaS"
+                                        class="btn btn-secondary"/>
+                                <div class="text-muted">Verifica la conexión al API Gateway y muestra la latencia.</div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </xpath>

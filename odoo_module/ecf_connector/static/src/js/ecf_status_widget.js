@@ -1,28 +1,54 @@
 /** @odoo-module **/
+/**
+ * ECF Status Widget — OWL Component para Odoo 18
+ * Muestra el estado del e-CF como un badge coloreado con ícono
+ * Renace.tech | Facturación Electrónica DGII
+ */
 import { registry } from "@web/core/registry";
 import { Component, xml } from "@odoo/owl";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
 
-const STATE_COLORS = {
-    pendiente: "secondary",
-    enviado: "info",
-    aprobado: "success",
-    rechazado: "danger",
-    condicionado: "warning",
-    anulacion_pendiente: "warning",
-    anulado: "dark",
-    anulacion_fallida: "danger",
-};
-
-const STATE_ICONS = {
-    pendiente: "fa-clock-o",
-    enviado: "fa-paper-plane",
-    aprobado: "fa-check-circle",
-    rechazado: "fa-times-circle",
-    condicionado: "fa-exclamation-triangle",
-    anulacion_pendiente: "fa-hourglass-half",
-    anulado: "fa-ban",
-    anulacion_fallida: "fa-exclamation-circle",
+const STATE_CONFIG = {
+    pendiente: {
+        color: "secondary",
+        icon: "fa-clock-o",
+        label: "Pendiente",
+    },
+    enviado: {
+        color: "info",
+        icon: "fa-paper-plane",
+        label: "Enviado",
+    },
+    aprobado: {
+        color: "success",
+        icon: "fa-check-circle",
+        label: "Aprobado DGII",
+    },
+    rechazado: {
+        color: "danger",
+        icon: "fa-times-circle",
+        label: "Rechazado",
+    },
+    condicionado: {
+        color: "warning",
+        icon: "fa-exclamation-triangle",
+        label: "Condicionado",
+    },
+    anulacion_pendiente: {
+        color: "warning",
+        icon: "fa-hourglass-half",
+        label: "Anulación Pendiente",
+    },
+    anulado: {
+        color: "dark",
+        icon: "fa-ban",
+        label: "Anulado",
+    },
+    anulacion_fallida: {
+        color: "danger",
+        icon: "fa-exclamation-circle",
+        label: "Anulación Fallida",
+    },
 };
 
 class ECFStatusWidget extends Component {
@@ -31,25 +57,32 @@ class ECFStatusWidget extends Component {
             <i t-att-class="iconClass"/>
             <t t-esc="displayValue"/>
         </span>
+        <span t-else="" class="text-muted small">—</span>
     `;
     static props = { ...standardFieldProps };
 
+    get estado() {
+        return this.props.record.data[this.props.name];
+    }
+
+    get config() {
+        return STATE_CONFIG[this.estado] || { color: "secondary", icon: "fa-question-circle" };
+    }
+
     get badgeClass() {
-        const estado = this.props.record.data[this.props.name];
-        return `badge text-bg-${STATE_COLORS[estado] || "secondary"}`;
+        return `badge text-bg-${this.config.color} d-inline-flex align-items-center gap-1`;
     }
 
     get iconClass() {
-        const estado = this.props.record.data[this.props.name];
-        return `fa ${STATE_ICONS[estado] || "fa-question-circle"} me-1`;
+        return `fa ${this.config.icon}`;
     }
 
     get displayValue() {
-        const estado = this.props.record.data[this.props.name];
-        if (!estado) return "";
-        const selection = this.props.record.fields[this.props.name].selection || [];
-        const match = selection.find(([val]) => val === estado);
-        return match ? match[1] : estado;
+        if (!this.estado) return "";
+        // Use selection label if available, else use config label, else raw value
+        const selection = this.props.record.fields[this.props.name]?.selection || [];
+        const match = selection.find(([val]) => val === this.estado);
+        return match ? match[1] : (this.config.label || this.estado);
     }
 }
 

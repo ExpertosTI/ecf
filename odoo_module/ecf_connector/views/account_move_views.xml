@@ -2,7 +2,7 @@
 <odoo>
 
     <!-- ============================================================
-         Vista de formulario de factura — añade sección ECF
+         Vista de formulario de factura — sección e-CF actualizada
          ============================================================ -->
     <record id="view_move_form_ecf" model="ir.ui.view">
         <field name="name">account.move.form.ecf</field>
@@ -12,25 +12,46 @@
 
             <!-- Botones de acción en la cabecera -->
             <xpath expr="//header" position="inside">
+                <!-- Emitir e-CF: disponible cuando hay tipo, NO está ya enviado/aprobado, NO está diferido-pendiente -->
+                <button name="action_emitir_ecf"
+                        string="Emitir e-CF"
+                        type="object"
+                        class="btn-primary"
+                        invisible="
+                            not ecf_tipo_id or
+                            ecf_estado in ('enviado','aprobado','condicionado','anulacion_pendiente','anulado') or
+                            ecf_pendiente_conciliacion or
+                            ecf_modo == 'excento'
+                        "
+                        groups="ecf_connector.group_ecf_user"/>
+
+                <!-- Emitir e-CF: disponible cuando diferido y pago listo -->
+                <button name="action_emitir_ecf"
+                        string="✅ Emitir e-CF (Pago Recibido)"
+                        type="object"
+                        class="btn-primary"
+                        invisible="not ecf_listo_para_emitir"
+                        groups="ecf_connector.group_ecf_user"/>
+
                 <button name="action_anular_ecf"
                         string="Anular e-CF"
                         type="object"
                         class="btn-secondary"
                         invisible="ecf_estado not in ('aprobado', 'condicionado')"
                         groups="ecf_connector.group_ecf_user"/>
+
                 <button name="action_consultar_estado_ecf"
-                        string="Actualizar estado e-CF"
+                        string="↻ Estado e-CF"
                         type="object"
                         class="btn-secondary"
                         invisible="not ecf_ncf"
                         groups="ecf_connector.group_ecf_user"/>
             </xpath>
 
-            <!-- Badge de estado en la cabecera -->
+            <!-- Badge de estado después del campo state -->
             <xpath expr="//field[@name='state']" position="after">
                 <field name="ecf_estado"
-                       widget="statusbar"
-                       statusbar_visible="pendiente,enviado,aprobado"
+                       widget="ecf_status"
                        invisible="not ecf_estado"/>
             </xpath>
 
@@ -43,31 +64,59 @@
                         <group string="Comprobante Fiscal">
                             <field name="ecf_tipo_id"
                                    options="{'no_create': True}"
-                                   required="move_type in ('out_invoice', 'out_refund')"
+                                   readonly="state != 'draft'"/>
+                            <field name="ecf_modo"
                                    readonly="state != 'draft'"/>
                             <field name="ecf_ncf" readonly="1"/>
                             <field name="ecf_estado" readonly="1" widget="ecf_status"/>
                             <field name="partner_rnc" readonly="1" string="RNC/Cédula cliente"/>
                         </group>
-                        <group string="Validación DGII">
-                            <field name="ecf_cufe" readonly="1"/>
-                            <field name="ecf_qr"   readonly="1" widget="text"/>
+                        <group string="Estado Conciliación">
+                            <field name="ecf_pendiente_conciliacion" readonly="1"/>
+                            <field name="ecf_listo_para_emitir" readonly="1"/>
                         </group>
                     </group>
+                    <group string="Validación DGII" invisible="not ecf_ncf">
+                        <group>
+                            <field name="ecf_cufe" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="ecf_qr" readonly="1" widget="text"/>
+                        </group>
+                    </group>
+
+                    <!-- Alerta diferido pendiente -->
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not ecf_pendiente_conciliacion">
+                        <strong>⏳ Pendiente de conciliación:</strong>
+                        Esta factura está en modo diferido. El e-CF se podrá emitir
+                        cuando el pago sea registrado y conciliado completamente.
+                    </div>
+
+                    <!-- Alerta listo para emitir -->
+                    <div class="alert alert-success" role="alert"
+                         invisible="not ecf_listo_para_emitir">
+                        <strong>✅ Lista para emitir:</strong>
+                        El pago fue recibido. Use el botón
+                        <em>"Emitir e-CF (Pago Recibido)"</em> para generar el comprobante.
+                    </div>
+
                     <separator string="Historial de e-CF"/>
                     <field name="ecf_log_ids" readonly="1">
-                        <tree>
+                        <list>
                             <field name="create_date" string="Fecha"/>
                             <field name="ncf"/>
                             <field name="tipo_ecf" string="Tipo"/>
                             <field name="estado"
                                    decoration-success="estado == 'aprobado'"
                                    decoration-danger="estado == 'rechazado'"
-                                   decoration-warning="estado == 'condicionado'"
-                                   decoration-muted="estado == 'pendiente'"/>
+                                   decoration-warning="estado in ('condicionado','anulacion_pendiente')"
+                                   decoration-muted="estado in ('pendiente','anulado')"/>
                             <field name="cufe"/>
+                            <field name="ambiente"/>
+                            <field name="approved_at" string="Aprobado DGII"/>
                             <field name="error_msg"/>
-                        </tree>
+                        </list>
                     </field>
                 </page>
             </xpath>
@@ -76,10 +125,10 @@
     </record>
 
     <!-- ============================================================
-         Vista de lista de facturas — añade columna NCF y estado
+         Vista de lista de facturas — columnas NCF y estado
          ============================================================ -->
     <record id="view_move_tree_ecf" model="ir.ui.view">
-        <field name="name">account.move.tree.ecf</field>
+        <field name="name">account.move.list.ecf</field>
         <field name="model">account.move</field>
         <field name="inherit_id" ref="account.view_move_tree"/>
         <field name="arch" type="xml">
@@ -88,8 +137,9 @@
                 <field name="ecf_estado" optional="show" string="Estado e-CF"
                        decoration-success="ecf_estado == 'aprobado'"
                        decoration-danger="ecf_estado == 'rechazado'"
-                       decoration-warning="ecf_estado == 'condicionado'"
+                       decoration-warning="ecf_estado in ('condicionado','anulacion_pendiente')"
                        decoration-muted="ecf_estado == 'pendiente'"/>
+                <field name="ecf_listo_para_emitir" optional="show" string="Listo e-CF"/>
             </xpath>
         </field>
     </record>
