@@ -16,4 +16,45 @@
         <field name="category_id" ref="module_category_ecf"/>
         <field name="implied_ids" eval="[(4, ref('group_ecf_user'))]"/>
     </record>
+
+    <!-- ACLs inside XML to ensure correct loading order -->
+    <record id="access_ecf_tipo_manager_xml" model="ir.model.access">
+        <field name="name">ecf.tipo.manager.xml</field>
+        <field name="model_id" ref="model_ecf_tipo"/>
+        <field name="group_id" ref="group_ecf_manager"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="1"/>
+    </record>
+
+    <record id="access_ecf_log_manager_xml" model="ir.model.access">
+        <field name="name">ecf.log.manager.xml</field>
+        <field name="model_id" ref="model_ecf_log"/>
+        <field name="group_id" ref="group_ecf_manager"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+
+    <record id="access_ecf_anular_wizard_user_xml" model="ir.model.access">
+        <field name="name">ecf.anular.wizard.user.xml</field>
+        <field name="model_id" ref="model_ecf_anular_wizard"/>
+        <field name="group_id" ref="group_ecf_user"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="1"/>
+    </record>
+
+    <record id="access_ecf_compra_recibida_manager_xml" model="ir.model.access">
+        <field name="name">ecf.compra.recibida.manager.xml</field>
+        <field name="model_id" ref="model_ecf_compra_recibida"/>
+        <field name="group_id" ref="group_ecf_manager"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="1"/>
+    </record>
 </odoo>

@@ -17,7 +17,10 @@ info()  { echo -e "${BLUE}[INFO]${NC} $1"; }
 
 AMBIENTE="${1:-certificacion}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.yml"
+COMPOSE_FILE="-f ${SCRIPT_DIR}/docker-compose.yml"
+if [ -f "${SCRIPT_DIR}/docker-compose.override.yml" ]; then
+    COMPOSE_FILE="${COMPOSE_FILE} -f ${SCRIPT_DIR}/docker-compose.override.yml"
+fi
 ENV_FILE="${SCRIPT_DIR}/.env"
 BACKUP_DIR="${SCRIPT_DIR}/backups"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
