@@ -45,6 +45,7 @@
     ],
     'assets': {
         'web.assets_backend': [
+            'ecf_connector/static/src/css/ecf_backend.css',
             'ecf_connector/static/src/js/ecf_status_widget.js',
             'ecf_connector/static/src/js/ecf_dashboard.js',
         ],

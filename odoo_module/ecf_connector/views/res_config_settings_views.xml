@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Hereda res.config.settings para añadir sección ECF -->
     <record id="res_config_settings_view_ecf_form" model="ir.ui.view">
         <field name="name">res.config.settings.view.ecf.form</field>
         <field name="model">res.config.settings</field>
@@ -10,15 +9,36 @@
                 <div class="app_settings_block" data-string="e-CF DGII" string="e-CF DGII" data-key="ecf_connector">
                     <h2>SaaS Facturación Electrónica (e-CF) — Renace.tech</h2>
 
+                    <!-- ══════════════════════════════════════════
+                         GUÍA DE CONFIGURACIÓN (3 pasos)
+                         ══════════════════════════════════════════ -->
+                    <div class="alert alert-info" role="alert" style="margin-bottom: 24px;">
+                        <strong>⚡ Guía rápida de conexión:</strong>
+                        <ol style="margin: 8px 0 0 0; padding-left: 20px; line-height: 2;">
+                            <li><strong>Paso 1 — Conexión:</strong> Ingresa la URL del SaaS y tu API Key del tenant (proporcionada por Renace.tech).</li>
+                            <li><strong>Paso 2 — Empresa:</strong> Verifica que el RNC coincida con el certificado DGII registrado.</li>
+                            <li><strong>Paso 3 — Verificar:</strong> Haz clic en <em>"Probar Conexión"</em> y confirma que el estado sea ✅ OK antes de emitir.</li>
+                        </ol>
+                    </div>
+
                     <div class="row mt16 o_settings_container">
+
+                        <!-- ══════════════ SECCIÓN: CONEXIÓN AL SAAS ══════════════ -->
+                        <div class="col-12">
+                            <h3 style="border-bottom: 1px solid #dee2e6; padding-bottom: 8px; margin-bottom: 16px; color: #495057;">
+                                🔗 Conexión al SaaS
+                            </h3>
+                        </div>
 
                         <!-- URL SaaS -->
                         <div class="col-12 col-lg-6 o_setting_box">
                             <div class="o_setting_left_pane"/>
                             <div class="o_setting_right_pane">
-                                <label for="ecf_saas_url"/>
-                                <div class="text-muted">URL base del API Gateway del SaaS ECF</div>
-                                <field name="ecf_saas_url"/>
+                                <label for="ecf_saas_url" string="URL del SaaS ECF"/>
+                                <div class="text-muted">
+                                    URL del API Gateway · Por defecto: <code>https://ecf.renace.tech</code>
+                                </div>
+                                <field name="ecf_saas_url" placeholder="https://ecf.renace.tech"/>
                             </div>
                         </div>
 
@@ -26,9 +46,11 @@
                         <div class="col-12 col-lg-6 o_setting_box">
                             <div class="o_setting_left_pane"/>
                             <div class="o_setting_right_pane">
-                                <label for="ecf_api_key"/>
-                                <div class="text-muted">API Key del tenant (sk_cert_... o sk_prod_...)</div>
-                                <field name="ecf_api_key" password="True"/>
+                                <label for="ecf_api_key" string="API Key del Tenant"/>
+                                <div class="text-muted">
+                                    Clave secreta de tu tenant · Empieza con <code>sk_cert_</code> (certificación) o <code>sk_prod_</code> (producción)
+                                </div>
+                                <field name="ecf_api_key" password="True" placeholder="sk_cert_... o sk_prod_..."/>
                             </div>
                         </div>
 
@@ -36,9 +58,11 @@
                         <div class="col-12 col-lg-6 o_setting_box">
                             <div class="o_setting_left_pane"/>
                             <div class="o_setting_right_pane">
-                                <label for="ecf_webhook_secret"/>
-                                <div class="text-muted">Secret HMAC-SHA256 para validar callbacks</div>
-                                <field name="ecf_webhook_secret" password="True"/>
+                                <label for="ecf_webhook_secret" string="Webhook Secret"/>
+                                <div class="text-muted">
+                                    Secret HMAC-SHA256 para validar callbacks de la DGII · Proporcionado por Renace.tech
+                                </div>
+                                <field name="ecf_webhook_secret" password="True" placeholder="whsec_..."/>
                             </div>
                         </div>
 
@@ -46,47 +70,72 @@
                         <div class="col-12 col-lg-6 o_setting_box">
                             <div class="o_setting_left_pane"/>
                             <div class="o_setting_right_pane">
-                                <label for="ecf_ambiente"/>
-                                <div class="text-muted">Ambiente DGII (certificación → producción)</div>
-                                <field name="ecf_ambiente"/>
-                            </div>
-                        </div>
-
-                        <!-- RNC Empresa -->
-                        <div class="col-12 col-lg-6 o_setting_box">
-                            <div class="o_setting_left_pane"/>
-                            <div class="o_setting_right_pane">
-                                <label for="ecf_rnc_empresa"/>
-                                <div class="text-muted">RNC de la empresa emisora</div>
-                                <field name="ecf_rnc_empresa"/>
-                            </div>
-                        </div>
-
-                        <!-- Emisión automática (DESACTIVADO POR DEFECTO) -->
-                        <div class="col-12 col-lg-6 o_setting_box">
-                            <div class="o_setting_left_pane">
-                                <field name="ecf_emision_automatica"/>
-                            </div>
-                            <div class="o_setting_right_pane">
-                                <label for="ecf_emision_automatica"/>
+                                <label for="ecf_ambiente" string="Ambiente DGII"/>
                                 <div class="text-muted">
-                                    <strong>⚠️ DESACTIVADO por defecto.</strong>
-                                    Si se activa, el e-CF se emitirá automáticamente al
-                                    confirmar facturas en modo "Inmediato". Las facturas
-                                    en modo "Diferido" (POS) siempre requieren acción manual.
+                                    🧪 <strong>Certificación</strong> = pruebas sin efectos fiscales ·
+                                    🚀 <strong>Producción</strong> = comprobantes oficiales ante la DGII
+                                </div>
+                                <field name="ecf_ambiente"/>
+                                <div class="alert alert-warning mt8" role="alert"
+                                     invisible="ecf_ambiente != 'produccion'">
+                                    <strong>⚠️ PRODUCCIÓN ACTIVA</strong> — Las facturas que emitas tendrán validez fiscal ante la DGII.
+                                    Asegúrate de que el certificado y la firma digital estén vigentes.
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Botón Test Conexión -->
+                        <!-- Botón Test — prominente -->
                         <div class="col-12 o_setting_box">
                             <div class="o_setting_left_pane"/>
                             <div class="o_setting_right_pane">
                                 <button name="action_test_conexion_ecf"
                                         type="object"
                                         string="🔌 Probar Conexión al SaaS"
-                                        class="btn btn-secondary"/>
-                                <div class="text-muted">Verifica la conexión al API Gateway y muestra la latencia.</div>
+                                        class="btn btn-primary"/>
+                                <div class="text-muted mt8">
+                                    Guarda primero los ajustes, luego prueba la conexión. El resultado mostrará latencia y estado del tenant.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ══════════════ SECCIÓN: DATOS DE EMPRESA ══════════════ -->
+                        <div class="col-12 mt16">
+                            <h3 style="border-bottom: 1px solid #dee2e6; padding-bottom: 8px; margin-bottom: 16px; color: #495057;">
+                                🏢 Datos de Empresa
+                            </h3>
+                        </div>
+
+                        <!-- RNC Empresa -->
+                        <div class="col-12 col-lg-6 o_setting_box">
+                            <div class="o_setting_left_pane"/>
+                            <div class="o_setting_right_pane">
+                                <label for="ecf_rnc_empresa" string="RNC de la Empresa"/>
+                                <div class="text-muted">
+                                    RNC registrado ante la DGII · Debe coincidir exactamente con el certificado de firma digital
+                                </div>
+                                <field name="ecf_rnc_empresa" placeholder="1-23-45678-9"/>
+                            </div>
+                        </div>
+
+                        <!-- ══════════════ SECCIÓN: EMISIÓN ══════════════ -->
+                        <div class="col-12 mt16">
+                            <h3 style="border-bottom: 1px solid #dee2e6; padding-bottom: 8px; margin-bottom: 16px; color: #495057;">
+                                📤 Configuración de Emisión
+                            </h3>
+                        </div>
+
+                        <!-- Emisión automática -->
+                        <div class="col-12 col-lg-6 o_setting_box">
+                            <div class="o_setting_left_pane">
+                                <field name="ecf_emision_automatica"/>
+                            </div>
+                            <div class="o_setting_right_pane">
+                                <label for="ecf_emision_automatica" string="Emisión automática al confirmar"/>
+                                <div class="text-muted">
+                                    Cuando está <strong>activado</strong>: el e-CF se genera automáticamente al confirmar una factura en modo "Inmediato".<br/>
+                                    Cuando está <strong>desactivado</strong> (recomendado): debes usar el botón <em>"Emitir e-CF"</em> manualmente en cada factura.<br/>
+                                    <em>Nota: Las facturas de POS (modo Diferido) siempre requieren acción manual.</em>
+                                </div>
                             </div>
                         </div>
 

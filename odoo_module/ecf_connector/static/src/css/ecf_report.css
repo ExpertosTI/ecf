@@ -1,55 +1,64 @@
 /* ═══════════════════════════════════════════════════════════════
-   ECF DGII — Estilos de impresión DGII-compliant
+   ECF DGII — Estilos de impresión Premium
    Renace.tech | Facturación Electrónica República Dominicana
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── Encabezado DGII ── */
 .ecf-dgii-header {
-    border: 2px solid #1a3c6b;
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 16px;
-    background: #f8faff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+    background: #f8fafc;
     position: relative;
+    overflow: hidden;
+}
+
+.ecf-dgii-header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: #0087ff;
 }
 
 .ecf-badge-wrapper {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 10px;
+    margin-bottom: 16px;
 }
 
 .ecf-badge {
     font-weight: 800;
-    font-size: 14pt;
-    color: #1a3c6b;
+    font-size: 13pt;
+    color: #0f172a;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    border-bottom: 2px solid #1a3c6b;
-    padding-bottom: 4px;
+    letter-spacing: 0.02em;
     flex: 1;
 }
 
 .ecf-ambiente {
-    font-size: 9pt;
+    font-size: 8pt;
     font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 20px;
+    padding: 4px 12px;
+    border-radius: 6px;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.05em;
 }
 
 .ecf-produccion {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #d1fae5;
 }
 
 .ecf-certificacion {
-    background: #fff3cd;
-    color: #856404;
-    border: 1px solid #ffc107;
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fef3c7;
 }
 
 /* ── Tabla de datos del comprobante ── */
@@ -61,84 +70,90 @@
 }
 
 .ecf-label {
-    color: #555;
-    font-weight: 600;
-    padding: 2px 8px 2px 0;
+    color: #64748b;
+    font-weight: 500;
+    padding: 3px 8px 3px 0;
     white-space: nowrap;
-    width: 110px;
+    width: 120px;
 }
 
 .ecf-value {
-    color: #111;
-    padding: 2px 16px 2px 0;
+    color: #1e293b;
+    padding: 3px 16px 3px 0;
 }
 
 .ecf-ncf-value {
     font-family: 'Courier New', monospace;
-    font-size: 11pt;
-    font-weight: 700;
-    color: #1a3c6b;
+    font-size: 12pt;
+    font-weight: 800;
+    color: #0087ff;
 }
 
 .ecf-cufe-value {
     font-family: 'Courier New', monospace;
     font-size: 8pt;
-    word-break: break-all;
-    color: #444;
+    color: #475569;
 }
 
 /* ── QR Code ── */
 .ecf-qr-section {
     position: absolute;
-    top: 12px;
-    right: 16px;
+    top: 20px;
+    right: 20px;
     text-align: center;
 }
 
 .ecf-qr-img {
-    width: 90px;
-    height: 90px;
-    border: 1px solid #ddd;
+    width: 85px;
+    height: 85px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 4px;
+    background: white;
 }
 
 .ecf-qr-label {
     font-size: 7pt;
-    color: #666;
-    margin-top: 2px;
+    color: #94a3b8;
+    margin-top: 4px;
+    text-transform: uppercase;
+    font-weight: 600;
 }
 
 /* ── Separador ── */
 .ecf-separator {
-    border-top: 1px dashed #1a3c6b;
-    margin-top: 10px;
+    border-top: 1px solid #e2e8f0;
+    margin-top: 16px;
 }
 
 /* ── Aviso pendiente ── */
 .ecf-pending-notice {
-    background: #fff3cd;
-    border: 1px solid #ffc107;
-    border-radius: 4px;
-    padding: 8px 12px;
-    margin-bottom: 12px;
+    background: #fffbeb;
+    border: 1px solid #fef3c7;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
     font-size: 9pt;
-    color: #856404;
+    color: #92400e;
 }
 
 /* ── Pie legal DGII ── */
 .ecf-footer-legal {
-    border-top: 1px solid #ddd;
-    margin-top: 24px;
-    padding-top: 10px;
+    border-top: 1px solid #f1f5f9;
+    margin-top: 32px;
+    padding-top: 16px;
     font-size: 8pt;
-    color: #666;
-    line-height: 1.5;
+    color: #64748b;
+    line-height: 1.6;
 }
 
 .ecf-footer-legal strong {
-    color: #333;
+    color: #1e293b;
 }
 
 .ecf-footer-legal a {
-    color: #1a3c6b;
+    color: #0087ff;
     text-decoration: none;
+    font-weight: 600;
 }
+

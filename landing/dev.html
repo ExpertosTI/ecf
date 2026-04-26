@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dev Console — Renace ECF</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono&family=Sora:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #080D18;
+            --card: #0F1623;
+            --accent: #0087ff;
+            --text: #EEF2F8;
+            --text-dim: #8A97B0;
+            --border: rgba(255,255,255,0.07);
+        }
+        [data-theme="light"] {
+            --bg: #F4F7FC;
+            --card: #FFFFFF;
+            --accent: #0072D9;
+            --text: #111827;
+            --text-dim: #4B5563;
+            --border: rgba(17,24,39,0.09);
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 280px;
+            border-right: 1px solid var(--border);
+            padding: 24px;
+            background: var(--card);
+        }
+        .main {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+        }
+        .nav-item {
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 4px;
+            color: var(--text-dim);
+            transition: 0.2s;
+        }
+        .nav-item:hover, .nav-item.active {
+            background: var(--accent);
+            color: white;
+        }
+        h1, h2 { font-family: 'Sora', sans-serif; }
+        .code-block {
+            background: #000;
+            color: #34d399;
+            padding: 20px;
+            border-radius: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            position: relative;
+            margin: 20px 0;
+        }
+        .tester {
+            background: var(--card);
+            padding: 24px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+        input, select, textarea {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            padding: 12px;
+            border-radius: 8px;
+            color: var(--text);
+            margin-bottom: 16px;
+        }
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2 style="color: var(--accent); margin-bottom: 32px;">Dev Console</h2>
+        <div class="nav-item active">Documentación API</div>
+        <div class="nav-item">Probador e-CF</div>
+        <div class="nav-item">Logs de Tráfico</div>
+        <div class="nav-item">Modo Sandbox</div>
+    </div>
+    <div class="main">
+        <h1>Especificaciones Técnicas</h1>
+        <p style="color: var(--text-dim);">Bienvenido al entorno de desarrollo de Renace ECF. Aquí puedes probar integraciones y revisar la estructura de los payloads.</p>
+        
+        <div class="tester">
+            <h3>🚀 Live API Tester</h3>
+            <label>Endpoint</label>
+            <input type="text" value="https://ecf.renace.tech/api/v1/emitir" readonly>
+            <label>JSON Payload</label>
+            <textarea rows="8" style="font-family: monospace;">{
+    "rnc_emisor": "133-10919-2",
+    "tipo_ecf": "31",
+    "ncf": "E310000000001",
+    "monto_total": 1500.00,
+    "items": [...]
+}</textarea>
+            <button onclick="alert('Simulando envío a DGII...')">Probar Emisión</button>
+        </div>
+
+        <h2 style="margin-top: 40px;">Webhooks</h2>
+        <p>Configura tu callback para recibir notificaciones de aprobación asíncrona.</p>
+        <div class="code-block">
+            POST /your-endpoint<br>
+            X-Renace-Signature: hmac-sha256=...
+        </div>
+    </div>
+
+    <script>
+        const savedTheme = localStorage.getItem('ecf-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+</body>
+</html>

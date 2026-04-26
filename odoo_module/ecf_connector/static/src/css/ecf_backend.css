@@ -1,0 +1,45 @@
+/* ═══════════════════════════════════════════════════════════════
+   ECF Backend — Estilos Premium para Odoo 18
+   Renace.tech | Facturación Electrónica DGII
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Dashboard Kanban ── */
+.o_kanban_view.o_kanban_small_column .oe_kanban_card {
+    border-radius: 10px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02) !important;
+    transition: transform 0.2s, box-shadow 0.2s;
+    margin-bottom: 12px !important;
+}
+
+.o_kanban_view.o_kanban_small_column .oe_kanban_card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
+}
+
+/* Colores de estado en Kanban */
+.oe_kanban_color_10 { border-left: 4px solid #10b981 !important; } /* Aprobado (Verde) */
+.oe_kanban_color_1  { border-left: 4px solid #ef4444 !important; } /* Rechazado (Rojo) */
+.oe_kanban_color_2  { border-left: 4px solid #f59e0b !important; } /* Condicionado (Naranja) */
+
+/* ── Banners de Factura ── */
+.view_move_form_ecf .alert {
+    border-radius: 0 !important;
+    border-left: 4px solid transparent !important;
+    font-weight: 500;
+}
+
+.view_move_form_ecf .alert-success { border-left-color: #10b981 !important; background: #f0fdf4 !important; color: #166534 !important; }
+.view_move_form_ecf .alert-warning { border-left-color: #f59e0b !important; background: #fffbeb !important; color: #92400e !important; }
+.view_move_form_ecf .alert-danger  { border-left-color: #ef4444 !important; background: #fef2f2 !important; color: #991b1b !important; }
+
+/* ── Widgets ── */
+.badge.text-bg-success { background-color: #10b981 !important; }
+.badge.text-bg-warning { background-color: #f59e0b !important; color: #fff !important; }
+.badge.text-bg-info    { background-color: #0087ff !important; }
+
+/* ── Ajustes (Settings) ── */
+.app_settings_block[data-key="ecf_connector"] h2 {
+    color: #0087ff !important;
+    font-weight: 700;
+}
