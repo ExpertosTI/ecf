@@ -173,17 +173,17 @@ set +a
 
 # Build de imagenes
 log "Construyendo imagenes Docker..."
-$DC -f "$COMPOSE_FILE" build --no-cache api
+$DC $COMPOSE_FILE build --no-cache api
 
 # Detener servicios actuales con gracia
-if $DC -f "$COMPOSE_FILE" ps --quiet 2>/dev/null | head -1 | grep -q .; then
+if $DC $COMPOSE_FILE ps --quiet 2>/dev/null | head -1 | grep -q .; then
     log "Deteniendo servicios actuales..."
-    $DC -f "$COMPOSE_FILE" down --timeout 30
+    $DC $COMPOSE_FILE down --timeout 30
 fi
 
 # Levantar infraestructura primero (PostgreSQL, Redis)
 log "Levantando infraestructura (PostgreSQL, Redis)..."
-$DC -f "$COMPOSE_FILE" up -d postgres redis
+$DC $COMPOSE_FILE up -d postgres redis
 
 # Esperar a que DB y Redis esten saludables
 log "Esperando a que PostgreSQL y Redis esten saludables..."
@@ -225,8 +225,8 @@ done
 
 # Levantar aplicacion (workers escalados a 2 instancias)
 log "Levantando servicios de aplicacion..."
-$DC -f "$COMPOSE_FILE" up -d api scheduler
-$DC -f "$COMPOSE_FILE" up -d --scale worker=2 worker
+$DC $COMPOSE_FILE up -d api scheduler
+$DC $COMPOSE_FILE up -d --scale worker=2 worker
 
 # Esperar a que la API este saludable
 log "Esperando a que la API responda..."
