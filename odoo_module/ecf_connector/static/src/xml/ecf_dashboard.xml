@@ -2,72 +2,154 @@
 <templates xml:space="preserve">
     <t t-name="ecf_connector.EcfDashboard" owl="1">
         <div class="ecf-dashboard-container p-4 bg-light h-100 overflow-auto" style="font-family: 'Inter', sans-serif;">
-            <!-- Header -->
-            <div class="d-flex justify-content-between align-items-center mb-4">
+            <!-- Header Premium -->
+            <div class="d-flex justify-content-between align-items-center mb-5">
                 <div>
-                    <h2 class="fw-bold mb-0" style="color: #0f172a;">Tablero e-CF DGII</h2>
-                    <p class="text-muted mb-0">Resumen ejecutivo de facturación electrónica</p>
+                    <h1 class="fw-bold mb-1" style="color: #0f172a; font-size: 2rem;">Panel de Control e-CF</h1>
+                    <p class="text-muted mb-0" style="font-size: 1.1rem;">Gestión centralizada de facturación electrónica RD</p>
                 </div>
-                <button class="btn btn-primary shadow-sm rounded-pill px-4" t-on-click="openHistory">
-                    Ver Historial Completo
-                </button>
-            </div>
-
-            <!-- KPIs -->
-            <div class="row g-4 mb-4">
-                <div class="col-md-3">
-                    <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 16px;">
-                        <div class="text-muted small fw-bold text-uppercase mb-1">Monto Total Facturado</div>
-                        <div class="h3 fw-bold mb-0 text-primary">RD$ <t t-esc="state.stats.total_amount?.toLocaleString() || '0'"/></div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 16px;">
-                        <div class="text-muted small fw-bold text-uppercase mb-1">Comprobantes Emitidos</div>
-                        <div class="h3 fw-bold mb-0" style="color: #0f172a;"><t t-esc="state.stats.total_count || '0'"/></div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 16px;">
-                        <div class="text-muted small fw-bold text-uppercase mb-1">Aprobados DGII</div>
-                        <div class="h3 fw-bold mb-0 text-success"><t t-esc="state.stats.stats_estado?.aprobado || '0'"/></div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 16px;">
-                        <div class="text-muted small fw-bold text-uppercase mb-1">Rechazados / Errores</div>
-                        <div class="h3 fw-bold mb-0 text-danger"><t t-esc="state.stats.stats_estado?.rechazado || '0'"/></div>
-                    </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary border-2 rounded-pill px-4" t-on-click="openHistory">
+                        <i class="oi oi-view-list me-2"></i>Historial
+                    </button>
+                    <button class="btn btn-primary shadow rounded-pill px-4 fw-bold" t-on-click="loadData">
+                        <i class="oi oi-reload me-2"></i>Actualizar
+                    </button>
                 </div>
             </div>
 
-            <!-- Charts Row 1 -->
-            <div class="row g-4 mb-4">
-                <div class="col-md-6">
+            <div class="row g-4 mb-5">
+                <!-- KPIs Principal -->
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 20px; background: linear-gradient(135deg, #0087ff 0%, #0056a3 100%); color: white;">
+                        <div class="small fw-bold text-uppercase opacity-75 mb-2">Total Facturado</div>
+                        <div class="h2 fw-bold mb-0 text-truncate">RD$ <t t-esc="state.stats.total_amount?.toLocaleString() || '0'"/></div>
+                        <div class="mt-2 small opacity-75">Acumulado del mes</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
                     <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 20px;">
-                        <h5 class="fw-bold mb-4">Estado de Comprobantes</h5>
-                        <div style="height: 300px;">
+                        <div class="text-muted small fw-bold text-uppercase mb-2">Comprobantes</div>
+                        <div class="h2 fw-bold mb-0" style="color: #0f172a;"><t t-esc="state.stats.total_count || '0'"/></div>
+                        <div class="mt-2 small text-success fw-bold"><i class="oi oi-arrow-up me-1"></i>En tiempo real</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 20px;">
+                        <div class="text-success small fw-bold text-uppercase mb-2">Aprobados</div>
+                        <div class="h2 fw-bold mb-0 text-success"><t t-esc="state.stats.stats_estado?.aprobado || '0'"/></div>
+                        <div class="mt-2 small text-muted">Aceptados por DGII</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 20px;">
+                        <div class="text-danger small fw-bold text-uppercase mb-2">Rechazados</div>
+                        <div class="h2 fw-bold mb-0 text-danger"><t t-esc="state.stats.stats_estado?.rechazado || '0'"/></div>
+                        <div class="mt-2 small text-muted">Requieren atención</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reportes y Acciones -->
+            <div class="row g-4 mb-5">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm p-4" style="border-radius: 20px;">
+                        <h5 class="fw-bold mb-4" style="color: #0f172a;">Reportes Fiscales DGII</h5>
+                        <div class="d-flex flex-wrap gap-3">
+                            <button class="btn btn-light border p-3 text-start d-flex align-items-center" style="border-radius: 12px; width: 250px;" t-on-click="printReport606">
+                                <div class="bg-primary bg-opacity-10 p-2 rounded me-3 text-primary"><i class="oi oi-document-text h4 mb-0"></i></div>
+                                <div>
+                                    <div class="fw-bold">Reporte 606</div>
+                                    <div class="small text-muted">Costos y Gastos</div>
+                                </div>
+                            </button>
+                            <button class="btn btn-light border p-3 text-start d-flex align-items-center" style="border-radius: 12px; width: 250px;" t-on-click="printReport607">
+                                <div class="bg-success bg-opacity-10 p-2 rounded me-3 text-success"><i class="oi oi-document-text h4 mb-0"></i></div>
+                                <div>
+                                    <div class="fw-bold">Reporte 607</div>
+                                    <div class="small text-muted">Ventas de Bienes</div>
+                                </div>
+                            </button>
+                            <button class="btn btn-light border p-3 text-start d-flex align-items-center" style="border-radius: 12px; width: 250px;" t-on-click="printReport608">
+                                <div class="bg-danger bg-opacity-10 p-2 rounded me-3 text-danger"><i class="oi oi-document-text h4 mb-0"></i></div>
+                                <div>
+                                    <div class="fw-bold">Reporte 608</div>
+                                    <div class="small text-muted">Anulaciones</div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráficas Row -->
+            <div class="row g-4 mb-5">
+                <div class="col-md-7">
+                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 24px;">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h5 class="fw-bold mb-0">Volumen de Emisión</h5>
+                            <span class="badge bg-primary bg-opacity-10 text-primary px-3 rounded-pill">Últimos 30 días</span>
+                        </div>
+                        <div style="height: 350px;">
+                            <canvas t-ref="chartVolume"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 24px;">
+                        <h5 class="fw-bold mb-4">Estado de Envío</h5>
+                        <div style="height: 350px;">
                             <canvas t-ref="chartStatus"></canvas>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-6">
-                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 20px;">
-                        <h5 class="fw-bold mb-4">Distribución por Tipo</h5>
-                        <div style="height: 300px;">
-                            <canvas t-ref="chartType"></canvas>
+            </div>
+
+            <!-- Actividad Reciente -->
+            <div class="row g-4">
+                <div class="col-md-8">
+                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 24px;">
+                        <h5 class="fw-bold mb-4">Actividad Reciente de e-CF</h5>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle border-top">
+                                <thead class="text-muted small text-uppercase">
+                                    <tr>
+                                        <th class="border-0">NCF</th>
+                                        <th class="border-0">Cliente</th>
+                                        <th class="border-0">Monto</th>
+                                        <th class="border-0">Estado</th>
+                                        <th class="border-0">Fecha</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="state.stats.recent_logs || []" t-as="log" t-key="log.id">
+                                        <tr>
+                                            <td class="fw-bold text-primary"><t t-esc="log.ncf"/></td>
+                                            <td><t t-esc="log.cliente"/></td>
+                                            <td class="fw-bold">RD$ <t t-esc="log.monto.toLocaleString()"/></td>
+                                            <td>
+                                                <span t-attf-class="badge rounded-pill px-3 #{log.estado === 'aprobado' ? 'bg-success' : (log.estado === 'rechazado' ? 'bg-danger' : 'bg-warning')}">
+                                                    <t t-esc="log.estado"/>
+                                                </span>
+                                            </td>
+                                            <td class="small text-muted"><t t-esc="log.fecha"/></td>
+                                        </tr>
+                                    </t>
+                                    <t t-if="!state.stats.recent_logs?.length">
+                                        <tr>
+                                            <td colspan="5" class="text-center p-5 text-muted small">No hay actividad reciente registrada</td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Chart Row 2: Volume -->
-            <div class="row">
-                <div class="col-12">
-                    <div class="card border-0 shadow-sm p-4" style="border-radius: 20px;">
-                        <h5 class="fw-bold mb-4">Volumen de Emisión Diario (Últimos 30 días)</h5>
-                        <div style="height: 350px;">
-                            <canvas t-ref="chartVolume"></canvas>
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 24px;">
+                        <h5 class="fw-bold mb-4">Distribución por Tipo</h5>
+                        <div style="height: 300px;">
+                            <canvas t-ref="chartType"></canvas>
                         </div>
                     </div>
                 </div>

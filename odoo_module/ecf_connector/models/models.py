@@ -281,13 +281,27 @@ class ECFLog(models.Model):
         # 4. Montos totales (desde facturas asociadas)
         total_amount = sum(logs.filtered(lambda l: l.move_id).mapped('move_id.amount_total'))
         
+        # 5. Últimos e-CFs emitidos
+        recent_logs = []
+        for l in logs[:5]:
+            recent_logs.append({
+                'id': l.id,
+                'ncf': l.ncf or '---',
+                'cliente': l.move_id.partner_id.name or '---',
+                'monto': l.move_id.amount_total or 0.0,
+                'estado': l.estado,
+                'fecha': l.create_date.strftime('%Y-%m-%d %H:%M'),
+            })
+            
         return {
             'stats_estado': stats_estado,
             'stats_tipo': stats_tipo,
             'daily_volume': daily_volume,
             'total_amount': total_amount,
             'total_count': len(logs),
+            'recent_logs': recent_logs,
         }
+
 
 
 
