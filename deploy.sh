@@ -36,9 +36,15 @@ for cmd in docker git curl; do
     fi
 done
 
-# Verificar Docker Compose (v2)
-if ! docker compose version &>/dev/null; then
-    error "Docker Compose v2 no disponible. Verificar instalacion de Docker."
+# Detectar Docker Compose (preferir v2)
+if docker compose version &>/dev/null; then
+    DC="docker compose"
+    log "Usando Docker Compose v2 plugin"
+elif docker-compose version &>/dev/null; then
+    DC="docker-compose"
+    warn "Usando docker-compose (v1). Se recomienda actualizar a Docker Compose v2 para mejor soporte de healthchecks."
+else
+    error "Docker Compose no encontrado. Instalar antes de continuar (v2 recomendado)."
 fi
 
 # Verificar que el archivo .env existe
@@ -136,10 +142,10 @@ log "=========================================="
 
 mkdir -p "$BACKUP_DIR"
 
-if docker compose -f "$COMPOSE_FILE" ps postgres 2>/dev/null | grep -q "running"; then
+if $DC -f "$COMPOSE_FILE" ps postgres 2>/dev/null | grep -q "running"; then
     log "PostgreSQL activo. Realizando backup..."
     BACKUP_FILE="${BACKUP_DIR}/saas_ecf_${TIMESTAMP}.sql.gz"
-    docker compose -f "$COMPOSE_FILE" exec -T postgres \
+    $DC -f "$COMPOSE_FILE" exec -T postgres \
         pg_dump -U saas_ecf saas_ecf | gzip > "$BACKUP_FILE"
     BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
     log "Backup creado: ${BACKUP_FILE} (${BACKUP_SIZE})"
@@ -164,29 +170,36 @@ set +a
 
 # Build de imagenes
 log "Construyendo imagenes Docker..."
-docker compose -f "$COMPOSE_FILE" build --no-cache api
+$DC -f "$COMPOSE_FILE" build --no-cache api
 
 # Detener servicios actuales con gracia
-if docker compose -f "$COMPOSE_FILE" ps --quiet 2>/dev/null | head -1 | grep -q .; then
+if $DC -f "$COMPOSE_FILE" ps --quiet 2>/dev/null | head -1 | grep -q .; then
     log "Deteniendo servicios actuales..."
-    docker compose -f "$COMPOSE_FILE" down --timeout 30
+    $DC -f "$COMPOSE_FILE" down --timeout 30
 fi
 
 # Levantar infraestructura primero (DB, Redis, Traefik)
 log "Levantando infraestructura (Traefik, PostgreSQL, Redis)..."
-docker compose -f "$COMPOSE_FILE" up -d traefik postgres redis
+$DC -f "$COMPOSE_FILE" up -d traefik postgres redis
 
 # Esperar a que DB y Redis esten saludables
 log "Esperando a que PostgreSQL y Redis esten saludables..."
 for i in $(seq 1 30); do
-    PG_OK=$(docker compose -f "$COMPOSE_FILE" ps postgres --format json 2>/dev/null | grep -c '"healthy"' || echo 0)
-    RD_OK=$(docker compose -f "$COMPOSE_FILE" ps redis --format json 2>/dev/null | grep -c '"healthy"' || echo 0)
+    if [ "$DC" = "docker compose" ]; then
+        PG_OK=$($DC -f "$COMPOSE_FILE" ps postgres --format json 2>/dev/null | grep -c '"healthy"' || echo 0)
+        RD_OK=$($DC -f "$COMPOSE_FILE" ps redis --format json 2>/dev/null | grep -c '"healthy"' || echo 0)
+    else
+        # Fallback para v1: verificar que el contenedor este UP
+        PG_OK=$($DC -f "$COMPOSE_FILE" ps postgres | grep -c "Up" || echo 0)
+        RD_OK=$($DC -f "$COMPOSE_FILE" ps redis | grep -c "Up" || echo 0)
+    fi
+
     if [ "$PG_OK" -ge 1 ] && [ "$RD_OK" -ge 1 ]; then
-        log "Infraestructura saludable"
+        log "Infraestructura activa"
         break
     fi
     if [ "$i" -eq 30 ]; then
-        error "Timeout esperando infraestructura. Verificar logs con: docker compose logs"
+        error "Timeout esperando infraestructura. Verificar logs con: $DC logs"
     fi
     sleep 2
 done
@@ -201,7 +214,7 @@ for migration in "${SCRIPT_DIR}"/db/0[0-9][0-9]_*.sql; do
             continue
         fi
         log "Aplicando migracion: ${MIGRATION_NAME}"
-        docker compose -f "$COMPOSE_FILE" exec -T postgres \
+        $DC -f "$COMPOSE_FILE" exec -T postgres \
             psql -U saas_ecf -d saas_ecf -f "/docker-entrypoint-initdb.d/${MIGRATION_NAME}" 2>&1 || \
             warn "Migracion ${MIGRATION_NAME} falló (puede ya estar aplicada)"
     fi
@@ -209,13 +222,13 @@ done
 
 # Levantar aplicacion (workers escalados a 2 instancias)
 log "Levantando servicios de aplicacion..."
-docker compose -f "$COMPOSE_FILE" up -d api scheduler
-docker compose -f "$COMPOSE_FILE" up -d --scale worker=2 worker
+$DC -f "$COMPOSE_FILE" up -d api scheduler
+$DC -f "$COMPOSE_FILE" up -d --scale worker=2 worker
 
 # Esperar a que la API este saludable
 log "Esperando a que la API responda..."
 for i in $(seq 1 20); do
-    API_CONTAINER=$(docker compose -f "$COMPOSE_FILE" ps api --format "{{.ID}}" 2>/dev/null | head -1)
+    API_CONTAINER=$($DC -f "$COMPOSE_FILE" ps api --format "{{.ID}}" 2>/dev/null | head -1)
     if [ -n "$API_CONTAINER" ]; then
         if docker exec "$API_CONTAINER" curl -sf http://localhost:8000/health &>/dev/null; then
             log "API respondiendo correctamente"
@@ -223,7 +236,7 @@ for i in $(seq 1 20); do
         fi
     fi
     if [ "$i" -eq 20 ]; then
-        error "API no responde despues de 40 segundos. Verificar: docker compose logs api"
+        error "API no responde despues de 40 segundos. Verificar: $DC logs api"
     fi
     sleep 2
 done
@@ -239,7 +252,7 @@ log "=========================================="
 
 # Verificar todos los servicios
 log "Estado de servicios:"
-docker compose -f "$COMPOSE_FILE" ps
+$DC -f "$COMPOSE_FILE" ps
 
 # Verificar red Docker
 NETWORK_SERVICES=$(docker network inspect ecf_network --format '{{range .Containers}}{{.Name}} {{end}}' 2>/dev/null || echo "")
@@ -256,7 +269,7 @@ else
 fi
 
 # Verificar workers
-WORKER_COUNT=$(docker compose -f "$COMPOSE_FILE" ps worker --format json 2>/dev/null | grep -c "running" || echo 0)
+WORKER_COUNT=$($DC -f "$COMPOSE_FILE" ps worker --format json 2>/dev/null | grep -c "running" || echo 0)
 info "Workers activos: ${WORKER_COUNT}"
 
 # 6. RESUMEN
@@ -273,10 +286,10 @@ info "Dominio API:  ${ECF_DOMAIN:-ecf.local}"
 info "Dominio Portal: ${PORTAL_DOMAIN:-portal.ecf.local}"
 echo ""
 info "Comandos utiles:"
-info "  Ver logs:       docker compose logs -f"
-info "  Ver estado:     docker compose ps"
-info "  Backup manual:  docker compose exec postgres pg_dump -U saas_ecf saas_ecf > backup.sql"
-info "  Rollback:       docker compose down && docker compose up -d"
+info "  Ver logs:       $DC logs -f"
+info "  Ver estado:     $DC ps"
+info "  Backup manual:  $DC exec postgres pg_dump -U saas_ecf saas_ecf > backup.sql"
+info "  Rollback:       $DC down && $DC up -d"
 echo ""
 
 # Cumplimiento DGII - Checklist automatico
@@ -296,7 +309,7 @@ check_dgii() {
 }
 
 # TLS habilitado
-TLS_CHECK=$(docker compose -f "$COMPOSE_FILE" ps traefik 2>/dev/null | grep -c "443" && echo "OK" || echo "Verificar")
+TLS_CHECK=$($DC -f "$COMPOSE_FILE" ps traefik 2>/dev/null | grep -c "443" && echo "OK" || echo "Verificar")
 check_dgii "TLS/HTTPS habilitado (puerto 443)" "$TLS_CHECK"
 
 # PostgreSQL con datos persistentes
