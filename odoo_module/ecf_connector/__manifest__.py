@@ -52,6 +52,11 @@
         'web.report_assets_common': [
             'ecf_connector/static/src/css/ecf_report.css',
         ],
+        'web.assets_backend': [
+            'ecf_connector/static/src/js/ecf_dashboard.js',
+            'ecf_connector/static/src/xml/ecf_dashboard.xml',
+            'ecf_connector/static/lib/chartjs/chart.umd.min.js',
+        ],
         'point_of_sale._assets_pos': [
             'ecf_connector/static/src/js/ecf_pos.js',
             'ecf_connector/static/src/js/ecf_type_button.js',

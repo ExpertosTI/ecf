@@ -217,6 +217,73 @@ class ECFLog(models.Model):
     approved_at  = fields.Datetime(string='Fecha aprobación DGII')
     ambiente     = fields.Char(string='Ambiente', help='certificacion o produccion')
 
+    def action_view_move(self):
+        self.ensure_one()
+        return {
+            'name': _('Factura Relacionada'),
+            'view_mode': 'form',
+            'res_model': 'account.move',
+            'res_id': self.move_id.id,
+            'type': 'ir.actions.act_window',
+        }
+
+    @api.model
+    def get_dashboard_stats(self, domain=None):
+        """
+        Retorna estadísticas para el dashboard e-CF
+        """
+        if domain is None:
+            domain = []
+        
+        # Filtro multi-compañía
+        domain.append(('company_id', '=', self.env.company.id))
+        
+        logs = self.search(domain)
+        
+        # 1. Conteo por estado
+        stats_estado = {
+            'aprobado': len(logs.filtered(lambda l: l.estado == 'aprobado')),
+            'rechazado': len(logs.filtered(lambda l: l.estado == 'rechazado')),
+            'pendiente': len(logs.filtered(lambda l: l.estado == 'pendiente')),
+            'condicionado': len(logs.filtered(lambda l: l.estado == 'condicionado')),
+        }
+        
+        # 2. Conteo por tipo
+        tipos = self.env['ecf.tipo'].search([])
+        stats_tipo = {}
+        for t in tipos:
+            count = len(logs.filtered(lambda l: l.tipo_ecf == t.codigo))
+            if count > 0:
+                stats_tipo[t.prefijo] = count
+        
+        # 3. Datos de volumen diario (últimos 30 días)
+        date_limit = datetime.now() - timedelta(days=30)
+        daily_query = """
+            SELECT create_date::date as day, count(id) as count
+            FROM ecf_log
+            WHERE create_date >= %s AND company_id = %s
+            GROUP BY day
+            ORDER BY day ASC
+        """
+        self.env.cr.execute(daily_query, (date_limit, self.env.company.id))
+        daily_volume = self.env.cr.dictfetchall()
+        
+        # Convertir fechas a string para JSON
+        for d in daily_volume:
+            d['day'] = str(d['day'])
+        
+        # 4. Montos totales (desde facturas asociadas)
+        total_amount = sum(logs.filtered(lambda l: l.move_id).mapped('move_id.amount_total'))
+        
+        return {
+            'stats_estado': stats_estado,
+            'stats_tipo': stats_tipo,
+            'daily_volume': daily_volume,
+            'total_amount': total_amount,
+            'total_count': len(logs),
+        }
+
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Extensión de account.move (factura)

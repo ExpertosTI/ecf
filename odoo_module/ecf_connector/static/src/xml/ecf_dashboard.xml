@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="ecf_connector.EcfDashboard" owl="1">
+        <div class="ecf-dashboard-container p-4 bg-light h-100 overflow-auto" style="font-family: 'Inter', sans-serif;">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="fw-bold mb-0" style="color: #0f172a;">Tablero e-CF DGII</h2>
+                    <p class="text-muted mb-0">Resumen ejecutivo de facturación electrónica</p>
+                </div>
+                <button class="btn btn-primary shadow-sm rounded-pill px-4" t-on-click="openHistory">
+                    Ver Historial Completo
+                </button>
+            </div>
+
+            <!-- KPIs -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 16px;">
+                        <div class="text-muted small fw-bold text-uppercase mb-1">Monto Total Facturado</div>
+                        <div class="h3 fw-bold mb-0 text-primary">RD$ <t t-esc="state.stats.total_amount?.toLocaleString() || '0'"/></div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 16px;">
+                        <div class="text-muted small fw-bold text-uppercase mb-1">Comprobantes Emitidos</div>
+                        <div class="h3 fw-bold mb-0" style="color: #0f172a;"><t t-esc="state.stats.total_count || '0'"/></div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 16px;">
+                        <div class="text-muted small fw-bold text-uppercase mb-1">Aprobados DGII</div>
+                        <div class="h3 fw-bold mb-0 text-success"><t t-esc="state.stats.stats_estado?.aprobado || '0'"/></div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-0 shadow-sm p-3 h-100" style="border-radius: 16px;">
+                        <div class="text-muted small fw-bold text-uppercase mb-1">Rechazados / Errores</div>
+                        <div class="h3 fw-bold mb-0 text-danger"><t t-esc="state.stats.stats_estado?.rechazado || '0'"/></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row 1 -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 20px;">
+                        <h5 class="fw-bold mb-4">Estado de Comprobantes</h5>
+                        <div style="height: 300px;">
+                            <canvas t-ref="chartStatus"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 20px;">
+                        <h5 class="fw-bold mb-4">Distribución por Tipo</h5>
+                        <div style="height: 300px;">
+                            <canvas t-ref="chartType"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart Row 2: Volume -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm p-4" style="border-radius: 20px;">
+                        <h5 class="fw-bold mb-4">Volumen de Emisión Diario (Últimos 30 días)</h5>
+                        <div style="height: 350px;">
+                            <canvas t-ref="chartVolume"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>
