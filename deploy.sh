@@ -186,13 +186,10 @@ log "Levantando infraestructura (PostgreSQL, Redis)..."
 $DC "${COMPOSE_ARGS[@]}" up -d postgres redis
 
 # Esperar a que DB y Redis esten saludables
-log "Esperando a que PostgreSQL y Redis esten saludables..."
 for i in $(seq 1 30); do
-    if [ "$DC" = "docker compose" ]; then
-        # Fallback para v1: verificar que el contenedor este UP
-        PG_OK=$($DC "${COMPOSE_ARGS[@]}" ps postgres | grep -c "Up" || echo 0)
-        RD_OK=$($DC "${COMPOSE_ARGS[@]}" ps redis | grep -c "Up" || echo 0)
-    fi
+    # Verificación universal (v1 y v2)
+    PG_OK=$($DC "${COMPOSE_ARGS[@]}" ps postgres | grep -c "Up" || echo 0)
+    RD_OK=$($DC "${COMPOSE_ARGS[@]}" ps redis | grep -c "Up" || echo 0)
 
     # Asegurar que sean números
     PG_OK=${PG_OK:-0}
