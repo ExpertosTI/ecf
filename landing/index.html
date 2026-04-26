@@ -1428,57 +1428,6 @@
 
         currentPlan = idx;
     }
-
-    /* ─── THEME TOGGLE ─── */
-    const html        = document.documentElement;
-    const toggleBtn   = document.getElementById('themeToggle');
-    const themeIcon   = document.getElementById('themeIcon');
-    const savedTheme  = localStorage.getItem('ecf-theme') || 'dark';
-
-    function applyTheme(theme) {
-        html.setAttribute('data-theme', theme);
-        themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
-        localStorage.setItem('ecf-theme', theme);
-        // Fix logo colors in light mode
-        const logoSvg = document.querySelector('.nav-logo svg');
-        if (logoSvg) {
-            const paths = logoSvg.querySelectorAll('.st1');
-            paths.forEach(p => {
-                p.style.fill = theme === 'light' ? '#111827' : '#f0f0f0';
-            });
-        }
-    }
-
-    applyTheme(savedTheme);
-
-    toggleBtn.addEventListener('click', () => {
-        const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-        applyTheme(next);
-    });
-
-    /* ─── SCROLL EFFECTS ─── */
-    const nav = document.getElementById('nav');
-    window.addEventListener('scroll', () => {
-        nav.classList.toggle('scrolled', window.scrollY > 20);
-    }, { passive: true });
-
-    /* Staggered reveal */
-    const revealEls = document.querySelectorAll('.reveal');
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry, i) => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
-                observer.unobserve(entry.target);
-            }
-        });
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-
-    revealEls.forEach(el => observer.observe(el));
-
-    /* ─── INIT ─── */
-    document.addEventListener('DOMContentLoaded', () => {
-        selectPlan(0);
-    });
 </script>
 
 <!-- ═══════════════════════════════════════════
@@ -1567,7 +1516,7 @@
 <footer class="footer">
     <div class="container footer-inner">
         <div class="footer-copy">
-            <img src="logo.svg" alt="RENACE Tech" style="height: 24px; width: auto; margin-bottom: 12px; opacity: 0.5; filter: grayscale(1);">
+            <img src="renacelogo.svg" alt="RENACE Tech" style="height: 32px; width: auto; margin-bottom: 12px; filter: brightness(0) invert(1); opacity: 0.8;" id="footerLogo">
             <br>
             © 2026 <strong>RENACE Tech</strong> — Facturación Electrónica e-CF · RD
         </div>
@@ -1582,43 +1531,95 @@
      SCRIPTS
      ═══════════════════════════════════════════ -->
 <script>
-    // Scroll-triggered reveal animations
-    const reveals = document.querySelectorAll('.reveal');
+    /* ─── THEME SYSTEM ─── */
+    const html        = document.documentElement;
+    const toggleBtn   = document.getElementById('themeToggle');
+    const themeIcon   = document.getElementById('themeIcon');
+    const savedTheme  = localStorage.getItem('ecf-theme') || 'dark';
+
+    function applyTheme(theme) {
+        html.setAttribute('data-theme', theme);
+        themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+        localStorage.setItem('ecf-theme', theme);
+        
+        // Logo and image adjustments
+        const footerLogo = document.getElementById('footerLogo');
+        if (footerLogo) {
+            footerLogo.style.filter = theme === 'light' ? 'none' : 'brightness(0) invert(1)';
+        }
+        
+        const logoSvg = document.querySelector('.nav-logo svg');
+        if (logoSvg) {
+            const paths = logoSvg.querySelectorAll('.st1');
+            paths.forEach(p => {
+                p.style.fill = theme === 'light' ? '#111827' : '#f0f0f0';
+            });
+        }
+    }
+
+    applyTheme(savedTheme);
+    toggleBtn.addEventListener('click', () => {
+        const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        applyTheme(next);
+    });
+
+    /* ─── SCROLL REVEAL ─── */
+    const revealEls = document.querySelectorAll('.reveal');
     const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry, i) => {
+        entries.forEach((entry) => {
             if (entry.isIntersecting) {
-                setTimeout(() => entry.target.classList.add('visible'), i * 60);
+                entry.target.classList.add('visible');
                 observer.unobserve(entry.target);
             }
         });
-    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
-    reveals.forEach(el => observer.observe(el));
+    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+    revealEls.forEach(el => observer.observe(el));
 
-    // Navbar scroll effect
+    /* ─── NAVBAR ─── */
     const nav = document.getElementById('nav');
     window.addEventListener('scroll', () => {
         nav.classList.toggle('scrolled', window.scrollY > 20);
     }, { passive: true });
 
-    // Billing toggle
-    function toggleBilling() {
-        const isMonthly = document.getElementById('billingToggle').checked;
-        document.querySelectorAll('.ph-price-annual').forEach(el => el.style.display = isMonthly ? 'none' : 'block');
-        document.querySelectorAll('.ph-monthly').forEach(el => el.style.display = isMonthly ? 'none' : 'block');
-        document.querySelectorAll('.ph-price-monthly').forEach(el => el.style.display = isMonthly ? 'block' : 'none');
-        document.querySelectorAll('.ph-annual-note').forEach(el => el.style.display = isMonthly ? 'block' : 'none');
-        document.getElementById('lbl-anual').classList.toggle('active', !isMonthly);
-        document.getElementById('lbl-mensual').classList.toggle('active', isMonthly);
+    /* ─── CONTACT FORM ─── */
+    const contactForm = document.getElementById('contactForm');
+    if (contactForm) {
+        contactForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            const msg = document.getElementById('formMsg');
+            const formData = new FormData(e.target);
+            
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+            
+            const subject = encodeURIComponent('Solicitud de Demo e-CF — ' + formData.get('empresa'));
+            const body = encodeURIComponent(
+                'Hola equipo Renace,\n\n' +
+                'Me gustaría solicitar una demo del sistema e-CF.\n\n' +
+                'Detalles:\n' +
+                '- Nombre: ' + formData.get('nombre') + '\n' +
+                '- Empresa: ' + formData.get('empresa') + '\n' +
+                '- Plan: ' + formData.get('plan') + '\n' +
+                '- Tel: ' + formData.get('telefono') + '\n\n' +
+                'Mensaje: ' + formData.get('mensaje')
+            );
+            
+            window.location.href = `mailto:ecf@renace.tech?subject=${subject}&body=${body}`;
+            
+            setTimeout(() => {
+                msg.style.display = 'block';
+                msg.textContent = '✅ Se ha abierto tu cliente de correo. Si no aparece, escríbenos a ecf@renace.tech';
+                btn.disabled = false;
+                btn.textContent = 'Solicitar Demo Gratuita →';
+            }, 1000);
+        });
     }
 
-    // Plans table toggle
-    function toggleTable() {
-        const tbl = document.getElementById('plansTable');
-        const btn = document.getElementById('tableToggle');
-        tbl.classList.toggle('show');
-        btn.classList.toggle('open');
-        btn.querySelector('span') && (btn.querySelector('span').textContent = tbl.classList.contains('show') ? 'Ocultar tabla de planes' : 'Ver tabla completa de planes (Corp 1 — Corp 13)');
-    }
+    /* ─── INITIALIZE CALCULATOR ─── */
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof selectPlan === 'function') selectPlan(0);
+    });
 </script>
 </body>
 </html>
