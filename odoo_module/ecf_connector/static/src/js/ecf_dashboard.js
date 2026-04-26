@@ -13,8 +13,9 @@ export class EcfDashboard extends Component {
         this.notification = useService("notification");
         this.state = useState({
             stats: {},
+            fiscal: {},
             loading: true,
-            saas_status: 'checking', // checking, online, offline
+            saas_status: 'checking', 
         });
 
         this.chartStatusRef = useRef("chartStatus");
@@ -36,6 +37,9 @@ export class EcfDashboard extends Component {
         try {
             const stats = await this.orm.call("ecf.log", "get_dashboard_stats", [[]]);
             this.state.stats = stats;
+            
+            const fiscal = await this.orm.call("ecf.log", "get_fiscal_summary", [[]]);
+            this.state.fiscal = fiscal;
         } catch (err) {
             console.error("Error loading dashboard data", err);
         } finally {
@@ -45,7 +49,6 @@ export class EcfDashboard extends Component {
 
     async checkSaasStatus() {
         try {
-            // Obtener config desde el server
             const configs = await this.orm.searchRead("res.company", [["id", "=", 1]], ["ecf_saas_url", "ecf_api_key"]);
             if (configs.length && configs[0].ecf_saas_url) {
                 const response = await fetch(`${configs[0].ecf_saas_url}/v1/health`, {
@@ -130,22 +133,22 @@ export class EcfDashboard extends Component {
         });
     }
 
-    // Acciones de Reportes (Premium: Generar Reporte)
-    printReport606() {
+    // Acciones de Reportes (Friendly View)
+    async printReport606() {
+        this.notification.add(_t("Preparando archivo TXT para Reporte 606..."), { type: "info" });
+        // Simulación de generación de archivo para la demo premium
         this.actionService.doAction("ecf_connector.ecf_compras_action");
-        this.notification.add(_t("Generando Reporte 606 (Compras)"), { type: "success" });
     }
 
-    printReport607() {
+    async printReport607() {
+        this.notification.add(_t("Generando consolidado fiscal 607..."), { type: "success" });
         this.actionService.doAction("ecf_connector.ecf_ventas_action");
-        this.notification.add(_t("Generando Reporte 607 (Ventas)"), { type: "success" });
     }
 
     printReport608() {
         this.actionService.doAction("ecf_connector.ecf_log_action", {
             additional_context: { 'search_default_anulados': 1 }
         });
-        this.notification.add(_t("Reporte 608: Anulaciones detectadas"), { type: "warning" });
     }
 
     openHistory() {

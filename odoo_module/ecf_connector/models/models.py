@@ -302,6 +302,50 @@ class ECFLog(models.Model):
             'recent_logs': recent_logs,
         }
 
+    @api.model
+    def get_fiscal_summary(self, period='month'):
+        """
+        Retorna un resumen amigable para reportes 606/607
+        """
+        company_id = self.env.company.id
+        today = date.today()
+        
+        if period == 'month':
+            start_date = today.replace(day=1)
+        else:
+            start_date = today.replace(month=1, day=1)
+
+        # 607 - Ventas (Out Invoices con e-CF)
+        ventas = self.env['account.move'].search([
+            ('company_id', '=', company_id),
+            ('move_type', '=', 'out_invoice'),
+            ('invoice_date', '>=', start_date),
+            ('state', '=', 'posted')
+        ])
+        
+        # 606 - Compras (In Invoices)
+        compras = self.env['account.move'].search([
+            ('company_id', '=', company_id),
+            ('move_type', '=', 'in_invoice'),
+            ('invoice_date', '>=', start_date),
+            ('state', '=', 'posted')
+        ])
+
+        return {
+            'ventas': {
+                'total': sum(ventas.mapped('amount_total')),
+                'itbis': sum(ventas.mapped('amount_tax')),
+                'count': len(ventas),
+            },
+            'compras': {
+                'total': sum(compras.mapped('amount_total')),
+                'itbis': sum(compras.mapped('amount_tax')),
+                'count': len(compras),
+            },
+            'periodo': start_date.strftime('%B %Y')
+        }
+
+
 
 
 

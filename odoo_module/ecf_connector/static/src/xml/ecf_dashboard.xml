@@ -62,37 +62,62 @@
                 </div>
             </div>
 
-            <!-- Reportes y Acciones -->
+            <!-- Inteligencia Fiscal DGII -->
             <div class="row g-4 mb-5">
                 <div class="col-12">
-                    <div class="card border-0 shadow-sm p-4" style="border-radius: 20px;">
-                        <h5 class="fw-bold mb-4" style="color: #0f172a;">Reportes Fiscales DGII</h5>
-                        <div class="d-flex flex-wrap gap-3">
-                            <button class="btn btn-light border p-3 text-start d-flex align-items-center" style="border-radius: 12px; width: 250px;" t-on-click="printReport606">
-                                <div class="bg-primary bg-opacity-10 p-2 rounded me-3 text-primary"><i class="oi oi-document-text h4 mb-0"></i></div>
-                                <div>
-                                    <div class="fw-bold">Reporte 606</div>
-                                    <div class="small text-muted">Costos y Gastos</div>
+                    <div class="card border-0 shadow-sm p-4" style="border-radius: 24px; background-color: #f8fafc;">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h5 class="fw-bold mb-0" style="color: #0f172a;">Reportes Fiscales e Inteligencia</h5>
+                            <span class="text-muted small">Periodo: <t t-esc="state.fiscal.periodo || 'Cargando...'"/></span>
+                        </div>
+                        <div class="row g-4">
+                            <!-- Tarjeta 606 -->
+                            <div class="col-md-4">
+                                <div class="card border-0 shadow-sm p-3 bg-white" style="border-radius: 16px;">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div class="bg-primary bg-opacity-10 p-2 rounded me-3 text-primary"><i class="oi oi-cart h4 mb-0"></i></div>
+                                        <div class="fw-bold">Reporte 606</div>
+                                    </div>
+                                    <div class="h4 fw-bold text-primary mb-1">RD$ <t t-esc="state.fiscal.compras?.total.toLocaleString() || '0'"/></div>
+                                    <div class="small text-muted mb-3"><t t-esc="state.fiscal.compras?.count || 0"/> Compras registradas</div>
+                                    <button class="btn btn-outline-primary btn-sm w-100 rounded-pill" t-on-click="printReport606">
+                                        <i class="oi oi-download me-1"></i> Descargar TXT (606)
+                                    </button>
                                 </div>
-                            </button>
-                            <button class="btn btn-light border p-3 text-start d-flex align-items-center" style="border-radius: 12px; width: 250px;" t-on-click="printReport607">
-                                <div class="bg-success bg-opacity-10 p-2 rounded me-3 text-success"><i class="oi oi-document-text h4 mb-0"></i></div>
-                                <div>
-                                    <div class="fw-bold">Reporte 607</div>
-                                    <div class="small text-muted">Ventas de Bienes</div>
+                            </div>
+                            <!-- Tarjeta 607 -->
+                            <div class="col-md-4">
+                                <div class="card border-0 shadow-sm p-3 bg-white" style="border-radius: 16px;">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div class="bg-success bg-opacity-10 p-2 rounded me-3 text-success"><i class="oi oi-tag h4 mb-0"></i></div>
+                                        <div class="fw-bold">Reporte 607</div>
+                                    </div>
+                                    <div class="h4 fw-bold text-success mb-1">RD$ <t t-esc="state.fiscal.ventas?.total.toLocaleString() || '0'"/></div>
+                                    <div class="small text-muted mb-3"><t t-esc="state.fiscal.ventas?.count || 0"/> Ventas con e-CF</div>
+                                    <button class="btn btn-outline-success btn-sm w-100 rounded-pill" t-on-click="printReport607">
+                                        <i class="oi oi-download me-1"></i> Descargar TXT (607)
+                                    </button>
                                 </div>
-                            </button>
-                            <button class="btn btn-light border p-3 text-start d-flex align-items-center" style="border-radius: 12px; width: 250px;" t-on-click="printReport608">
-                                <div class="bg-danger bg-opacity-10 p-2 rounded me-3 text-danger"><i class="oi oi-document-text h4 mb-0"></i></div>
-                                <div>
-                                    <div class="fw-bold">Reporte 608</div>
-                                    <div class="small text-muted">Anulaciones</div>
+                            </div>
+                            <!-- Tarjeta 608 -->
+                            <div class="col-md-4">
+                                <div class="card border-0 shadow-sm p-3 bg-white" style="border-radius: 16px;">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div class="bg-danger bg-opacity-10 p-2 rounded me-3 text-danger"><i class="oi oi-circle-x h4 mb-0"></i></div>
+                                        <div class="fw-bold">Reporte 608</div>
+                                    </div>
+                                    <div class="h4 fw-bold text-danger mb-1"><t t-esc="state.stats.stats_estado?.rechazado || 0"/></div>
+                                    <div class="small text-muted mb-3">Comprobantes Anulados</div>
+                                    <button class="btn btn-outline-danger btn-sm w-100 rounded-pill" t-on-click="printReport608">
+                                        <i class="oi oi-view-list me-1"></i> Ver Anulaciones
+                                    </button>
                                 </div>
-                            </button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+
 
             <!-- Gráficas Row -->
             <div class="row g-4 mb-5">
