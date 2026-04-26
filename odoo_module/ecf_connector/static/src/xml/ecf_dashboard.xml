@@ -5,9 +5,21 @@
             <!-- Header Premium -->
             <div class="d-flex justify-content-between align-items-center mb-5">
                 <div>
-                    <h1 class="fw-bold mb-1" style="color: #0f172a; font-size: 2rem;">Panel de Control e-CF</h1>
+                    <h1 class="fw-bold mb-1" style="color: #0f172a; font-size: 2rem;">
+                        Panel de Control e-CF
+                        <span t-if="state.saas_status === 'online'" class="ms-3 badge rounded-pill bg-success small" style="font-size: 0.8rem; vertical-align: middle;">
+                            <i class="oi oi-check-circle me-1"></i> SaaS Online
+                        </span>
+                        <span t-if="state.saas_status === 'offline'" class="ms-3 badge rounded-pill bg-danger small" style="font-size: 0.8rem; vertical-align: middle;">
+                            <i class="oi oi-circle-x me-1"></i> SaaS Offline
+                        </span>
+                        <span t-if="state.saas_status === 'checking'" class="ms-3 badge rounded-pill bg-secondary small" style="font-size: 0.8rem; vertical-align: middle;">
+                            <i class="oi oi-reload me-1"></i> Verificando...
+                        </span>
+                    </h1>
                     <p class="text-muted mb-0" style="font-size: 1.1rem;">Gestión centralizada de facturación electrónica RD</p>
                 </div>
+
                 <div class="d-flex gap-2">
                     <button class="btn btn-outline-primary border-2 rounded-pill px-4" t-on-click="openHistory">
                         <i class="oi oi-view-list me-2"></i>Historial

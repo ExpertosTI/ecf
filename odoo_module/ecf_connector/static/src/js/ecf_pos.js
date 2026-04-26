@@ -5,12 +5,15 @@ import { patch } from "@web/core/utils/patch";
 patch(PosOrder.prototype, {
     setup() {
         super.setup(...arguments);
-        // Por defecto: Consumidor Final (E32 / Código 32)
-        if (!this.ecf_tipo_id) {
-            const types = this.models["ecf.tipo"].getAll();
-            const defaultType = types.find(t => t.codigo === 32) || types[0];
-            this.ecf_tipo_id = defaultType ? defaultType.id : null;
-            this.ecf_tipo_prefijo = defaultType ? defaultType.prefijo : "";
+        // Evitar el crash de 'undefined this.models' usando una referencia segura a this.pos.models
+        if (!this.ecf_tipo_id && this.pos && this.pos.models && this.pos.models["ecf.tipo"]) {
+            try {
+                const types = this.pos.models["ecf.tipo"].getAll();
+                const defaultType = types.find(t => t.codigo === 32) || types[0];
+                this.ecf_tipo_id = defaultType ? defaultType.id : null;
+            } catch (err) {
+                console.warn("Could not set default ECF type", err);
+            }
         }
     },
     export_as_JSON() {

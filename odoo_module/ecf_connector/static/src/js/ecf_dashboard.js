@@ -14,6 +14,7 @@ export class EcfDashboard extends Component {
         this.state = useState({
             stats: {},
             loading: true,
+            saas_status: 'checking', // checking, online, offline
         });
 
         this.chartStatusRef = useRef("chartStatus");
@@ -22,6 +23,7 @@ export class EcfDashboard extends Component {
 
         onWillStart(async () => {
             await this.loadData();
+            await this.checkSaasStatus();
         });
 
         onMounted(() => {
@@ -38,6 +40,24 @@ export class EcfDashboard extends Component {
             console.error("Error loading dashboard data", err);
         } finally {
             this.state.loading = false;
+        }
+    }
+
+    async checkSaasStatus() {
+        try {
+            // Obtener config desde el server
+            const configs = await this.orm.searchRead("res.company", [["id", "=", 1]], ["ecf_saas_url", "ecf_api_key"]);
+            if (configs.length && configs[0].ecf_saas_url) {
+                const response = await fetch(`${configs[0].ecf_saas_url}/v1/health`, {
+                    headers: { "X-API-Key": configs[0].ecf_api_key },
+                    signal: AbortSignal.timeout(3000)
+                });
+                this.state.saas_status = response.ok ? 'online' : 'offline';
+            } else {
+                this.state.saas_status = 'offline';
+            }
+        } catch (err) {
+            this.state.saas_status = 'offline';
         }
     }
 
@@ -110,22 +130,22 @@ export class EcfDashboard extends Component {
         });
     }
 
-    // Acciones de Reportes
+    // Acciones de Reportes (Premium: Generar Reporte)
     printReport606() {
         this.actionService.doAction("ecf_connector.ecf_compras_action");
-        this.notification.add(_t("Abriendo reporte 606 (Compras)"), { type: "info" });
+        this.notification.add(_t("Generando Reporte 606 (Compras)"), { type: "success" });
     }
 
     printReport607() {
-        this.actionService.doAction("account.action_move_out_invoice_type");
-        this.notification.add(_t("Abriendo Ventas (Filtre por 607)"), { type: "info" });
+        this.actionService.doAction("ecf_connector.ecf_ventas_action");
+        this.notification.add(_t("Generando Reporte 607 (Ventas)"), { type: "success" });
     }
 
     printReport608() {
         this.actionService.doAction("ecf_connector.ecf_log_action", {
             additional_context: { 'search_default_anulados': 1 }
         });
-        this.notification.add(_t("Abriendo Anulaciones (608)"), { type: "info" });
+        this.notification.add(_t("Reporte 608: Anulaciones detectadas"), { type: "warning" });
     }
 
     openHistory() {
