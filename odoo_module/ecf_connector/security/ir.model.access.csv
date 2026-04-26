@@ -5,3 +5,5 @@ access_ecf_log_user,ecf.log.user,model_ecf_log,account.group_account_invoice,1,0
 access_ecf_log_manager,ecf.log.manager,model_ecf_log,ecf_connector.group_ecf_manager,1,1,1,0
 access_ecf_anular_wizard_user,ecf.anular.wizard.user,model_ecf_anular_wizard,ecf_connector.group_ecf_user,1,1,1,1
 access_ecf_anular_wizard_manager,ecf.anular.wizard.manager,model_ecf_anular_wizard,ecf_connector.group_ecf_manager,1,1,1,1
+access_ecf_compra_recibida_user,ecf.compra.recibida.user,model_ecf_compra_recibida,account.group_account_invoice,1,1,1,0
+access_ecf_compra_recibida_manager,ecf.compra.recibida.manager,model_ecf_compra_recibida,ecf_connector.group_ecf_manager,1,1,1,1

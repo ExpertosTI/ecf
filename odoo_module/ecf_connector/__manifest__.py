@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'ECF Connector — DGII e-CF República Dominicana',
-    'version': '18.0.2.0',
+    'version': '18.0.3.0',
     'category': 'Accounting/Localizations',
-    'summary': 'Facturación Electrónica e-CF DGII — SaaS Renace.tech',
+    'summary': 'Facturación Electrónica e-CF DGII — SaaS Renace.tech (e-CF Recibidas)',
     'description': """
         Módulo oficial de Renace.tech para emisión de comprobantes fiscales
         electrónicos (e-CF) ante la DGII de la República Dominicana.
@@ -11,6 +11,7 @@
         Funcionalidades:
         - Emisión manual de e-CF (trigger NUNCA automático por defecto)
         - Flujo POS diferido: facturas de envíos/créditos quedan pendientes de conciliación
+        - e-CF Recibidas: descarga automática de facturas de proveedor desde DGII
         - Impresión DGII-compliant: NCF, CUFE, QR, timestamp de aprobación, ambiente
         - Dashboard Kanban de e-CF con KPIs por estado
         - Cron de conciliación: detecta facturas listas para emitir
@@ -38,6 +39,7 @@
         'views/ecf_log_views.xml',
         'views/ecf_dashboard_views.xml',
         'views/ecf_pending_views.xml',
+        'views/ecf_compras_views.xml',
         'report/ecf_invoice_report.xml',
         'wizard/ecf_anular_wizard_views.xml',
     ],

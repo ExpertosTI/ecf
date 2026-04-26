@@ -162,3 +162,121 @@ class ECFWebhookController(http.Controller):
         )
 
         _logger.info("Callback procesado: move=%s ncf=%s estado=%s", odoo_move_id, ncf, estado)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Webhook: e-CF RECIBIDAS (Compras desde DGII)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @http.route(
+        '/ecf/webhook/recibida',
+        type='http',
+        auth='none',
+        methods=['POST'],
+        csrf=False,
+    )
+    def ecf_recibida(self, **kwargs):
+        """
+        Recibe notificación del SaaS con e-CF recibidas desde la DGII.
+        Verifica firma HMAC-SHA256, luego crea registros ecf.compra.recibida
+        y opcionalmente genera las facturas de proveedor en borrador.
+        """
+        try:
+            body_bytes  = request.httprequest.get_data()
+            sig_header  = request.httprequest.headers.get('X-ECF-Signature', '')
+            tenant_rnc  = request.httprequest.headers.get('X-ECF-Tenant-RNC', '')
+
+            # Detectar compañía por RNC
+            company = request.env['res.company'].sudo().search(
+                [('vat', '=', tenant_rnc)], limit=1
+            ) if tenant_rnc else request.env['res.company'].sudo().browse(1)
+
+            if not company:
+                _logger.warning("Webhook recibida: compañía no encontrada para RNC %s", tenant_rnc)
+                return request.make_response('Bad Request', status=400)
+
+            # Verificar firma si hay secret configurado
+            secret = company.ecf_webhook_secret or ''
+            if secret and sig_header:
+                if not self._verificar_firma(body_bytes, sig_header.replace('sha256=', ''), secret.encode()):
+                    _logger.warning("Webhook recibida: firma HMAC inválida")
+                    return request.make_response('Unauthorized', status=401)
+
+            data = json.loads(body_bytes)
+
+            if not self._verificar_timestamp(data):
+                _logger.warning("Webhook recibida: timestamp expirado")
+                return request.make_response('Request Expired', status=408)
+
+            compras = data.get('compras', [])
+            if not compras:
+                return request.make_response('OK — sin compras', status=200)
+
+            self._procesar_compras_recibidas(compras, company)
+
+            _logger.info("Webhook recibida OK: %d e-CF procesadas para %s", len(compras), tenant_rnc)
+            return request.make_response(f'OK — {len(compras)} registros', status=200)
+
+        except Exception as e:
+            _logger.exception("Error procesando webhook e-CF recibidas: %s", e)
+            return request.make_response('Error', status=500)
+
+    def _procesar_compras_recibidas(self, compras: list, company):
+        """
+        Crea registros ecf.compra.recibida para cada e-CF del payload.
+        Usa ON CONFLICT lógico (búsqueda previa) para evitar duplicados.
+        """
+        env = request.env(su=True)
+        Model = env['ecf.compra.recibida']
+        creados = 0
+        duplicados = 0
+
+        for compra in compras:
+            ncf = compra.get('ncf', '')
+            if not ncf:
+                continue
+
+            # Deduplicación
+            existing = Model.search([
+                ('ncf', '=', ncf),
+                ('company_id', '=', company.id),
+            ], limit=1)
+
+            if existing:
+                duplicados += 1
+                continue
+
+            try:
+                from datetime import date as _date
+                fecha_str = compra.get('fecha_comprobante', '')
+                try:
+                    fecha = _date.fromisoformat(fecha_str) if fecha_str else _date.today()
+                except ValueError:
+                    fecha = _date.today()
+
+                def _dec(k):
+                    try:
+                        return float(compra.get(k, 0) or 0)
+                    except (TypeError, ValueError):
+                        return 0.0
+
+                Model.create({
+                    'ncf':              ncf,
+                    'rnc_proveedor':    compra.get('rnc_proveedor', ''),
+                    'nombre_proveedor': (compra.get('nombre_proveedor', '') or '')[:255],
+                    'tipo_ecf':         compra.get('tipo_ecf') or 31,
+                    'cufe':             compra.get('cufe') or False,
+                    'fecha_comprobante': fecha,
+                    'total_monto':      _dec('total_monto'),
+                    'itbis_facturado':  _dec('itbis_facturado'),
+                    'monto_servicios':  _dec('monto_servicios'),
+                    'monto_bienes':     _dec('monto_bienes'),
+                    'ambiente':         compra.get('ambiente', 'produccion'),
+                    'estado_odoo':      'nueva',
+                    'company_id':       company.id,
+                })
+                creados += 1
+
+            except Exception as e:
+                _logger.error("Error creando ecf.compra.recibida NCF %s: %s", ncf, e)
+
+        _logger.info("e-CF Recibidas: %d creadas, %d duplicadas", creados, duplicados)

@@ -990,54 +990,31 @@
                 </div>
             </div>
             <div class="trust-item">
-                <div class="trust-icon">⚡</div>
+                <div class="trust-icon">📥</div>
                 <div class="trust-text">
-                    <strong>Fácil de Usar</strong>
-                    <span>Integración directa en clics</span>
+                    <strong>Hub de Compras</strong>
+                    <span>e-CF Recibidas (606)</span>
                 </div>
             </div>
             <div class="trust-item">
-                <div class="trust-icon">🏢</div>
+                <div class="trust-icon">⚡</div>
                 <div class="trust-text">
-                    <strong>Soporte Local</strong>
-                    <span>Hecho para Rep. Dominicana</span>
+                    <strong>25+ Endpoints REST</strong>
+                    <span>Emisión, admin, certs, reportes</span>
                 </div>
             </div>
             <div class="trust-item">
                 <div class="trust-icon">📊</div>
                 <div class="trust-text">
                     <strong>Reportes 606/607</strong>
-                    <span>Generación automática</span>
-                </div>
-            </div>
-        </div>
-    </div>
-            <div class="trust-item">
-                <div class="trust-icon">⚡</div>
-                <div class="trust-text">
-                    <strong>25+ Endpoints REST</strong>
-                    <span>Emisión, admin, certs, reportes, DLQ</span>
+                    <span>Formato DGII nativo</span>
                 </div>
             </div>
             <div class="trust-item">
                 <div class="trust-icon">🏢</div>
                 <div class="trust-text">
                     <strong>Multi-Tenant</strong>
-                    <span>Schema isolation por RNC</span>
-                </div>
-            </div>
-            <div class="trust-item">
-                <div class="trust-icon">🔁</div>
-                <div class="trust-text">
-                    <strong>5 Reintentos</strong>
-                    <span>Backoff exponencial + DLQ</span>
-                </div>
-            </div>
-            <div class="trust-item">
-                <div class="trust-icon">📊</div>
-                <div class="trust-text">
-                    <strong>Reportes 606/607/608</strong>
-                    <span>Formato DGII nativo</span>
+                    <span>Isolation por RNC</span>
                 </div>
             </div>
         </div>
@@ -1085,6 +1062,11 @@
                 <div class="feature-icon purple">🔁</div>
                 <h3>Reintentos Inteligentes</h3>
                 <p>Si la DGII presenta fallas temporales, nos encargamos de reintentar el envío por ti sin perder ninguna factura.</p>
+            </div>
+            <div class="feature-card reveal">
+                <div class="feature-icon blue">📦</div>
+                <h3>e-CF Recibidas (Hub)</h3>
+                <p>Descarga automática de las facturas que tus proveedores emiten. Reporte 606 listo en tiempo real.</p>
             </div>
             </div>
     </div>
@@ -1146,16 +1128,41 @@
 <!-- ═══════════════════════════════════════════
              ARCHITECTURE (PORTAL + API)
              ═══════════════════════════════════════════ -->
-        <div style="margin-top: 48px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px;" class="reveal">
-            <div class="arch-node" style="padding: 24px;">
-                <div style="font-size: 1.5rem; margin-bottom: 12px; color: var(--accent);">💻</div>
-                <div class="node-label" style="font-size: 1.1rem;">Admin API</div>
-                <div class="node-desc" style="font-size: 0.85rem; line-height: 1.5; margin-top: 8px;">Gestiona tenants, sube certificados, rota API keys y monitorea colas con endpoints protegidos por ADMIN_API_KEY.</div>
+        <!-- Fiscal Hub Flow Diagram -->
+        <div class="arch-diagram reveal">
+            <div class="arch-flow">
+                <div class="arch-node">
+                    <div class="node-icon">🏢</div>
+                    <div class="node-label">Odoo ERP</div>
+                    <div class="node-desc">Tu negocio</div>
+                </div>
+                <div class="arch-arrow">⇋</div>
+                <div class="arch-node" style="border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow);">
+                    <div class="node-icon">⚡</div>
+                    <div class="node-label">Renace SaaS</div>
+                    <div class="node-desc">Fiscal Hub Hub</div>
+                </div>
+                <div class="arch-arrow">⇋</div>
+                <div class="arch-node">
+                    <div class="node-icon">🏛️</div>
+                    <div class="node-label">DGII</div>
+                    <div class="node-desc">Entidad Fiscal</div>
+                </div>
             </div>
-            <div class="arch-node" style="padding: 24px;">
-                <div style="font-size: 1.5rem; margin-bottom: 12px; color: var(--accent-2);">⚡</div>
-                <div class="node-label" style="font-size: 1.1rem;">API RESTful</div>
-                <div class="node-desc" style="font-size: 0.85rem; line-height: 1.5; margin-top: 8px;">Integración directa para sistemas a medida. Emite, anula y consulta documentos fiscales automatizando todo el proceso de facturación.</div>
+            
+            <div style="margin-top: 48px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
+                <div class="arch-node" style="padding: 20px; text-align: left; background: rgba(0,229,160,0.03);">
+                    <div class="node-label" style="color: var(--accent);">↑ Flujo de Emisión</div>
+                    <div class="node-desc" style="color: var(--text-muted);">
+                        Odoo envía factura → SaaS firma y valida → DGII aprueba → SaaS notifica Webhook → Odoo actualiza NCF/CUFE.
+                    </div>
+                </div>
+                <div class="arch-node" style="padding: 20px; text-align: left; background: rgba(108,99,255,0.03);">
+                    <div class="node-label" style="color: var(--accent-2);">↓ Flujo de Recepción (Premium)</div>
+                    <div class="node-desc" style="color: var(--text-muted);">
+                        SaaS consulta DGII cada 30min → Descarga e-CF recibidos → Inyecta en Odoo → Notificación instantánea de compra.
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1215,6 +1222,17 @@
                     <li>RNC de empresa vinculado a <code>company.vat</code></li>
                     <li>Grupos de seguridad: Usuario e-CF y Manager e-CF</li>
                     <li>ACL diferenciadas por rol</li>
+                </ul>
+            </div>
+            <div class="odoo-card reveal" style="border-color: var(--accent); background: linear-gradient(135deg, var(--bg-card), rgba(0,229,160,0.05));">
+                <h4>📥 e-CF Recibidas (Compras)</h4>
+                <ul>
+                    <li>Sincronización automática con la DGII cada 30 minutos</li>
+                    <li>Staging area de compras: revisa antes de contabilizar</li>
+                    <li>Creación de Factura de Proveedor (Bill) en un solo clic</li>
+                    <li>Auto-mapping de proveedores por RNC/Cédula</li>
+                    <li>Almacenamiento legal del XML original (10 años)</li>
+                    <li>Reporte 606 generado con datos reales de la DGII</li>
                 </ul>
             </div>
         </div>
@@ -1277,6 +1295,7 @@
                     <li>5,000 e-CF por año</li>
                     <li>1 empresa (RNC)</li>
                     <li>Módulo Odoo 18</li>
+                    <li>e-CF Recibidas (Hub de Compras)</li>
                     <li>Reportes 606/607/608</li>
                     <li>Soporte prioritario</li>
                     <li>Dashboard de estados</li>
@@ -1297,6 +1316,7 @@
                     <li>40,000 e-CF por año</li>
                     <li>1 empresa (RNC)</li>
                     <li>Todo lo del Corp 5</li>
+                    <li>e-CF Recibidas + XML Storage</li>
                     <li>Cola de reintentos DLQ</li>
                     <li>Métricas avanzadas</li>
                     <li>Descuento hasta 10%</li>

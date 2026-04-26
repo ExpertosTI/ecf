@@ -178,9 +178,9 @@ if $DC -f "$COMPOSE_FILE" ps --quiet 2>/dev/null | head -1 | grep -q .; then
     $DC -f "$COMPOSE_FILE" down --timeout 30
 fi
 
-# Levantar infraestructura primero (DB, Redis, Traefik)
-log "Levantando infraestructura (Traefik, PostgreSQL, Redis)..."
-$DC -f "$COMPOSE_FILE" up -d traefik postgres redis
+# Levantar infraestructura primero (PostgreSQL, Redis)
+log "Levantando infraestructura (PostgreSQL, Redis)..."
+$DC -f "$COMPOSE_FILE" up -d postgres redis
 
 # Esperar a que DB y Redis esten saludables
 log "Esperando a que PostgreSQL y Redis esten saludables..."
@@ -258,14 +258,13 @@ $DC -f "$COMPOSE_FILE" ps
 NETWORK_SERVICES=$(docker network inspect ecf_network --format '{{range .Containers}}{{.Name}} {{end}}' 2>/dev/null || echo "")
 info "Servicios en red ecf_network: ${NETWORK_SERVICES}"
 
-# Verificar health de la API via Traefik
+# Verificar health de la API (vía puerto interno)
 sleep 3
-if curl -sf -o /dev/null -k "https://localhost/health" 2>/dev/null; then
-    log "API accesible via Traefik (HTTPS)"
-elif curl -sf -o /dev/null "http://localhost:80" 2>/dev/null; then
-    log "Traefik respondiendo (redireccion HTTP -> HTTPS activa)"
+API_CONTAINER=$($DC -f "$COMPOSE_FILE" ps api --format "{{.ID}}" 2>/dev/null | head -1)
+if [ -n "$API_CONTAINER" ] && docker exec "$API_CONTAINER" curl -sf http://localhost:8000/health &>/dev/null; then
+    log "API respondiendo correctamente (Internal Health OK)"
 else
-    warn "No se pudo verificar acceso via Traefik. Verificar configuracion DNS."
+    warn "No se pudo verificar el acceso directo a la API. Verifique logs: $DC logs api"
 fi
 
 # Verificar workers
@@ -308,8 +307,8 @@ check_dgii() {
     fi
 }
 
-# TLS habilitado
-TLS_CHECK=$($DC -f "$COMPOSE_FILE" ps traefik 2>/dev/null | grep -c "443" && echo "OK" || echo "Verificar")
+# TLS habilitado (puerto 443 global)
+TLS_CHECK=$(ss -tulpn | grep -q ":443" && echo "OK" || echo "Verificar")
 check_dgii "TLS/HTTPS habilitado (puerto 443)" "$TLS_CHECK"
 
 # PostgreSQL con datos persistentes
@@ -334,7 +333,7 @@ fi
 # Seguridad
 check_dgii "Usuario no-root en contenedor" "OK"
 check_dgii "Red Docker aislada (ecf_network)" "OK"
-check_dgii "Logs de acceso Traefik (auditoria)" "OK"
+check_dgii "Logs de acceso Nginx (auditoria)" "OK"
 check_dgii "Security headers (HSTS, X-Frame-Options)" "OK"
 
 echo ""

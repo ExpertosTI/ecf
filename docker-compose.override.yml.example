@@ -10,6 +10,6 @@ services:
       - disabled
 
   api:
-    # Exponemos la API localmente en el puerto 8000 para Nginx
+    # Exponemos la API localmente en un puerto de alta entropía (no estándar)
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:59317:8000"

@@ -2,6 +2,7 @@
 Scheduler — Jobs periódicos del sistema.
 - Alerta de vencimiento de certificados (diario)
 - Reset de contadores mensuales de e-CF (1ro de cada mes)
+- Sincronización de e-CF Recibidas desde DGII (cada 30 minutos)
 
 Ejecutar: python -m ecf_core.scheduler
 """
@@ -17,6 +18,7 @@ from email.mime.text import MIMEText
 import asyncpg
 
 from ecf_core.cert_vault import CertVault, CertVaultRepository
+from ecf_core.ecf_recibidas_service import ECFRecibidasService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,7 +27,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-CHECK_INTERVAL = 3600  # 1 hora
+CHECK_INTERVAL        = 3600   # 1 hora para cert alerts / reset
+RECIBIDAS_INTERVAL    = 1800   # 30 minutos para sync e-CF recibidas
+_last_recibidas_sync  = 0.0    # timestamp de la última sync
 
 
 async def alertar_vencimientos(db_pool: asyncpg.Pool):
@@ -111,8 +115,37 @@ async def reset_contadores_mensuales(db_pool: asyncpg.Pool):
     logger.info("Contadores mensuales reseteados: %s", result)
 
 
+async def sincronizar_ecf_recibidas(db_pool: asyncpg.Pool):
+    """
+    Sincroniza e-CF recibidas desde la DGII para todos los tenants activos.
+    Se ejecuta cada 30 minutos. Usa certificados del Cert Vault.
+    """
+    global _last_recibidas_sync
+    import time
+    ahora = time.monotonic()
+    if ahora - _last_recibidas_sync < RECIBIDAS_INTERVAL:
+        return
+
+    logger.info("Iniciando sincronización de e-CF Recibidas para todos los tenants...")
+    vault = CertVault()
+    cert_repo = CertVaultRepository(db_pool, vault)
+    servicio = ECFRecibidasService(db_pool, cert_repo)
+
+    try:
+        resultados = await servicio.sincronizar_todos_los_tenants()
+        total_nuevos = sum(r.nuevos for r in resultados)
+        total_errores = sum(r.errores for r in resultados)
+        logger.info(
+            "e-CF Recibidas sync: %d tenants procesados, %d nuevas, %d errores",
+            len(resultados), total_nuevos, total_errores
+        )
+        _last_recibidas_sync = ahora
+    except Exception as e:
+        logger.exception("Error en sincronización de e-CF recibidas: %s", e)
+
+
 async def main():
-    logger.info("Iniciando ECF Scheduler...")
+    logger.info("Iniciando ECF Scheduler (v2 — con e-CF Recibidas)...")
 
     db_pool = await asyncpg.create_pool(
         dsn=os.environ["DATABASE_URL"],
@@ -125,6 +158,7 @@ async def main():
             logger.info("Ejecutando jobs programados...")
             await alertar_vencimientos(db_pool)
             await reset_contadores_mensuales(db_pool)
+            await sincronizar_ecf_recibidas(db_pool)
             logger.info("Jobs completados. Proxima ejecucion en %d segundos", CHECK_INTERVAL)
             await asyncio.sleep(CHECK_INTERVAL)
     finally:

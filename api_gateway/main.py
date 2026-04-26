@@ -129,6 +129,17 @@ _portal_dir = pathlib.Path(__file__).resolve().parent.parent / "portal_admin"
 if _portal_dir.is_dir():
     app.mount("/portal", StaticFiles(directory=str(_portal_dir), html=True), name="portal")
 
+@app.get("/v1/health")
+async def health(tenant: dict = Depends(get_tenant)):
+    """Endpoint de monitoreo y validación de conexión para los clientes."""
+    return {
+        "status": "online",
+        "version": "2.4.0",
+        "ambiente": tenant["ambiente"],
+        "rnc": tenant["rnc"],
+        "timestamp": datetime.now().isoformat()
+    }
+
 # Rate Limiting basado en Redis (soporta múltiples instancias)
 
 RATE_LIMIT_MAX = int(os.environ.get("RATE_LIMIT_MAX", "60"))
@@ -556,6 +567,129 @@ async def reporte_608(
         registros, formato, "608", HEADERS_608, keys,
         "608 — Anulaciones", tenant["rnc"], periodo, _608_to_txt,
     )
+
+
+from ecf_core.ecf_recibidas_service import ECFRecibidasService
+from ecf_core.cert_vault import CertVault, CertVaultRepository
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# e-CF COMPRAS RECIBIDAS — endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/v1/compras")
+async def listar_compras(
+    anio:          int,
+    mes:           int,
+    estado_odoo:   Optional[str] = None,
+    rnc_proveedor: Optional[str] = None,
+    formato:       ExportFormat = ExportFormat.json,
+    tenant:        dict = Depends(get_tenant),
+    db:            asyncpg.Pool = Depends(get_db),
+):
+    """Lista los e-CF recibidos (compras) del período con filtros opcionales."""
+    _validar_periodo(anio, mes)
+    schema = _safe_schema(tenant["schema_name"])
+    conditions = [
+        "EXTRACT(YEAR FROM fecha_comprobante) = $1",
+        "EXTRACT(MONTH FROM fecha_comprobante) = $2",
+    ]
+    params: list = [anio, mes]
+    if estado_odoo:
+        params.append(estado_odoo)
+        conditions.append(f"estado_odoo = ${len(params)}")
+    if rnc_proveedor:
+        params.append(rnc_proveedor)
+        conditions.append(f"rnc_proveedor = ${len(params)}")
+    where = " AND ".join(conditions)
+    async with db.acquire() as conn:
+        rows = await conn.fetch(f"""
+            SELECT ncf, rnc_proveedor, nombre_proveedor, tipo_bienes,
+                   fecha_comprobante, fecha_pago, monto_servicios, monto_bienes,
+                   total_monto, itbis_facturado, itbis_retenido, isr_retencion,
+                   estado_odoo, cufe, tipo_ecf, ambiente
+            FROM {schema}.compras WHERE {where}
+            ORDER BY fecha_comprobante, ncf
+        """, *params)
+    registros = [dict(r) for r in rows]
+    periodo = f"{anio}-{mes:02d}"
+    keys = ["ncf","rnc_proveedor","nombre_proveedor","tipo_bienes",
+            "fecha_comprobante","fecha_pago","monto_servicios","monto_bienes",
+            "total_monto","itbis_facturado","itbis_retenido","isr_retencion"]
+    if formato == ExportFormat.json:
+        return {"periodo": periodo, "total": len(registros), "registros": registros}
+    return _build_response(registros, formato, "606", HEADERS_606, keys,
+        "606 \u2014 Compras", tenant["rnc"], periodo, _606_to_txt)
+
+
+@app.post("/v1/compras/sincronizar", status_code=202)
+async def sincronizar_compras(
+    tenant: dict = Depends(get_tenant),
+    db:     asyncpg.Pool = Depends(get_db),
+):
+    """Dispara manualmente la sincronización de e-CF recibidas con la DGII (202 Accepted)."""
+    vault     = CertVault()
+    cert_repo = CertVaultRepository(db, vault)
+    servicio  = ECFRecibidasService(db, cert_repo)
+    asyncio.create_task(servicio.sincronizar_tenant(dict(tenant)))
+    await _audit_log(db, str(tenant["id"]), "compras.sincronizar")
+    return {"mensaje": "Sincronización iniciada.", "tenant": tenant["rnc"]}
+
+
+@app.get("/v1/compras/{ncf}/xml")
+async def descargar_xml_compra(
+    ncf: str,
+    tenant: dict = Depends(get_tenant),
+    db:     asyncpg.Pool = Depends(get_db),
+):
+    """Descarga el XML original del e-CF recibido (retención 10 años DGII)."""
+    from fastapi.responses import Response
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(f"SELECT xml_original FROM {schema}.compras WHERE ncf = $1", ncf)
+    if not row or not row["xml_original"]:
+        raise HTTPException(status_code=404, detail="XML no disponible para este NCF")
+    return Response(bytes(row["xml_original"]), media_type="application/xml",
+        headers={"Content-Disposition": f"attachment; filename=compra_{ncf}.xml"})
+
+
+@app.patch("/v1/compras/{ncf}/pagar")
+async def registrar_pago_compra(
+    ncf: str,
+    fecha_pago: date,
+    tenant: dict = Depends(get_tenant),
+    db:     asyncpg.Pool = Depends(get_db),
+):
+    """Registra la fecha de pago — requerida por DGII para el reporte 606."""
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        result = await conn.execute(
+            f"UPDATE {schema}.compras SET fecha_pago=$1, updated_at=NOW() WHERE ncf=$2",
+            fecha_pago, ncf)
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="NCF no encontrado")
+    return {"ncf": ncf, "fecha_pago": fecha_pago.isoformat()}
+
+
+@app.patch("/v1/compras/{ncf}/estado-odoo")
+async def actualizar_estado_odoo(
+    ncf: str,
+    estado_odoo: str,
+    odoo_bill_id: Optional[str] = None,
+    tenant: dict = Depends(get_tenant),
+    db:     asyncpg.Pool = Depends(get_db),
+):
+    """Actualiza el estado de procesamiento Odoo. Llamado por ecf_connector al crear in_invoice."""
+    if estado_odoo not in {"nueva","enviada","procesada","error"}:
+        raise HTTPException(status_code=422, detail="Estado inválido")
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        result = await conn.execute(
+            f"UPDATE {schema}.compras SET estado_odoo=$1, odoo_bill_id=$2, updated_at=NOW() WHERE ncf=$3",
+            estado_odoo, odoo_bill_id, ncf)
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="NCF no encontrado")
+    return {"ncf": ncf, "estado_odoo": estado_odoo, "odoo_bill_id": odoo_bill_id}
 
 
 @app.get("/health")
