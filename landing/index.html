@@ -1553,9 +1553,9 @@
 <footer class="footer">
     <div class="container footer-inner">
         <div class="footer-copy">
-            <img src="renacelogo.svg" alt="RENACE Tech" style="height: 32px; width: auto; margin-bottom: 12px; filter: brightness(0) invert(1); opacity: 0.8;" id="footerLogo">
+            <img src="./renacelogo.svg" alt="RENACE Tech" style="height: 32px; width: auto; margin-bottom: 12px; opacity: 0.9;" id="footerLogo">
             <br>
-            © 2026 <strong>RENACE Tech</strong> — Facturación Electrónica e-CF · RD
+            © 2026 <strong style="cursor: help;" title="Modo Desarrollador" id="devTrigger">RENACE Tech</strong> — Facturación Electrónica e-CF · RD
         </div>
         <div class="footer-links">
             <a href="https://renace.tech">renace.tech</a>
@@ -1656,6 +1656,14 @@
     /* ─── INITIALIZE CALCULATOR ─── */
     document.addEventListener('DOMContentLoaded', () => {
         if (typeof selectPlan === 'function') selectPlan(0);
+        
+        // Hidden dev link: Double click on footer brand
+        const trigger = document.getElementById('devTrigger');
+        if (trigger) {
+            trigger.addEventListener('dblclick', () => {
+                window.location.href = 'dev.html';
+            });
+        }
     });
 </script>
 </body>
