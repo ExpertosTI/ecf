@@ -127,12 +127,12 @@
     <!-- ============================================================
          Vista de lista de facturas — columnas NCF y estado
          ============================================================ -->
-    <record id="view_move_tree_ecf" model="ir.ui.view">
+    <record id="view_move_list_ecf" model="ir.ui.view">
         <field name="name">account.move.list.ecf</field>
         <field name="model">account.move</field>
         <field name="inherit_id" ref="account.view_move_tree"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='name']" position="after">
+            <xpath expr="//list//field[@name='name']" position="after">
                 <field name="ecf_ncf" optional="show" string="NCF"/>
                 <field name="ecf_estado" optional="show" string="Estado e-CF"
                        decoration-success="ecf_estado == 'aprobado'"

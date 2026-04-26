@@ -109,7 +109,7 @@
     <!-- Menú Dashboard -->
     <menuitem id="ecf_menu_dashboard"
               name="Dashboard e-CF"
-              parent="ecf_log_views.ecf_menu_root"
+              parent="ecf_connector.ecf_menu_root"
               action="ecf_dashboard_action"
               sequence="1"
               groups="ecf_connector.group_ecf_user"/>

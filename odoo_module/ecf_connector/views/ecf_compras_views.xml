@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="view_ecf_compra_recibida_tree" model="ir.ui.view">
-        <field name="name">ecf.compra.recibida.tree</field>
+    <record id="view_ecf_compra_recibida_list" model="ir.ui.view">
+        <field name="name">ecf.compra.recibida.list</field>
         <field name="model">ecf.compra.recibida</field>
         <field name="arch" type="xml">
-            <tree string="e-CF Recibidas (Compras)" decoration-info="estado_odoo == 'nueva'" decoration-success="estado_odoo == 'procesada'" decoration-danger="estado_odoo == 'error'">
+            <list string="e-CF Recibidas (Compras)" decoration-info="estado_odoo == 'nueva'" decoration-success="estado_odoo == 'procesada'" decoration-danger="estado_odoo == 'error'">
                 <field name="fecha_comprobante"/>
                 <field name="ncf"/>
                 <field name="rnc_proveedor"/>
@@ -14,7 +14,7 @@
                 <field name="estado_odoo" widget="badge" decoration-info="estado_odoo == 'nueva'" decoration-success="estado_odoo == 'procesada'" decoration-danger="estado_odoo == 'error'"/>
                 <field name="move_id" widget="many2one_clickable"/>
                 <field name="ambiente" optional="hide"/>
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -107,7 +107,7 @@
     <record id="action_ecf_compra_recibida" model="ir.actions.act_window">
         <field name="name">e-CF Recibidas (Compras)</field>
         <field name="res_model">ecf.compra.recibida</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="view_ecf_compra_recibida_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">

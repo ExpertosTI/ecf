@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- Vista de lista de ecf.log -->
-    <record id="ecf_log_view_tree" model="ir.ui.view">
-        <field name="name">ecf.log.tree</field>
+    <record id="ecf_log_view_list" model="ir.ui.view">
+        <field name="name">ecf.log.list</field>
         <field name="model">ecf.log</field>
         <field name="arch" type="xml">
-            <tree>
+            <list>
                 <field name="create_date" string="Fecha"/>
                 <field name="move_id"/>
                 <field name="ncf"/>
@@ -18,7 +18,7 @@
                        widget="badge"/>
                 <field name="cufe"/>
                 <field name="error_msg"/>
-            </tree>
+            </list>
         </field>
     </record>
 

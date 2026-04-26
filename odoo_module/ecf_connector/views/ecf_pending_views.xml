@@ -56,7 +56,7 @@
     <!-- Menú: Facturas Pendientes e-CF bajo el menú e-CF DGII -->
     <menuitem id="ecf_menu_pending"
               name="Pendientes e-CF"
-              parent="ecf_log_views.ecf_menu_root"
+              parent="ecf_connector.ecf_menu_root"
               action="ecf_pending_action"
               sequence="5"
               groups="ecf_connector.group_ecf_user"/>

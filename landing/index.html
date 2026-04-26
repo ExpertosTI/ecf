@@ -6,38 +6,77 @@
     <title>Renace ECF — Facturación Electrónica DGII para Odoo</title>
     <meta name="description" content="Hub SaaS de facturación electrónica (e-CF) certificado por la DGII. Conecta tu Odoo con la DGII en minutos. Multi-tenant, seguro, escalable.">
     <meta name="theme-color" content="#0A0F1C">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="icon" href="apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Sora:wght@700;800;900&display=swap" rel="stylesheet">
     <style>
         /* ═══════════════════════════════════════════
            DESIGN TOKENS — renace.tech identity
            ═══════════════════════════════════════════ */
         :root {
-            --bg-deep:      #0A0F1C;
-            --bg-card:      #111828;
-            --bg-card-alt:  #162032;
-            --bg-glass:     rgba(17, 24, 40, 0.65);
+            /* Dark mode (default) */
+            --bg-deep:      #080D18;
+            --bg-card:      #0F1623;
+            --bg-card-alt:  #141E2E;
+            --bg-glass:     rgba(8, 13, 24, 0.72);
+            --nav-bg:       rgba(8, 13, 24, 0.85);
 
-            --accent:       #00E5A0;
-            --accent-dim:   #00C488;
-            --accent-glow:  rgba(0, 229, 160, 0.15);
-            --accent-2:     #6C63FF;
-            --accent-2-glow:rgba(108, 99, 255, 0.12);
+            --accent:       #0087ff;
+            --accent-dim:   #006fd6;
+            --accent-glow:  rgba(0, 135, 255, 0.14);
+            --accent-2:     #00d4a8;
+            --accent-2-glow:rgba(0, 212, 168, 0.12);
 
-            --text-primary: #F1F5F9;
-            --text-muted:   #94A3B8;
-            --text-dim:     #64748B;
+            --text-primary: #EEF2F8;
+            --text-muted:   #8A97B0;
+            --text-dim:     #4E5D78;
 
-            --border:       rgba(255,255,255,0.06);
-            --border-accent:rgba(0,229,160,0.25);
+            --border:       rgba(255,255,255,0.07);
+            --border-accent:rgba(0,135,255,0.28);
 
             --radius:       12px;
             --radius-lg:    20px;
             --radius-sm:    8px;
 
             --font-sans:    'Inter', system-ui, -apple-system, sans-serif;
+            --font-display: 'Sora', 'Inter', sans-serif;
             --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+
+            --shadow-card:  0 2px 24px rgba(0,0,0,0.4);
+            --shadow-glow:  0 0 40px rgba(0,135,255,0.15);
+            --transition:   all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Light mode */
+        [data-theme="light"] {
+            --bg-deep:      #F4F7FC;
+            --bg-card:      #FFFFFF;
+            --bg-card-alt:  #EDF1F8;
+            --bg-glass:     rgba(244, 247, 252, 0.88);
+            --nav-bg:       rgba(244, 247, 252, 0.92);
+
+            --accent:       #0072D9;
+            --accent-dim:   #005CB0;
+            --accent-glow:  rgba(0, 114, 217, 0.10);
+            --accent-2:     #009e7e;
+            --accent-2-glow:rgba(0, 158, 126, 0.10);
+
+            --text-primary: #111827;
+            --text-muted:   #4B5563;
+            --text-dim:     #9CA3AF;
+
+            --border:       rgba(17,24,39,0.09);
+            --border-accent:rgba(0,114,217,0.25);
+
+            --shadow-card:  0 2px 24px rgba(17,24,39,0.08);
+            --shadow-glow:  0 0 40px rgba(0,114,217,0.10);
+        }
+
+        /* Smooth theme transitions */
+        body, .nav, .feature-card, .odoo-card, .terminal, section {
+            transition: background 0.35s ease, color 0.35s ease, border-color 0.35s ease;
         }
 
         /* ═══════════════════════════════════════════
@@ -108,13 +147,31 @@
             left: 0;
             right: 0;
             z-index: 100;
-            backdrop-filter: blur(20px) saturate(1.4);
-            -webkit-backdrop-filter: blur(20px) saturate(1.4);
-            background: rgba(10, 15, 28, 0.82);
+            backdrop-filter: blur(24px) saturate(1.6);
+            -webkit-backdrop-filter: blur(24px) saturate(1.6);
+            background: var(--nav-bg);
             border-bottom: 1px solid var(--border);
-            transition: box-shadow .3s;
+            transition: background 0.35s ease, box-shadow 0.3s;
         }
-        .nav.scrolled { box-shadow: 0 4px 30px rgba(0,0,0,0.3); }
+        .nav.scrolled { box-shadow: 0 4px 40px rgba(0,0,0,0.15); }
+
+        /* Theme toggle */
+        .theme-toggle {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--bg-card-alt);
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            transition: var(--transition);
+            flex-shrink: 0;
+        }
+        .theme-toggle:hover { border-color: var(--accent); color: var(--accent); transform: rotate(20deg); }
         .nav-inner {
             display: flex;
             align-items: center;
@@ -224,17 +281,15 @@
             50% { opacity: 0.3; }
         }
         .hero h1 {
-            font-size: clamp(2.5rem, 5.5vw, 4rem);
+            font-family: var(--font-display);
+            font-size: clamp(2.6rem, 5.8vw, 4.4rem);
             font-weight: 900;
             letter-spacing: -0.04em;
-            line-height: 1.08;
+            line-height: 1.06;
             margin-bottom: 24px;
         }
-        .hero h1 .gradient {
-            background: linear-gradient(135deg, var(--accent), var(--accent-2));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        .hero h1 .accent-word {
+            color: var(--accent);
         }
         .hero-desc {
             font-size: 1.2rem;
@@ -413,16 +468,15 @@
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
-            transition: all .3s;
+            transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s, border-color 0.3s;
             position: relative;
             overflow: hidden;
+            box-shadow: var(--shadow-card);
         }
         .feature-card::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
+            top: 0; left: 0; right: 0;
             height: 2px;
             background: linear-gradient(90deg, transparent, var(--accent), transparent);
             opacity: 0;
@@ -430,8 +484,8 @@
         }
         .feature-card:hover {
             border-color: var(--border-accent);
-            transform: translateY(-4px);
-            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            transform: translateY(-6px);
+            box-shadow: 0 24px 64px rgba(0,0,0,0.18), var(--shadow-glow);
         }
         .feature-card:hover::before { opacity: 1; }
         .feature-icon {
@@ -842,53 +896,171 @@
            ═══════════════════════════════════════════ */
         .reveal {
             opacity: 0;
-            transform: translateY(30px);
-            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            transform: translateY(28px);
+            transition: opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+                        transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        .reveal.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        .reveal.visible { opacity: 1; transform: translateY(0); }
+        .reveal-delay-1 { transition-delay: 0.08s; }
+        .reveal-delay-2 { transition-delay: 0.16s; }
+        .reveal-delay-3 { transition-delay: 0.24s; }
 
         /* ═══════════════════════════════════════════
-           ANALYSIS NOTE
+           PREMIUM CALCULATOR
            ═══════════════════════════════════════════ */
-        .analysis-box {
-            margin-top: 48px;
-            padding: 32px;
-            background: linear-gradient(135deg, rgba(0,229,160,0.05), rgba(108,99,255,0.05));
+        .calc-wrapper {
+            background: var(--bg-card);
             border: 1px solid var(--border-accent);
-            border-radius: var(--radius-lg);
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: var(--shadow-glow), var(--shadow-card);
         }
-        .analysis-box h4 {
-            font-size: 1rem;
-            font-weight: 700;
-            margin-bottom: 16px;
+        .calc-header {
             display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: space-between;
+            padding: 20px 28px;
+            border-bottom: 1px solid var(--border);
         }
-        .analysis-box p, .analysis-box li {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            line-height: 1.7;
-        }
-        .analysis-box ul {
-            list-style: none;
-            padding: 0;
-            margin-top: 12px;
-        }
-        .analysis-box li {
-            padding: 4px 0;
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-        }
-        .analysis-box li::before {
-            content: '✓';
+        .calc-badge {
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
             color: var(--accent);
+            background: var(--accent-glow);
+            border: 1px solid var(--border-accent);
+            padding: 4px 12px;
+            border-radius: 100px;
+        }
+        .calc-body { padding: 28px; }
+
+        /* Plan selector tabs */
+        .plan-tabs {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 28px;
+        }
+        .plan-tab {
+            padding: 14px 10px;
+            border-radius: 12px;
+            border: 1.5px solid var(--border);
+            background: var(--bg-card-alt);
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.22s cubic-bezier(0.4,0,0.2,1);
+            position: relative;
+            overflow: hidden;
+        }
+        .plan-tab::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: var(--accent);
+            opacity: 0;
+            transition: opacity 0.22s;
+        }
+        .plan-tab.active {
+            border-color: var(--accent);
+            background: var(--accent-glow);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px var(--accent-glow);
+        }
+        .plan-tab-name {
             font-weight: 700;
-            flex-shrink: 0;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            margin-bottom: 3px;
+            position: relative;
+            z-index: 1;
+            transition: color 0.22s;
+        }
+        .plan-tab.active .plan-tab-name { color: var(--accent); }
+        .plan-tab-vol {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            position: relative;
+            z-index: 1;
+            transition: color 0.22s;
+        }
+        .plan-tab.active .plan-tab-vol { color: var(--text-muted); }
+
+        /* Animated price display */
+        .price-display {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+        .price-currency {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            padding-bottom: 6px;
+            line-height: 1;
+        }
+        .price-amount {
+            font-family: var(--font-display);
+            font-size: 4rem;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: -0.04em;
+            color: var(--text-primary);
+            transition: color 0.3s;
+            min-width: 140px;
+        }
+        .price-period {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            padding-bottom: 10px;
+        }
+        .price-note {
+            font-size: 0.82rem;
+            color: var(--text-dim);
+            margin-bottom: 24px;
+            min-height: 20px;
+            transition: all 0.3s;
+        }
+        /* Number flip animation */
+        @keyframes priceFlipIn {
+            from { opacity: 0; transform: translateY(-12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .price-amount.updating {
+            animation: priceFlipIn 0.28s cubic-bezier(0.4,0,0.2,1) both;
+        }
+
+        /* Implementation cost strip */
+        .impl-strip {
+            display: flex;
+            gap: 12px;
+        }
+        .impl-item {
+            flex: 1;
+            padding: 16px;
+            background: var(--bg-card-alt);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            transition: border-color 0.2s;
+        }
+        .impl-item:hover { border-color: var(--border-accent); }
+        .impl-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+        .impl-note {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+        .impl-price {
+            font-weight: 800;
+            font-size: 1.15rem;
+            color: var(--accent);
         }
     </style>
 </head>
@@ -899,20 +1071,38 @@
      ═══════════════════════════════════════════ -->
 <nav class="nav" id="nav">
     <div class="container nav-inner">
-        <a href="https://renace.tech" class="nav-logo">
-            <!-- Reemplaza el src con la URL real de tu logo -->
-            <img src="https://renace.tech/images/renacelogo.svg" alt="RENACE Tech" style="height: 36px; width: auto; object-fit: contain;">
+        <a href="/" class="nav-logo">
+            <svg id="Capa_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 360 81.02" style="height: 38px; width: auto;">
+              <style>
+                .st0 { fill: #0087ff; }
+                .st1 { fill: #f0f0f0; }
+                .st2 { fill: #00204e; }
+              </style>
+              <g id="Capa_11" data-name="Capa_1">
+                <g>
+                  <path class="st0" d="M22.2,64.27V18.62h14.42v45.64h-14.42ZM22.2,18.62h40.35v12.96H22.2v-12.96Z"/>
+                  <path class="st0" d="M114.34,45.55h-13.69v-6.85c0-1.58-.24-3-.73-4.25-.49-1.25-1.14-2.27-1.96-3.06-.82-.79-1.84-1.38-3.06-1.78-1.22-.4-2.56-.59-4.02-.59s-2.71.26-3.93.78-2.27,1.29-3.15,2.33c-.88,1.03-1.57,2.33-2.05,3.88-.49,1.55-.73,3.36-.73,5.43,0,2.31.24,4.26.73,5.84.49,1.58,1.19,2.86,2.1,3.83.91.97,2.04,1.67,3.38,2.1s2.86.64,4.57.64c1.34,0,2.57-.14,3.7-.41s2.08-.64,2.88-1.1c.79-.46,1.42-1,1.87-1.64s.68-1.29.68-1.96h12.87c0,5.05-1.87,9.13-5.61,12.23s-9.21,4.65-16.39,4.65c-8.64,0-15.08-2.04-19.31-6.12-4.23-4.08-6.34-10.1-6.34-18.08s2.05-13.77,6.16-17.94,10.06-6.25,17.85-6.25c8.64,0,14.83,2.19,18.58,6.57s5.61,11.02,5.61,19.9v1.85h-.01ZM72.26,35.69h37.88v9.86h-37.88v-9.86Z"/>
+                  <path class="st0" d="M120.61,64.27V18.62h14.42v45.64h-14.42ZM153.84,64.27v-23.37c0-1.7-.14-3.18-.41-4.43s-.75-2.31-1.42-3.19c-.67-.88-1.58-1.55-2.74-2.01-1.16-.46-2.65-.69-4.47-.69-3.17,0-5.58.9-7.26,2.69-1.67,1.8-2.51,4.52-2.51,8.17v1.28h-4.02v-1.28c0-3.53.36-6.79,1.09-9.77s1.84-5.54,3.33-7.67,3.41-3.79,5.75-4.97c2.34-1.19,5.1-1.78,8.26-1.78s5.73.35,8.08,1.05c2.34.7,4.32,1.9,5.93,3.61,1.61,1.7,2.82,3.97,3.61,6.8.79,2.83,1.19,6.38,1.19,10.64v24.92s-14.41,0-14.41,0Z"/>
+                  <path class="st2" d="M221,26.56s0,.01,0,.02h0s-.02-.02-.02-.02Z"/>
+                  <path class="st1" d="M222.02,33.05v31.22h-14.42v-21.16l-17.16,21.16h-18.53l26.46-32.68h-21.08v-12.96h31.77c5.37,0,9.98,3.27,11.94,7.93,0,0,0,.01,0,.02.65,1.54,1.01,3.23,1.01,5.01,0,0,0,.97,0,1.46Z"/>
+                  <path class="st0" d="M263.24,18.76c2.77,1,5.1,2.41,6.98,4.2,1.89,1.8,3.32,3.88,4.29,6.25s1.46,4.93,1.46,7.67h-12.96c0-.97-.21-1.86-.64-2.65-.43-.79-1.06-1.45-1.92-1.96-.85-.52-1.84-.93-2.97-1.23s-2.42-.46-3.88-.46-2.92.18-4.2.55c-1.28.37-2.37.97-3.29,1.83-.91.85-1.63,1.96-2.14,3.33-.52,1.37-.78,3.06-.78,5.07s.27,3.73.82,5.16,1.34,2.57,2.37,3.42c1.03.85,2.25,1.46,3.65,1.83,1.4.37,2.92.55,4.56.55,1.46,0,2.75-.15,3.88-.46,1.13-.3,2.05-.71,2.79-1.23.73-.52,1.29-1.17,1.69-1.96s.59-1.67.59-2.65h12.87c0,2.74-.46,5.3-1.37,7.67s-2.3,4.46-4.15,6.25c-1.86,1.8-4.2,3.2-7.03,4.2-2.83,1-6.16,1.51-10,1.51-8.4,0-14.76-2.04-19.08-6.12s-6.48-10.1-6.48-18.08,2.01-14.07,6.02-18.12c4.02-4.05,10.47-6.07,19.35-6.07,3.62-.01,6.8.5,9.57,1.5Z"/>
+                  <path class="st0" d="M328.44,45.55h-13.69v-6.85c0-1.58-.24-3-.73-4.25-.49-1.25-1.14-2.27-1.96-3.06-.82-.79-1.84-1.38-3.06-1.78-1.22-.4-2.56-.59-4.02-.59s-2.71.26-3.93.78-2.27,1.29-3.15,2.33c-.88,1.03-1.57,2.33-2.05,3.88-.49,1.55-.73,3.36-.73,5.43,0,2.31.24,4.26.73,5.84.49,1.58,1.19,2.86,2.1,3.83.91.97,2.04,1.67,3.38,2.1s2.86.64,4.57.64c1.34,0,2.57-.14,3.7-.41s2.08-.64,2.88-1.1c.79-.46,1.42-1,1.87-1.64s.68-1.29.68-1.96h12.87c0,5.05-1.87,9.13-5.61,12.23s-9.21,4.65-16.39,4.65c-8.64,0-15.08-2.04-19.31-6.12s-6.34-10.1-6.34-18.08,2.05-13.77,6.16-17.94c4.11-4.17,10.06-6.25,17.85-6.25,8.64,0,14.83,2.19,18.58,6.57s5.61,11.02,5.61,19.9v1.85h-.01ZM286.35,35.69h37.88v9.86h-37.88v-9.86Z"/>
+                </g>
+              </g>
+            </svg>
         </a>
         <ul class="nav-links">
-            <li><a href="#funcionalidades">Funcionalidades</a></li>
-            <li><a href="#odoo">Odoo</a></li>
-            <li><a href="#planes">Planes</a></li>
+            <li><a href="#funcionalidades">Beneficios</a></li>
+            <li><a href="#odoo">Integración</a></li>
+            <li><a href="#planes">Precios</a></li>
         </ul>
-        <a href="/portal" class="btn-outline" style="margin-right: 12px; padding: 10px 20px; border-color: var(--border); color: var(--text-primary);">Iniciar Sesión</a>
-        <a href="#contacto" class="nav-cta">Solicitar Demo →</a>
-        <button class="mobile-toggle" onclick="this.previousElementSibling.previousElementSibling.classList.toggle('show')" aria-label="Menú">
-            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
-        </button>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <a href="/portal" class="btn-outline" style="padding: 10px 20px; border: 1px solid var(--border); color: var(--text-primary); border-radius: 8px;">Iniciar Sesión</a>
+            <a href="#contacto" class="nav-cta">Solicitar Demo</a>
+            <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema">
+                <span id="themeIcon">☀️</span>
+            </button>
+        </div>
     </div>
 </nav>
 
@@ -922,53 +1112,58 @@
 <section class="hero" id="inicio">
     <div class="container">
         <div class="hero-grid">
-            <div>
+            <div class="reveal">
                 <div class="hero-badge">
                     <span class="dot"></span>
-                    Certificado DGII — Ambiente TesteCF / CerteCF / Producción
+                    Solución Certificada ante la DGII
                 </div>
                 <h1>
                     Facturación electrónica<br>
-                    <span class="gradient">e-CF para Odoo</span><br>
+                    <span class="accent-word">e-CF para Odoo</span><br>
                     sin complicaciones
                 </h1>
                 <p class="hero-desc">
-                    Plataforma integral que conecta tu entorno Odoo con la DGII.
-                    Conecta tu sistema en minutos y empieza a facturar electrónicamente sin dolores de cabeza técnicos ni configuraciones complejas.
+                    Conecta tu Odoo directamente con la DGII. Automatiza el envío de tus comprobantes, asegura tu cumplimiento fiscal y simplifica tus reportes mensuales.
                 </p>
                 <div class="hero-actions">
-                    <a href="#contacto" class="btn-primary">Comenzar Ahora →</a>
-                    
+                    <a href="#contacto" class="btn-primary" style="padding: 16px 32px; font-size: 1.1rem;">Comenzar Ahora</a>
+                    <a href="#funcionalidades" class="btn-outline" style="padding: 16px 32px; font-size: 1.1rem; border: 1px solid var(--border);">Ver Beneficios</a>
                 </div>
             </div>
-            <div class="hero-visual">
+            <div class="hero-visual reveal">
                 <div class="float-badge top-right">
                     <span style="color: #34d399; font-weight: 700;">✓</span>
                     DGII Aprobado
-                </div>
-                <div class="float-badge bottom-left">
-                    <span style="font-size: 1.1rem;">🔒</span>
-                    AES-256-GCM
                 </div>
                 <div class="terminal">
                     <div class="terminal-bar">
                         <div class="terminal-dot"></div>
                         <div class="terminal-dot"></div>
                         <div class="terminal-dot"></div>
-                        <span>Emisión Rápida y Segura</span>
+                        <span>Operación Fiscal Segura</span>
                     </div>
                     <div class="terminal-body">
-<span class="dim">// ERP Odoo conectado</span><br>
-<span class="ok">✓ Factura generada en Odoo</span><br>
-<span class="ok">✓ Firma digital aplicada</span><br>
-<span class="ok">✓ Envío automático a DGII</span><br>
-<br>
-<span class="dim">→ Respuesta de DGII</span><br>
-{<br>
-&nbsp;&nbsp;<span class="str">"estado"</span>: <span class="ok">"APROBADO"</span>,<br>
-&nbsp;&nbsp;<span class="str">"ncf"</span>:&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"E310000000001"</span>,<br>
-&nbsp;&nbsp;<span class="str">"cufe"</span>:&nbsp;&nbsp;&nbsp;<span class="str">"8f4a2b9..."</span><br>
-}
+                        <div style="margin-bottom: 12px; color: var(--accent); font-weight: 600;"># Proceso Automatizado</div>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="color: var(--accent);">✓</span>
+                                <span>Factura generada en Odoo</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="color: var(--accent);">✓</span>
+                                <span>Firma digital aplicada</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="color: var(--accent);">✓</span>
+                                <span>Validación exitosa en DGII</span>
+                            </div>
+                        </div>
+                        <hr style="border: none; border-top: 1px solid var(--border); margin: 16px 0;">
+                        <div style="font-family: var(--font-mono); font-size: 0.85rem;">
+                            <span style="color: var(--text-dim);">Respuesta:</span> <span style="color: var(--accent);">APROBADO</span><br>
+                            <span style="color: var(--text-dim);">NCF:</span> E310000000001<br>
+                            <span style="color: var(--text-dim);">CUFE:</span> 8f4a2b9...
+                        </div>
                     </div>
                 </div>
             </div>
@@ -977,197 +1172,32 @@
 </section>
 
 <!-- ═══════════════════════════════════════════
-     TRUST BAR
-     ═══════════════════════════════════════════ -->
-<div class="trust-bar">
-    <div class="container">
-        <div class="trust-items">
-            <div class="trust-item">
-                <div class="trust-icon">📄</div>
-                <div class="trust-text">
-                    <strong>10 Tipos e-CF</strong>
-                    <span>Facturas, Notas, Compras</span>
-                </div>
-            </div>
-            <div class="trust-item">
-                <div class="trust-icon">📥</div>
-                <div class="trust-text">
-                    <strong>Hub de Compras</strong>
-                    <span>e-CF Recibidas (606)</span>
-                </div>
-            </div>
-            <div class="trust-item">
-                <div class="trust-icon">⚡</div>
-                <div class="trust-text">
-                    <strong>25+ Endpoints REST</strong>
-                    <span>Emisión, admin, certs, reportes</span>
-                </div>
-            </div>
-            <div class="trust-item">
-                <div class="trust-icon">📊</div>
-                <div class="trust-text">
-                    <strong>Reportes 606/607</strong>
-                    <span>Formato DGII nativo</span>
-                </div>
-            </div>
-            <div class="trust-item">
-                <div class="trust-icon">🏢</div>
-                <div class="trust-text">
-                    <strong>Multi-Tenant</strong>
-                    <span>Isolation por RNC</span>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ═══════════════════════════════════════════
-     FUNCIONALIDADES
+     BENEFICIOS
      ═══════════════════════════════════════════ -->
 <section id="funcionalidades">
     <div class="container">
-        <div class="section-label reveal">Funcionalidades</div>
-        <h2 class="section-title reveal">Todo lo que necesitas para<br>facturar electrónicamente</h2>
-        <p class="section-subtitle reveal">
-            Desde la generación del XML hasta la aprobación DGII, cada paso está
-            automatizado, auditado y listo para producción.
-        </p>
+        <div class="section-label reveal">Por qué elegirnos</div>
+        <h2 class="section-title reveal">Todo lo que necesitas para<br>cumplir con la DGII.</h2>
+        
         <div class="features-grid">
             <div class="feature-card reveal">
-                <div class="feature-icon green">📝</div>
-                <h3>Generación XML e-CF</h3>
-                <p>Generamos automáticamente el formato electrónico requerido por la DGII a partir de tus facturas.</p>
+                <div class="feature-icon">🚀</div>
+                <h3>Emisión Inmediata</h3>
+                <p>Genera facturas, notas de crédito y débito de forma electrónica al instante desde Odoo.</p>
             </div>
             <div class="feature-card reveal">
-                <div class="feature-icon purple">✍️</div>
-                <h3>Firma Digital XAdES-BES</h3>
-                <p>Aplicamos tu firma digital de manera automática y segura a cada documento antes de enviarlo, sin que tengas que intervenir.</p>
+                <div class="feature-icon">📥</div>
+                <h3>Hub de Compras</h3>
+                <p>Descarga automática de las facturas que tus proveedores te emiten. Olvida el registro manual.</p>
             </div>
             <div class="feature-card reveal">
-                <div class="feature-icon blue">🔍</div>
-                <h3>Validación XSD Local</h3>
-                <p>Revisamos tus facturas para asegurar que cumplen las normas antes de enviarlas, evitando multas o rechazos.</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon amber">🔐</div>
-                <h3>Autenticación Semilla</h3>
-                <p>Gestionamos todo el acceso e intercambio con el portal de la DGII de manera transparente y segura.</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon green">📤</div>
-                <h3>Envío Asíncrono a DGII</h3>
-                <p>Procesamiento en segundo plano para que tu ERP nunca se ponga lento mientras aprueban la factura.</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon purple">🔁</div>
-                <h3>Reintentos Inteligentes</h3>
-                <p>Si la DGII presenta fallas temporales, nos encargamos de reintentar el envío por ti sin perder ninguna factura.</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon blue">📦</div>
-                <h3>e-CF Recibidas (Hub)</h3>
-                <p>Descarga automática de las facturas que tus proveedores emiten. Reporte 606 listo en tiempo real.</p>
-            </div>
-            </div>
-    </div>
-</section>
-
-<!-- ═══════════════════════════════════════════
-     TIPOS E-CF
-     ═══════════════════════════════════════════ -->
-<section style="padding-top: 0;">
-    <div class="container">
-        <div class="section-label reveal">Comprobantes Soportados</div>
-        <h2 class="section-title reveal">10 tipos de e-CF</h2>
-        <p class="section-subtitle reveal">Todos los comprobantes fiscales electrónicos definidos por la DGII de República Dominicana.</p>
-        <div class="ecf-types reveal">
-            <div class="ecf-type-card">
-                <div class="ecf-code">31</div>
-                <div><div class="type-name">Factura de Crédito Fiscal</div><div class="type-prefix">E31</div></div>
-            </div>
-            <div class="ecf-type-card">
-                <div class="ecf-code">32</div>
-                <div><div class="type-name">Factura de Consumo</div><div class="type-prefix">E32</div></div>
-            </div>
-            <div class="ecf-type-card">
-                <div class="ecf-code">33</div>
-                <div><div class="type-name">Nota de Débito</div><div class="type-prefix">E33</div></div>
-            </div>
-            <div class="ecf-type-card">
-                <div class="ecf-code">34</div>
-                <div><div class="type-name">Nota de Crédito</div><div class="type-prefix">E34</div></div>
-            </div>
-            <div class="ecf-type-card">
-                <div class="ecf-code">41</div>
-                <div><div class="type-name">Compras</div><div class="type-prefix">E41</div></div>
-            </div>
-            <div class="ecf-type-card">
-                <div class="ecf-code">43</div>
-                <div><div class="type-name">Gastos Menores</div><div class="type-prefix">E43</div></div>
-            </div>
-            <div class="ecf-type-card">
-                <div class="ecf-code">44</div>
-                <div><div class="type-name">Regímenes Especiales</div><div class="type-prefix">E44</div></div>
-            </div>
-            <div class="ecf-type-card">
-                <div class="ecf-code">45</div>
-                <div><div class="type-name">Gubernamental</div><div class="type-prefix">E45</div></div>
-            </div>
-            <div class="ecf-type-card">
-                <div class="ecf-code">46</div>
-                <div><div class="type-name">Exportaciones</div><div class="type-prefix">E46</div></div>
-            </div>
-            <div class="ecf-type-card">
-                <div class="ecf-code">47</div>
-                <div><div class="type-name">Pagos al Exterior</div><div class="type-prefix">E47</div></div>
+                <div class="feature-icon">🛡️</div>
+                <h3>Cumplimiento Total</h3>
+                <p>Generamos los reportes 606, 607 y 608 automáticamente basados en tus datos electrónicos.</p>
             </div>
         </div>
     </div>
 </section>
-
-<!-- ═══════════════════════════════════════════
-             ARCHITECTURE (PORTAL + API)
-             ═══════════════════════════════════════════ -->
-        <!-- Fiscal Hub Flow Diagram -->
-        <div class="arch-diagram reveal">
-            <div class="arch-flow">
-                <div class="arch-node">
-                    <div class="node-icon">🏢</div>
-                    <div class="node-label">Odoo ERP</div>
-                    <div class="node-desc">Tu negocio</div>
-                </div>
-                <div class="arch-arrow">⇋</div>
-                <div class="arch-node" style="border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow);">
-                    <div class="node-icon">⚡</div>
-                    <div class="node-label">Renace SaaS</div>
-                    <div class="node-desc">Fiscal Hub Hub</div>
-                </div>
-                <div class="arch-arrow">⇋</div>
-                <div class="arch-node">
-                    <div class="node-icon">🏛️</div>
-                    <div class="node-label">DGII</div>
-                    <div class="node-desc">Entidad Fiscal</div>
-                </div>
-            </div>
-            
-            <div style="margin-top: 48px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
-                <div class="arch-node" style="padding: 20px; text-align: left; background: rgba(0,229,160,0.03);">
-                    <div class="node-label" style="color: var(--accent);">↑ Flujo de Emisión</div>
-                    <div class="node-desc" style="color: var(--text-muted);">
-                        Odoo envía factura → SaaS firma y valida → DGII aprueba → SaaS notifica Webhook → Odoo actualiza NCF/CUFE.
-                    </div>
-                </div>
-                <div class="arch-node" style="padding: 20px; text-align: left; background: rgba(108,99,255,0.03);">
-                    <div class="node-label" style="color: var(--accent-2);">↓ Flujo de Recepción (Premium)</div>
-                    <div class="node-desc" style="color: var(--text-muted);">
-                        SaaS consulta DGII cada 30min → Descarga e-CF recibidos → Inyecta en Odoo → Notificación instantánea de compra.
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
 <!-- ═══════════════════════════════════════════
      ODOO MODULE
      ═══════════════════════════════════════════ -->
@@ -1242,155 +1272,214 @@
 <!-- ═══════════════════════════════════════════
      PRICING
      ═══════════════════════════════════════════ -->
-<section id="planes">
+<!-- ═══════════════════════════════════════════
+     PRICING CALCULATOR — PREMIUM
+     ═══════════════════════════════════════════ -->
+<section id="planes" style="background: var(--bg-card);">
     <div class="container">
-        <div class="section-label reveal">Planes y Tarifas</div>
-        <h2 class="section-title reveal">Transparencia total.<br>Paga por lo que emites.</h2>
-        <p class="section-subtitle reveal">
-            Precios en pesos dominicanos, ajustados al volumen real de tu empresa.
-            Módulo Odoo 18, soporte y certificación DGII incluidos en todos los planes.
-        </p>
-
-        <!-- Toggle anual/mensual -->
-        <div class="pricing-toggle reveal">
-            <span class="toggle-label active" id="lbl-anual">Anual</span>
-            <label class="toggle-switch">
-                <input type="checkbox" id="billingToggle" onchange="toggleBilling()">
-                <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label" id="lbl-mensual">Mensual</span>
-        </div>
-
-        <!-- 4 planes destacados -->
-        <div class="pricing-hero-cards reveal">
-            <!-- Plan Pyme -->
-            <div class="ph-card">
-                <div class="ph-name">Plan Pyme</div>
-                <div class="ph-txn">Hasta 200 comprobantes / año</div>
-                <div class="ph-price-annual">RD$2,730<small>/año</small></div>
-                <div class="ph-monthly">Sin opción mensual</div>
-                <div class="ph-price-monthly" style="font-size:1.1rem;color:var(--text-dim);">Solo anual</div>
-                <div class="ph-annual-note">&nbsp;</div>
-                <div class="ph-divider"></div>
-                <ul class="ph-features">
-                    <li>200 e-CF por año</li>
-                    <li>1 empresa (RNC)</li>
-                    <li>Módulo Odoo 18</li>
-                    <li>Certificación + Producción</li>
-                    <li>Webhook automático</li>
-                </ul>
-                <button class="ph-btn out" onclick="document.getElementById('contacto').scrollIntoView({behavior:'smooth'})">Comenzar →</button>
+        <div class="section-label reveal">Inversión y Planes</div>
+        <h2 class="section-title reveal">Precios claros y escalables.</h2>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 32px; margin-top: 48px; align-items: start;">
+            <!-- Left: Implementation costs -->
+            <div class="reveal">
+                <div style="margin-bottom: 16px;">
+                    <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); margin-bottom: 8px;">Inversión inicial</div>
+                    <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">Habilitación ante la DGII</div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted);">Costos requeridos para operar legalmente.</div>
+                </div>
+                <div class="impl-strip">
+                    <div class="impl-item">
+                        <div class="impl-label">Certificación</div>
+                        <div class="impl-price">$7,250</div>
+                        <div class="impl-note">Pago único por RNC</div>
+                    </div>
+                    <div class="impl-item">
+                        <div class="impl-label">Firma Digital</div>
+                        <div class="impl-price">$3,500</div>
+                        <div class="impl-note">Anual, obligatorio</div>
+                    </div>
+                </div>
+                <div style="margin-top: 24px; padding: 20px; background: var(--bg-card-alt); border-radius: 12px; border: 1px solid var(--border);">
+                    <div style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.7;">
+                        Nuestro equipo te acompaña en todo el proceso de certificación. Sin tecnicismos.
+                    </div>
+                    <a href="#contacto" style="display: inline-block; margin-top: 12px; font-size: 0.82rem; font-weight: 600; color: var(--accent);">Hablar con un asesor &rarr;</a>
+                </div>
             </div>
 
-            <!-- Plan Corp 5 - POPULAR -->
-            <div class="ph-card best">
-                <div class="ph-name">Plan Corp 5</div>
-                <div class="ph-txn">Hasta 5,000 comprobantes</div>
-                <div class="ph-price-annual">RD$24,990<small>/año</small></div>
-                <div class="ph-monthly">≈ RD$2,082/mes pagando anual</div>
-                <div class="ph-price-monthly">RD$2,082<small>/mes</small></div>
-                <div class="ph-annual-note">RD$24,990 facturado anualmente</div>
-                <div class="ph-divider"></div>
-                <ul class="ph-features">
-                    <li>5,000 e-CF por año</li>
-                    <li>1 empresa (RNC)</li>
-                    <li>Módulo Odoo 18</li>
-                    <li>e-CF Recibidas (Hub de Compras)</li>
-                    <li>Reportes 606/607/608</li>
-                    <li>Soporte prioritario</li>
-                    <li>Dashboard de estados</li>
-                </ul>
-                <button class="ph-btn acc" onclick="document.getElementById('contacto').scrollIntoView({behavior:'smooth'})">Comenzar →</button>
-            </div>
+            <!-- Right: Premium Calculator -->
+            <div class="reveal">
+                <div class="calc-wrapper">
+                    <div class="calc-header">
+                        <div>
+                            <div style="font-weight: 700; font-size: 0.95rem;">Calculadora de plan</div>
+                            <div style="font-size: 0.78rem; color: var(--text-dim);">Selecciona tu volumen mensual</div>
+                        </div>
+                        <span class="calc-badge">Mensual</span>
+                    </div>
+                    <div class="calc-body">
+                        <!-- Plan selector tabs -->
+                        <div class="plan-tabs">
+                            <div class="plan-tab active" data-plan="0" onclick="selectPlan(0)">
+                                <div class="plan-tab-name">Pyme</div>
+                                <div class="plan-tab-vol">hasta 200</div>
+                            </div>
+                            <div class="plan-tab" data-plan="1" onclick="selectPlan(1)">
+                                <div class="plan-tab-name">Standard</div>
+                                <div class="plan-tab-vol">hasta 1,000</div>
+                            </div>
+                            <div class="plan-tab" data-plan="2" onclick="selectPlan(2)">
+                                <div class="plan-tab-name">Empresarial</div>
+                                <div class="plan-tab-vol">ilimitado</div>
+                            </div>
+                        </div>
 
-            <!-- Plan Corp 10 -->
-            <div class="ph-card">
-                <div class="ph-name">Plan Corp 10</div>
-                <div class="ph-txn">Hasta 40,000 comprobantes</div>
-                <div class="ph-price-annual">RD$85,680<small>/año</small></div>
-                <div class="ph-monthly">≈ RD$7,140/mes pagando anual</div>
-                <div class="ph-price-monthly">RD$7,140<small>/mes</small></div>
-                <div class="ph-annual-note">RD$85,680 facturado anualmente</div>
-                <div class="ph-divider"></div>
-                <ul class="ph-features">
-                    <li>40,000 e-CF por año</li>
-                    <li>1 empresa (RNC)</li>
-                    <li>Todo lo del Corp 5</li>
-                    <li>e-CF Recibidas + XML Storage</li>
-                    <li>Cola de reintentos DLQ</li>
-                    <li>Métricas avanzadas</li>
-                    <li>Descuento hasta 10%</li>
-                </ul>
-                <button class="ph-btn out" onclick="document.getElementById('contacto').scrollIntoView({behavior:'smooth'})">Solicitar →</button>
-            </div>
+                        <!-- Animated price -->
+                        <div class="price-display">
+                            <span class="price-currency">RD$</span>
+                            <span class="price-amount" id="calc-price">1,500</span>
+                            <span class="price-period">/mes</span>
+                        </div>
+                        <div class="price-note" id="calc-note">Ideal para empresas con facturación baja o en arranque</div>
 
-            <!-- Plan Franquicia -->
-            <div class="ph-card franchise">
-                <div class="ph-name">Plan Franquicia</div>
-                <div class="ph-txn">20,000 folios — USD$0.010/folio</div>
-                <div class="ph-price-annual">RD$14,280<small>/año</small></div>
-                <div class="ph-monthly">≈ RD$1,190/mes pagando anual</div>
-                <div class="ph-price-monthly">RD$1,190<small>/mes</small></div>
-                <div class="ph-annual-note">RD$14,280 facturado anualmente</div>
-                <div class="ph-divider"></div>
-                <ul class="ph-features">
-                    <li>20,000 folios incluidos</li>
-                    <li>USD $0.0105 por folio adicional</li>
-                    <li>Sin límite de compra adicional</li>
-                    <li>Ideal para revendedores autorizados</li>
-                    <li>Soporte dedicado</li>
-                </ul>
-                <button class="ph-btn out" style="border-color:rgba(108,99,255,.4);color:var(--accent-2);" onclick="document.getElementById('contacto').scrollIntoView({behavior:'smooth'})">Consultar →</button>
-            </div>
-        </div>
+                        <!-- Included features -->
+                        <div id="calc-features" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; padding: 16px; background: var(--bg-card-alt); border-radius: 12px;">
+                            <div class="calc-feat" style="font-size: 0.83rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;"><span style="color:var(--accent);">✓</span> Módulo Odoo 18 incluido</div>
+                            <div class="calc-feat" style="font-size: 0.83rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;"><span style="color:var(--accent);">✓</span> Certificación y Producción DGII</div>
+                            <div class="calc-feat" style="font-size: 0.83rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;"><span style="color:var(--accent);">✓</span> Soporte técnico</div>
+                        </div>
 
-        <!-- Tabla completa de planes -->
-        <div class="plans-table-wrap reveal">
-            <div class="plans-table-toggle" id="tableToggle" onclick="toggleTable()">
-                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
-                Ver tabla completa de planes (Corp 1 — Corp 13)
+                        <a href="#contacto" class="btn-primary" id="calc-cta" style="display: block; text-align: center; padding: 14px;">Solicitar Plan Pyme</a>
+                    </div>
+                </div>
             </div>
-            <table class="plans-table" id="plansTable">
-                <thead>
-                    <tr>
-                        <th>Plan</th>
-                        <th>Comprobantes</th>
-                        <th>Precio Anual (RD$)</th>
-                        <th>Precio Mensual (RD$)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td>Plan Pyme</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">200</td><td>2,730.00</td><td style="color:var(--text-dim);font-style:italic">N/A</td></tr>
-                    <tr><td>Plan Corp 1</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">500</td><td>9,613.30</td><td>801.11</td></tr>
-                    <tr><td>Plan Corp 2</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">1,000</td><td>11,532.53</td><td>961.04</td></tr>
-                    <tr><td>Plan Corp 3</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">2,000</td><td>14,994.00</td><td>1,249.50</td></tr>
-                    <tr><td>Plan Corp 4</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">3,000</td><td>16,422.00</td><td>1,368.50</td></tr>
-                    <tr><td>Plan Corp 5</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">5,000</td><td>24,990.00</td><td>2,082.50</td></tr>
-                    <tr><td>Plan Corp 6</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">6,000</td><td>27,489.00</td><td>2,290.75</td></tr>
-                    <tr><td>Plan Corp 7</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">10,000</td><td>46,267.20</td><td>3,855.60</td></tr>
-                    <tr><td>Plan Corp 8</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">15,000</td><td>53,550.00</td><td>4,462.50</td></tr>
-                    <tr><td>Plan Corp 9</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">25,000</td><td>77,112.00</td><td>6,426.00</td></tr>
-                    <tr><td>Plan Corp 10</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">40,000</td><td>85,680.00</td><td>7,140.00</td></tr>
-                    <tr><td>Plan Corp 11</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">50,000</td><td>107,100.00</td><td>8,925.00</td></tr>
-                    <tr><td>Plan Corp 12</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">100,000</td><td>214,200.00</td><td>17,850.00</td></tr>
-                    <tr><td>Plan Corp 13</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">150,000</td><td>257,040.00</td><td>21,420.00</td></tr>
-                    <tr><td>Plan Franquicia</td><td style="text-align:right;font-family:var(--font-mono);font-size:.82rem;color:var(--text-muted)">20,000</td><td>14,280.00</td><td>1,190.00</td></tr>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Notas de tarifación -->
-        <div class="plans-notes reveal">
-            <h4>📋 Condiciones de tarifación</h4>
-            <ul>
-                <li>Planes superiores a 150,000 folios se cotizan como <strong>Ilimitados</strong> a USD $0.021/folio a tasa del día.</li>
-                <li>Descuentos máximos del <strong>10%</strong> sobre planes Corp. No aplica a Plan Pyme ni Franquicia.</li>
-                <li>Renovaciones se procesan como continuidad de servicio. Comisión ejecutivo: <strong>50%</strong> (no computan para ranking).</li>
-                <li>Plan Franquicia: precio fijo <strong>USD $0.0105/folio</strong>, sin límite de compra adicional.</li>
-            </ul>
         </div>
     </div>
 </section>
+
+<script>
+    /* ─── PLAN DATA ─── */
+    const PLANS = [
+        {
+            name: 'Pyme',
+            price: 1500,
+            note: 'Ideal para empresas con facturación baja o en arranque.',
+            features: ['Hasta 200 e-CF/mes', 'Módulo Odoo 18 incluido', 'Soporte por email'],
+        },
+        {
+            name: 'Standard',
+            price: 3000,
+            note: 'Perfecto para empresas con operaciones medianas.',
+            features: ['Hasta 1,000 e-CF/mes', 'Hub de Compras (606)', 'Soporte prioritario'],
+        },
+        {
+            name: 'Empresarial',
+            price: 5500,
+            note: 'Facturación ilimitada para empresas de alto volumen.',
+            features: ['e-CF ilimitados', 'SLA premium', 'Soporte dedicado'],
+        },
+    ];
+
+    let currentPlan = 0;
+
+    /* Animates price counter */
+    function animatePrice(el, from, to, duration) {
+        const start = performance.now();
+        const format = n => n.toLocaleString('en-US');
+        function tick(now) {
+            const t = Math.min((now - start) / duration, 1);
+            // ease-out-quart
+            const eased = 1 - Math.pow(1 - t, 4);
+            el.textContent = format(Math.round(from + (to - from) * eased));
+            if (t < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+    }
+
+    function selectPlan(idx) {
+        const plan = PLANS[idx];
+        const priceEl = document.getElementById('calc-price');
+        const noteEl  = document.getElementById('calc-note');
+        const ctaEl   = document.getElementById('calc-cta');
+        const featEl  = document.getElementById('calc-features');
+
+        /* Tab highlight */
+        document.querySelectorAll('.plan-tab').forEach((t, i) => {
+            t.classList.toggle('active', i === idx);
+        });
+
+        /* Animate number from current to new */
+        const from = parseInt(priceEl.textContent.replace(/,/g, '')) || 0;
+        priceEl.classList.remove('updating');
+        void priceEl.offsetWidth; // reflow to retrigger animation
+        priceEl.classList.add('updating');
+        animatePrice(priceEl, from, plan.price, 380);
+
+        noteEl.textContent = plan.note;
+        ctaEl.textContent  = `Solicitar Plan ${plan.name}`;
+
+        /* Update feature list */
+        featEl.innerHTML = plan.features.map(f =>
+            `<div class="calc-feat" style="font-size:0.83rem;color:var(--text-muted);display:flex;align-items:center;gap:8px;">
+                <span style="color:var(--accent);">✓</span> ${f}
+             </div>`
+        ).join('');
+
+        currentPlan = idx;
+    }
+
+    /* ─── THEME TOGGLE ─── */
+    const html        = document.documentElement;
+    const toggleBtn   = document.getElementById('themeToggle');
+    const themeIcon   = document.getElementById('themeIcon');
+    const savedTheme  = localStorage.getItem('ecf-theme') || 'dark';
+
+    function applyTheme(theme) {
+        html.setAttribute('data-theme', theme);
+        themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+        localStorage.setItem('ecf-theme', theme);
+        // Fix logo colors in light mode
+        const logoSvg = document.querySelector('.nav-logo svg');
+        if (logoSvg) {
+            const paths = logoSvg.querySelectorAll('.st1');
+            paths.forEach(p => {
+                p.style.fill = theme === 'light' ? '#111827' : '#f0f0f0';
+            });
+        }
+    }
+
+    applyTheme(savedTheme);
+
+    toggleBtn.addEventListener('click', () => {
+        const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        applyTheme(next);
+    });
+
+    /* ─── SCROLL EFFECTS ─── */
+    const nav = document.getElementById('nav');
+    window.addEventListener('scroll', () => {
+        nav.classList.toggle('scrolled', window.scrollY > 20);
+    }, { passive: true });
+
+    /* Staggered reveal */
+    const revealEls = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry, i) => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+    revealEls.forEach(el => observer.observe(el));
+
+    /* ─── INIT ─── */
+    document.addEventListener('DOMContentLoaded', () => {
+        selectPlan(0);
+    });
+</script>
 
 <!-- ═══════════════════════════════════════════
      CTA
@@ -1423,22 +1512,10 @@
                 onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
             <select name="plan" aria-label="Plan de interés" style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted); font-family: var(--font-sans); font-size: 0.95rem; outline: none; cursor: pointer;">
                 <option value="">Plan de interés</option>
-                <option value="pyme">Plan Pyme — 200 comprobantes/año</option>
-                <option value="corp1">Plan Corp 1 — 500 comprobantes</option>
-                <option value="corp2">Plan Corp 2 — 1,000 comprobantes</option>
-                <option value="corp3">Plan Corp 3 — 2,000 comprobantes</option>
-                <option value="corp4">Plan Corp 4 — 3,000 comprobantes</option>
-                <option value="corp5">Plan Corp 5 — 5,000 comprobantes (Popular)</option>
-                <option value="corp6">Plan Corp 6 — 6,000 comprobantes</option>
-                <option value="corp7">Plan Corp 7 — 10,000 comprobantes</option>
-                <option value="corp8">Plan Corp 8 — 15,000 comprobantes</option>
-                <option value="corp9">Plan Corp 9 — 25,000 comprobantes</option>
-                <option value="corp10">Plan Corp 10 — 40,000 comprobantes</option>
-                <option value="corp11">Plan Corp 11 — 50,000 comprobantes</option>
-                <option value="corp12">Plan Corp 12 — 100,000 comprobantes</option>
-                <option value="corp13">Plan Corp 13 — 150,000 comprobantes</option>
-                <option value="franquicia">Plan Franquicia — 20,000 folios</option>
-                <option value="ilimitado">Plan Ilimitado — &gt;150,000 folios (cotizar)</option>
+                <option value="pyme">Plan Pyme (Hasta 200 e-CF)</option>
+                <option value="standard">Plan Standard (Hasta 1,000 e-CF)</option>
+                <option value="empresarial">Plan Empresarial (Ilimitado)</option>
+                <option value="franquicia">Plan Franquicia (Bajo oferta)</option>
             </select>
             <textarea name="mensaje" placeholder="¿Algo que debamos saber?" rows="3"
                 style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.95rem; outline: none; resize: vertical; transition: border-color .2s;"
@@ -1459,11 +1536,9 @@
             var msg = document.getElementById('formMsg');
             var data = Object.fromEntries(new FormData(form));
 
-            // Honeypot: si hay campos ocultos rellenados, silenciosamente ignorar
             btn.disabled = true;
             btn.textContent = 'Enviando...';
 
-            // Enviar como mailto fallback (reemplazar con endpoint real en producción)
             var subject = encodeURIComponent('Demo ECF — ' + (data.empresa || 'Sin empresa'));
             var body = encodeURIComponent(
                 'Nombre: ' + data.nombre + '\n' +
@@ -1492,14 +1567,13 @@
 <footer class="footer">
     <div class="container footer-inner">
         <div class="footer-copy">
-            <img src="https://renace.tech/images/renacelogo.svg" alt="RENACE Tech" style="height: 28px; width: auto; object-fit: contain; margin-bottom: 12px; filter: grayscale(1) opacity(0.7);">
-            © 2026 <strong>RENACE Tech</strong> — Facturación Electrónica e-CF · Santo Domingo, RD
+            <img src="logo.svg" alt="RENACE Tech" style="height: 24px; width: auto; margin-bottom: 12px; opacity: 0.5; filter: grayscale(1);">
+            <br>
+            © 2026 <strong>RENACE Tech</strong> — Facturación Electrónica e-CF · RD
         </div>
         <div class="footer-links">
             <a href="https://renace.tech">renace.tech</a>
             <a href="mailto:ecf@renace.tech">ecf@renace.tech</a>
-            <a href="#api">API Docs</a>
-            <a href="#dgii">Cumplimiento DGII</a>
         </div>
     </div>
 </footer>
