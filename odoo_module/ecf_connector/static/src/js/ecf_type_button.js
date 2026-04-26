@@ -1,8 +1,9 @@
 /** @odoo-module **/
-import { Component } from "@odoo/owl";
+import { Component, useState, onWillStart } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/store/pos_hook";
 import { SelectionPopup } from "@point_of_sale/app/utils/input_popups/selection_popup";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
+import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 
 export class EcfTypeButton extends Component {
@@ -10,26 +11,44 @@ export class EcfTypeButton extends Component {
 
     setup() {
         this.pos = usePos();
+        this.orm = useService("orm");
+        this.state = useState({
+            types: [],
+        });
+
+        onWillStart(async () => {
+            // Carga quirúrgica vía RPC (Evita fallos si el modelo no carga en el POS boot)
+            try {
+                const types = await this.orm.searchRead(
+                    "ecf.tipo",
+                    [["activo", "=", true]],
+                    ["id", "nombre", "codigo", "prefijo"]
+                );
+                this.state.types = types;
+            } catch (err) {
+                console.error("Error loading ECF types via RPC", err);
+            }
+        });
     }
 
-    get currentType() {
+    get currentTypeName() {
         const order = this.pos.get_order();
-        if (!order || !order.ecf_tipo_id) return null;
-        return this.pos.models["ecf.tipo"].get(order.ecf_tipo_id);
+        if (!order || !order.ecf_tipo_id) return "Consumidor Final";
+        const type = this.state.types.find(t => t.id === order.ecf_tipo_id);
+        return type ? type.prefijo : "Consumidor Final";
     }
 
     async onClick() {
         const order = this.pos.get_order();
         if (!order) return;
 
-        // Chequeo rápido de conexión al SaaS para demostrar "funciones que conecten"
+        // Health Check con el SaaS Renace
         try {
             const response = await fetch(`${this.pos.company.ecf_saas_url}/v1/health`, {
                 headers: { "X-API-Key": this.pos.company.ecf_api_key },
                 signal: AbortSignal.timeout(3000)
             });
             if (!response.ok) throw new Error("SaaS Offline");
-            console.log("e-CF SaaS Online");
         } catch (err) {
             this.pos.popup.add(SelectionPopup, {
                 title: "⚠️ SaaS Desconectado",
@@ -37,8 +56,12 @@ export class EcfTypeButton extends Component {
             });
         }
 
-        const types = this.pos.models["ecf.tipo"].getAll();
-        const selectionList = types.map(t => ({
+        if (this.state.types.length === 0) {
+            // Reintentar carga si falló al inicio
+            this.state.types = await this.orm.searchRead("ecf.tipo", [["activo", "=", true]], ["id", "nombre", "codigo", "prefijo"]);
+        }
+
+        const selectionList = this.state.types.map(t => ({
             id: t.id,
             item: t,
             label: `${t.prefijo} - ${t.nombre}`,
@@ -53,7 +76,6 @@ export class EcfTypeButton extends Component {
         if (confirmed) {
             order.ecf_tipo_id = selectedType.id;
             
-            // Si selecciona Crédito Fiscal (31), sugerir elegir cliente
             if (selectedType.codigo === 31 && !order.get_partner()) {
                 this.pos.popup.add(SelectionPopup, {
                     title: "Atención: Crédito Fiscal",
@@ -68,5 +90,4 @@ export class EcfTypeButton extends Component {
     }
 }
 
-// Registrar el componente en la ProductScreen para que pueda ser inyectado vía XML
 ProductScreen.components = { ...ProductScreen.components, EcfTypeButton };

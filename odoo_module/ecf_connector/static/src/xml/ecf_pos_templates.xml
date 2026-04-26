@@ -1,29 +1,22 @@
-<?xml version="1.0" encoding="utf-8"?>
-<templates id="template" xml:space="preserve">
-
-    <!-- Definición del componente del botón -->
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
     <t t-name="ecf_connector.EcfTypeButton" owl="1">
-        <button class="control-button btn btn-light border py-2 px-3 d-flex align-items-center gap-2 mb-2 w-100 shadow-sm" 
+        <button class="control-button btn btn-light rounded-pill shadow-sm d-flex align-items-center px-3 py-2 border" 
                 t-on-click="onClick"
-                t-attf-class="{{ currentType and currentType.codigo == 31 ? 'text-primary' : 'text-success' }}"
-                style="border-radius: 12px; transition: all 0.2s;">
-            <i class="fa fa-file-text-o" style="font-size: 1.2rem;"/>
-            <div class="d-flex flex-column align-items-start">
-                <span class="fw-bold" style="font-size: 0.85rem; letter-spacing: 0.5px;">
-                    <t t-esc="currentType ? currentType.prefijo : 'E32'"/>
-                </span>
-                <span style="font-size: 0.6rem; opacity: 0.7; text-transform: uppercase; font-weight: 700;">
-                    <t t-esc="currentType ? currentType.nombre : 'CONSUMIDOR FINAL'"/>
+                style="min-width: 180px; transition: all 0.2s ease;">
+            <div class="d-flex flex-column align-items-start me-2">
+                <span class="text-uppercase fw-bold small text-primary" style="font-size: 0.7rem; letter-spacing: 0.5px;">Tipo e-CF</span>
+                <span class="fw-bold" style="font-size: 0.9rem; color: #1e293b;">
+                    <t t-esc="currentTypeName"/>
                 </span>
             </div>
+            <i class="oi oi-chevron-down ms-auto text-muted" style="font-size: 0.8rem;"></i>
         </button>
     </t>
 
-    <!-- Inyectar el botón en la ProductScreen de Odoo 18 -->
-    <t t-name="ecf_connector.ProductScreen" t-inherit="point_of_sale.ProductScreen" t-inherit-mode="extension">
+    <t t-inherit="point_of_sale.ProductScreen" t-inherit-mode="extension">
         <xpath expr="//div[hasclass('control-buttons')]" position="inside">
             <EcfTypeButton />
         </xpath>
     </t>
-
 </templates>

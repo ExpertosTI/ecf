@@ -216,6 +216,8 @@ class ECFLog(models.Model):
     create_date  = fields.Datetime(string='Fecha emisión', readonly=True)
     approved_at  = fields.Datetime(string='Fecha aprobación DGII')
     ambiente     = fields.Char(string='Ambiente', help='certificacion o produccion')
+    company_id   = fields.Many2one('res.company', string='Compañía', related='move_id.company_id', store=True, index=True)
+
 
     def action_view_move(self):
         self.ensure_one()
