@@ -129,17 +129,6 @@ _portal_dir = pathlib.Path(__file__).resolve().parent.parent / "portal_admin"
 if _portal_dir.is_dir():
     app.mount("/portal", StaticFiles(directory=str(_portal_dir), html=True), name="portal")
 
-@app.get("/v1/health")
-async def health(tenant: dict = Depends(get_tenant)):
-    """Endpoint de monitoreo y validación de conexión para los clientes."""
-    return {
-        "status": "online",
-        "version": "2.4.0",
-        "ambiente": tenant["ambiente"],
-        "rnc": tenant["rnc"],
-        "timestamp": datetime.now().isoformat()
-    }
-
 # Rate Limiting basado en Redis (soporta múltiples instancias)
 
 RATE_LIMIT_MAX = int(os.environ.get("RATE_LIMIT_MAX", "60"))
@@ -228,9 +217,22 @@ async def get_tenant(
 
     # Verificar cert no vencido
     if tenant["cert_vencimiento"] and tenant["cert_vencimiento"] < date.today():
-        raise HTTPException(status_code=403, detail="Certificado .p12 del tenant vencido")
+        raise HTTPException(status_code=403, detail="Certificado digital vencido")
 
     return dict(tenant)
+
+# --- Endpoints ---
+
+@app.get("/v1/health")
+async def health_tenant(tenant: dict = Depends(get_tenant)):
+    """Endpoint de monitoreo y validación de conexión para los clientes."""
+    return {
+        "status": "online",
+        "version": "2.4.0",
+        "ambiente": tenant["ambiente"],
+        "rnc": tenant["rnc"],
+        "timestamp": datetime.now().isoformat()
+    }
 
 
 # Modelos Pydantic
