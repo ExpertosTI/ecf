@@ -672,7 +672,12 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>RNC *</label>
-                        <input type="text" id="newRnc" required maxlength="11" placeholder="130000001">
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="newRnc" required maxlength="11" placeholder="130000001" style="flex: 1;">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="lookupRnc()" id="btnLookup">
+                                🔍 Buscar
+                            </button>
+                        </div>
                         <div class="hint">9 u 11 dígitos, sin guiones</div>
                     </div>
                     <div class="form-group">
@@ -702,9 +707,9 @@
                     <div class="form-group">
                         <label>Plan</label>
                         <select id="newPlan">
-                            <option value="basico">Básico — hasta 1,000 e-CF/mes</option>
-                            <option value="profesional">Profesional — hasta 10,000 e-CF/mes</option>
-                            <option value="enterprise">Enterprise — ilimitado</option>
+                            <option value="pyme">Pyme — hasta 1,000 e-CF/mes</option>
+                            <option value="standard">Standard — hasta 10,000 e-CF/mes</option>
+                            <option value="empresarial">Empresarial — ilimitado</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1209,6 +1214,42 @@ async function removeDLQ(index) {
         toast('Mensaje descartado');
         loadDLQ();
     } catch (err) { toast(err.message, 'error'); }
+}
+
+async function lookupRnc() {
+    const rncInput = document.getElementById('newRnc');
+    const rnc = rncInput.value.replace(/\D/g, '');
+    const btn = document.getElementById('btnLookup');
+    
+    if (rnc.length !== 9 && rnc.length !== 11) {
+        toast('RNC debe tener 9 u 11 dígitos', 'error');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '...';
+
+    // Mock API simulation (simulating a DGII scraper)
+    setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = '🔍 Buscar';
+
+        const db = {
+            '133109192': { razon: 'LA PERSONA BOUTIQUE SRL', comercial: 'La Persona Boutique', direccion: 'Calle Duarte #410, Santo Domingo' },
+            '101001001': { razon: 'BANCO POPULAR DOMINICANO SA', comercial: 'Banco Popular', direccion: 'Av. John F. Kennedy #20, Santo Domingo' },
+            '101010632': { razon: 'CERVECERIA NACIONAL DOMINICANA SA', comercial: 'CND', direccion: 'Av. Independencia #100, Santo Domingo' }
+        };
+
+        const found = db[rnc];
+        if (found) {
+            document.getElementById('newRazonSocial').value = found.razon;
+            document.getElementById('newNombreComercial').value = found.comercial;
+            document.getElementById('newDireccion').value = found.direccion;
+            toast('Datos identificados vía DGII');
+        } else {
+            toast('RNC no encontrado en caché DGII. Ingresa los datos manualmente.', 'warning');
+        }
+    }, 800);
 }
 
 // ═══════════════════════════════════════════

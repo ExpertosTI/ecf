@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates id="template" xml:space="preserve">
+
+    <t t-name="ecf_connector.EcfTypeButton" owl="1">
+        <button class="control-button btn btn-light border py-2 px-3 d-flex align-items-center gap-2" 
+                t-on-click="onClick"
+                t-attf-class="{{ currentType and currentType.codigo == 31 ? 'text-primary' : 'text-success' }}">
+            <i class="fa fa-file-text-o"/>
+            <div class="d-flex flex-column align-items-start">
+                <span class="fw-bold" style="font-size: 0.8rem;">
+                    <t t-esc="currentType ? currentType.prefijo : 'e-CF'"/>
+                </span>
+                <span style="font-size: 0.65rem; opacity: 0.8;">
+                    <t t-esc="currentType ? currentType.nombre : 'Tipo Comprobante'"/>
+                </span>
+            </div>
+        </button>
+    </t>
+
+    <!-- Insertar botón en la ProductScreen -->
+    <xpath expr="//div[hasclass('control-buttons')]" position="inside">
+        <EcfTypeButton />
+    </xpath>
+
+</templates>

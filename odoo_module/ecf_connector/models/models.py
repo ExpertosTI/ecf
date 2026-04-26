@@ -230,7 +230,8 @@ class AccountMove(models.Model):
         'ecf.tipo',
         string='Tipo e-CF',
         ondelete='restrict',
-        help='Tipo de comprobante fiscal electrónico según norma DGII',
+        default=lambda self: self.env['ecf.tipo'].search([('codigo', '=', 32)], limit=1),
+        help='Tipo de comprobante fiscal electrónico según norma DGII. Por defecto: Consumidor Final (32)',
     )
     ecf_modo = fields.Selection([
         ('inmediato', 'Inmediato'),
@@ -617,3 +618,42 @@ class AccountMove(models.Model):
                 'Cron ECF: %d facturas diferidas listas para emitir detectadas',
                 len(facturas_diferidas)
             )
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Punto de Venta (POS)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PosOrder(models.Model):
+    _inherit = 'pos.order'
+
+    ecf_tipo_id = fields.Many2one(
+        'ecf.tipo', 
+        string='Tipo e-CF',
+        help='Tipo de comprobante seleccionado en el POS'
+    )
+
+    def _prepare_invoice_vals(self):
+        vals = super()._prepare_invoice_vals()
+        if self.ecf_tipo_id:
+            vals['ecf_tipo_id'] = self.ecf_tipo_id.id
+            # Si el tipo es diferido (crédito), forzar modo diferido
+            if self.ecf_tipo_id.codigo == 31:
+                vals['ecf_modo'] = 'diferido'
+        return vals
+
+class PosSession(models.Model):
+    _inherit = 'pos.session'
+
+    def _loader_params_ecf_tipo(self):
+        return {
+            'search_params': {
+                'domain': [('activo', '=', True)],
+                'fields': ['id', 'nombre', 'codigo', 'prefijo', 'consumidor_final'],
+            },
+        }
+
+    def _get_pos_ui_models_to_load(self):
+        result = super()._get_pos_ui_models_to_load()
+        result.append('ecf.tipo')
+        return result
+

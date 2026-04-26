@@ -52,6 +52,11 @@
         'web.report_assets_common': [
             'ecf_connector/static/src/css/ecf_report.css',
         ],
+        'point_of_sale.assets': [
+            'ecf_connector/static/src/js/ecf_pos.js',
+            'ecf_connector/static/src/js/ecf_type_button.js',
+            'ecf_connector/static/src/xml/ecf_pos_templates.xml',
+        ],
     },
     'installable': True,
     'application': False,

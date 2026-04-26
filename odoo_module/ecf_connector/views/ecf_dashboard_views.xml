@@ -13,14 +13,15 @@
         <field name="context">{'search_default_group_by_estado': 1}</field>
     </record>
 
-    <!-- Vista Kanban: agrupada por estado con colores -->
+    <!-- Vista Kanban: Estilo Premium con KPIs -->
     <record id="ecf_log_kanban_view" model="ir.ui.view">
         <field name="name">ecf.log.kanban</field>
         <field name="model">ecf.log</field>
         <field name="arch" type="xml">
-            <kanban default_group_by="estado"
-                    class="o_kanban_small_column"
-                    group_create="false">
+            <kanban default_group_by="estado" 
+                    class="o_kanban_small_column" 
+                    group_create="false" 
+                    sample="1">
                 <field name="ncf"/>
                 <field name="estado"/>
                 <field name="move_id"/>
@@ -32,30 +33,41 @@
                 <field name="error_msg"/>
                 <templates>
                     <t t-name="kanban-box">
-                        <div t-attf-class="oe_kanban_card oe_kanban_global_click #{record.estado.raw_value == 'aprobado' and 'oe_kanban_color_10' or record.estado.raw_value == 'rechazado' and 'oe_kanban_color_1' or record.estado.raw_value == 'condicionado' and 'oe_kanban_color_2' or ''}">
-                            <div class="oe_kanban_content">
-                                <div class="o_kanban_record_top">
-                                    <strong><field name="ncf"/></strong>
-                                    <small class="text-muted ms-2">Tipo <field name="tipo_ecf"/></small>
+                        <div t-attf-class="oe_kanban_card oe_kanban_global_click shadow-sm border-0 rounded-lg">
+                            <div class="oe_kanban_content p-2">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div class="d-flex flex-column">
+                                        <strong class="text-primary fs-5"><field name="ncf"/></strong>
+                                        <span class="badge text-bg-light border small w-auto">Tipo <field name="tipo_ecf"/></span>
+                                    </div>
+                                    <span t-if="record.estado.raw_value" 
+                                          t-attf-class="badge rounded-pill #{record.estado.raw_value == 'aprobado' and 'text-bg-success' or record.estado.raw_value == 'rechazado' and 'text-bg-danger' or 'text-bg-warning'}">
+                                        <t t-esc="record.estado.value"/>
+                                    </span>
                                 </div>
-                                <div class="o_kanban_record_body">
-                                    <field name="move_id"/>
+                                
+                                <div class="o_kanban_record_body my-2">
+                                    <div class="text-muted small mb-1">Factura Odoo:</div>
+                                    <strong><field name="move_id"/></strong>
                                 </div>
-                                <div class="o_kanban_record_bottom">
-                                    <div class="oe_kanban_bottom_left">
-                                        <field name="create_date" widget="date"/>
+
+                                <div class="o_kanban_record_bottom border-top pt-2 mt-2 d-flex justify-content-between align-items-center">
+                                    <div class="oe_kanban_bottom_left text-muted x-small">
+                                        <i class="fa fa-calendar me-1"/> <field name="create_date" widget="date"/>
                                     </div>
                                     <div class="oe_kanban_bottom_right">
                                         <span t-if="record.ambiente.raw_value"
-                                              class="badge rounded-pill"
-                                              t-attf-class="badge rounded-pill #{record.ambiente.raw_value == 'produccion' and 'text-bg-success' or 'text-bg-warning'}">
+                                              t-attf-class="badge rounded-pill #{record.ambiente.raw_value == 'produccion' and 'text-bg-info' or 'text-bg-secondary'} px-2 py-1" 
+                                              style="font-size: 0.65rem; text-transform: uppercase;">
                                             <t t-esc="record.ambiente.raw_value"/>
                                         </span>
                                     </div>
                                 </div>
-                                <div t-if="record.error_msg.raw_value"
-                                     class="alert alert-danger mt-1 p-1 small">
-                                    <field name="error_msg"/>
+                                
+                                <div t-if="record.error_msg.raw_value" class="mt-2">
+                                    <div class="alert alert-danger p-2 mb-0 x-small" style="line-height: 1.2;">
+                                        <i class="fa fa-exclamation-triangle me-1"/> <field name="error_msg"/>
+                                    </div>
                                 </div>
                             </div>
                         </div>
