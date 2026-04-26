@@ -1316,9 +1316,20 @@
                             <div style="font-weight: 700; font-size: 0.95rem;">Calculadora de plan</div>
                             <div style="font-size: 0.78rem; color: var(--text-dim);">Selecciona tu volumen mensual</div>
                         </div>
-                        <span class="calc-badge">Mensual</span>
+                        <span class="calc-badge" id="calc-period-badge">Mensual</span>
                     </div>
                     <div class="calc-body">
+                        <!-- Billing Toggle -->
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 24px;">
+                            <span id="lbl-monthly" style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">Mensual</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="billingToggle" onchange="toggleBilling()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span id="lbl-annual" style="font-size: 0.82rem; font-weight: 500; color: var(--text-dim); display: flex; align-items: center; gap: 6px;">
+                                Anual <span style="background: var(--accent-glow); color: var(--accent); font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: 800;">-5%</span>
+                            </span>
+                        </div>
                         <!-- Plan selector tabs -->
                         <div class="plan-tabs">
                             <div class="plan-tab active" data-plan="0" onclick="selectPlan(0)">
@@ -1382,6 +1393,7 @@
     ];
 
     let currentPlan = 0;
+    let isAnnual    = false;
 
     /* Animates price counter */
     function animatePrice(el, from, to, duration) {
@@ -1389,12 +1401,31 @@
         const format = n => n.toLocaleString('en-US');
         function tick(now) {
             const t = Math.min((now - start) / duration, 1);
-            // ease-out-quart
             const eased = 1 - Math.pow(1 - t, 4);
             el.textContent = format(Math.round(from + (to - from) * eased));
             if (t < 1) requestAnimationFrame(tick);
         }
         requestAnimationFrame(tick);
+    }
+
+    function toggleBilling() {
+        isAnnual = document.getElementById('billingToggle').checked;
+        
+        // Update labels
+        document.getElementById('lbl-monthly').style.color = isAnnual ? 'var(--text-dim)' : 'var(--accent)';
+        document.getElementById('lbl-monthly').style.fontWeight = isAnnual ? '500' : '700';
+        document.getElementById('lbl-annual').style.color = isAnnual ? 'var(--accent)' : 'var(--text-dim)';
+        document.getElementById('lbl-annual').style.fontWeight = isAnnual ? '700' : '500';
+        
+        // Update badge
+        document.getElementById('calc-period-badge').textContent = isAnnual ? 'Anual' : 'Mensual';
+        
+        // Update price period text
+        document.querySelectorAll('.price-period').forEach(el => {
+            el.textContent = isAnnual ? '/año' : '/mes';
+        });
+
+        selectPlan(currentPlan);
     }
 
     function selectPlan(idx) {
@@ -1409,15 +1440,21 @@
             t.classList.toggle('active', i === idx);
         });
 
+        /* Calculate target price */
+        let targetPrice = plan.price;
+        if (isAnnual) {
+            targetPrice = (plan.price * 12) * 0.95;
+        }
+
         /* Animate number from current to new */
         const from = parseInt(priceEl.textContent.replace(/,/g, '')) || 0;
         priceEl.classList.remove('updating');
-        void priceEl.offsetWidth; // reflow to retrigger animation
+        void priceEl.offsetWidth; 
         priceEl.classList.add('updating');
-        animatePrice(priceEl, from, plan.price, 380);
+        animatePrice(priceEl, from, targetPrice, 380);
 
         noteEl.textContent = plan.note;
-        ctaEl.textContent  = `Solicitar Plan ${plan.name}`;
+        ctaEl.textContent  = `Solicitar Plan ${plan.name} (${isAnnual ? 'Anual' : 'Mensual'})`;
 
         /* Update feature list */
         featEl.innerHTML = plan.features.map(f =>
