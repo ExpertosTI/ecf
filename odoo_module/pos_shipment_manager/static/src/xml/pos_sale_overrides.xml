@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+
+    <!-- 
+        PSM: Overrides para pos_sale.
+        Desactivados temporalmente por estabilidad en Odoo 18.
+        Se reactivarán tras confirmar la carga básica del POS.
+    -->
+
+</templates>

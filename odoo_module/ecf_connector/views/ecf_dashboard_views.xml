@@ -123,7 +123,6 @@
               name="Dashboard e-CF"
               parent="ecf_connector.ecf_menu_root"
               action="ecf_dashboard_action"
-              sequence="1"
-              groups="ecf_connector.group_ecf_user"/>
+              sequence="1"/>
 
 </odoo>

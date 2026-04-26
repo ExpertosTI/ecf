@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_settlement_receipt_template">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.basic_layout">
+                    <div class="page" style="font-family: 'Courier New', monospace; font-size: 12px; color: black; max-width: 280px; margin: 0; padding: 5px;">
+                        
+                        <div style="text-align: center; font-weight: bold; margin-bottom: 10px;">
+                            <t t-if="o.company_id.logo">
+                                <img t-att-src="image_data_uri(o.company_id.logo)" style="max-height: 80px; max-width: 200px; margin-bottom: 5px;"/>
+                            </t>
+                            <h4 style="margin: 5px 0; font-size: 14px; text-transform: uppercase;">
+                                <t t-esc="o.company_id.name"/>
+                            </h4>
+                            <div style="font-size: 10px;">
+                                RNC: <t t-esc="o.company_id.vat"/>
+                            </div>
+                        </div>
+
+                        <hr style="border-top: 1px dashed black;"/>
+
+                        <div style="text-align: center; font-weight: bold; font-size: 14px; margin: 10px 0; padding: 5px; border: 1px solid black;">
+                            LIQUIDACIÓN DE ENVÍO
+                        </div>
+
+                        <div style="font-size: 11px; margin-bottom: 10px;">
+                            <table style="width: 100%;">
+                                <tr>
+                                    <td style="font-weight: bold;">Ref:</td>
+                                    <td><t t-esc="o.name"/></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold;">Fecha:</td>
+                                    <td><t t-esc="context_timestamp(o.settled_at).strftime('%d/%m/%Y %H:%M')"/></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold;">Cajero:</td>
+                                    <td><t t-esc="user.name"/></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold;">Mensajero:</td>
+                                    <td><t t-esc="o.messenger_id.name"/></td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <hr style="border-top: 1px dashed black;"/>
+
+                        <div style="margin: 15px 0;">
+                            <table style="width: 100%; font-size: 12px;">
+                                <tr>
+                                    <td style="padding: 2px;">Orden Origen:</td>
+                                    <td style="text-align: right; font-weight: bold;">
+                                        <t t-esc="o.order_id.name or o.sale_order_id.name"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 2px;">Total Orden:</td>
+                                    <td style="text-align: right; font-weight: bold;">
+                                        <span t-field="o.order_id.amount_total" t-if="o.order_id" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                        <span t-field="o.sale_order_id.amount_total" t-else="" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                    </td>
+                                </tr>
+                                <tr t-if="o.shipping_charge > 0">
+                                    <td style="padding: 2px;">Cargo Envío:</td>
+                                    <td style="text-align: right; font-weight: bold;">
+                                        <span t-field="o.shipping_charge" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                    </td>
+                                </tr>
+                                <tr style="border-top: 1px solid black; font-size: 14px;">
+                                    <td style="padding: 5px 0; font-weight: bold;">MONTO RECIBIDO:</td>
+                                    <td style="text-align: right; padding: 5px 0; font-weight: bold;">
+                                        <t t-set="total_rec" t-value="(o.order_id.amount_total if o.order_id else o.sale_order_id.amount_total) + o.shipping_charge"/>
+                                        <span t-esc="total_rec" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <div style="font-size: 10px; background: #f0f0f0; padding: 8px; border-radius: 4px; margin-top: 10px;">
+                            <strong>Método de Cobro:</strong> <t t-esc="'Efectivo' if o.payment_method_confirmed == 'cash' else 'Transferencia'"/>
+                        </div>
+
+                        <div style="margin-top: 20px; text-align: center; border-top: 1px dashed black; padding-top: 10px;">
+                            <div style="font-size: 10px; font-weight: bold;">¡Gracias por su trabajo!</div>
+                            <div style="font-size: 9px; color: #666; margin-top: 5px;">
+                                Powered by RENACE.TECH
+                            </div>
+                        </div>
+
+                        <!-- JavaScript para auto-impresión estándar de Renace -->
+                        <script type="text/javascript">
+                            window.addEventListener('load', function() {
+                                setTimeout(function() {
+                                    try {
+                                        window.print();
+                                    } catch (e) {
+                                        console.log('Auto-print error:', e);
+                                    }
+                                }, 500);
+                            });
+                        </script>
+
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

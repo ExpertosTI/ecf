@@ -70,14 +70,12 @@
 
     <menuitem id="ecf_menu_root"
               name="e-CF DGII"
-              parent="account.menu_finance"
-              sequence="90"
-              groups="ecf_connector.group_ecf_user"/>
+              web_icon="ecf_connector,static/description/icon.png"
+              sequence="10"/>
 
     <menuitem id="ecf_menu_log"
               name="Historial e-CF"
               parent="ecf_menu_root"
               action="ecf_log_action"
-              sequence="10"
-              groups="ecf_connector.group_ecf_user"/>
+              sequence="10"/>
 </odoo>

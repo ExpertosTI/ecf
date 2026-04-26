@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+
+    <!-- Solo el template del botón, la inyección se hace en pos_shipment_button.xml para agrupar -->
+    <t t-name="pos_shipment_manager.ShipmentModeButton" owl="1">
+        <button class="psm-mode-btn" t-on-click="onClick">
+            <span class="psm-mode-btn__icon"><i class="fa fa-motorcycle" t-att-class="buttonColor"/></span>
+            <span class="psm-mode-btn__label">Modo: <t t-esc="buttonLabel"/></span>
+        </button>
+    </t>
+
+</templates>

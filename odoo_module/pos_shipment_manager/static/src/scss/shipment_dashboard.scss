@@ -1,0 +1,401 @@
+// ═══════════════════════════════════════════
+//  RENACE · ELITE Shipment Dashboard — 2026
+// ═══════════════════════════════════════════
+
+// ── Variables Elite ───────────────────────
+$brand-red:   #ef4444;
+$brand-dark:  #000000;
+$brand-grad:  linear-gradient(135deg, $brand-red 0%, $brand-dark 100%);
+$bg-elite:    #f8faff;
+$white:       #ffffff;
+$muted:       #64748b;
+$border:      #e2e8f0;
+
+.psm-dashboard {
+    background: $bg-elite;
+    min-height: 100vh;
+    font-family: 'Inter', sans-serif;
+    color: $brand-dark;
+}
+
+// ── Top Bar Elite ────────────────────────
+.psm-topbar-elite {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px;
+    background: $white;
+    border-bottom: 1px solid $border;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+
+    .psm-topbar__brand-name {
+        font-size: 18px;
+        font-weight: 900;
+        color: $brand-dark;
+        letter-spacing: -0.5px;
+    }
+}
+
+// 🔍 Search Box Elite
+.psm-search-box {
+    flex: 1;
+    max-width: 450px;
+    position: relative;
+    margin: 0 30px;
+
+    i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: $muted; }
+    input {
+        width: 100%;
+        padding: 10px 15px 10px 40px;
+        background: #f1f5f9;
+        border: 1px solid transparent;
+        border-radius: 14px;
+        font-size: 13px;
+        font-weight: 600;
+        transition: all 0.2s;
+
+        &:focus {
+            background: white;
+            border-color: $brand-red;
+            box-shadow: 0 0 0 4px rgba($brand-red, 0.1);
+            outline: none;
+        }
+    }
+}
+
+// 🎛️ Filter Chips Elite
+.psm-filter-chips {
+    display: flex;
+    gap: 8px;
+
+    button {
+        padding: 8px 18px;
+        border-radius: 20px;
+        border: 1px solid rgba(0,0,0,0.1);
+        background: $white;
+        font-size: 12px;
+        font-weight: 700;
+        color: $muted;
+        cursor: pointer;
+        transition: all 0.2s;
+
+        &.active {
+            background: $brand-grad;
+            color: $white;
+            border-color: transparent;
+            box-shadow: 0 8px 15px rgba($brand-red, 0.25);
+        }
+    }
+}
+
+.psm-select-dark {
+    background: $brand-dark;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    outline: none;
+}
+
+// 📊 Analytics Widget Elite
+.psm-analytics-widget {
+    background: white;
+    border-radius: 24px;
+    box-shadow: 0 10px 40px 0 rgba(62,57,107,0.07);
+    border: 1px solid rgba(0,0,0,0.03);
+    overflow: hidden;
+}
+
+.psm-analytics-head {
+    padding: 16px 24px;
+    background: #fafbfc;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 12px;
+    font-weight: 900;
+    color: $brand-dark;
+    display: flex;
+    align-items: center;
+}
+
+.psm-analytics-grid {
+    display: flex;
+    padding: 24px;
+    gap: 40px;
+    @media (max-width: 900px) { flex-direction: column; }
+}
+
+.psm-analytics-col {
+    flex: 1;
+    label { font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 15px; display: block; }
+}
+
+.psm-stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #f8fafc;
+    font-size: 14px;
+    font-weight: 600;
+
+    .psm-stat-val {
+        background: #fff1f2; color: $brand-red; padding: 2px 10px; border-radius: 8px; font-size: 12px;
+        &--blue { background: #eff6ff; color: #3b82f6; }
+    }
+}
+
+.psm-mega-metric {
+    background: #f8fafc;
+    padding: 20px;
+    border-radius: 20px;
+    text-align: center;
+    border: 1px solid #f1f5f9;
+
+    .psm-mega-val { font-size: 24px; font-weight: 900; color: $brand-dark; }
+    .psm-mega-label { font-size: 11px; font-weight: 700; color: $muted; margin-top: 4px; }
+}
+
+// 🃏 KPI Elite Cards
+.psm-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+}
+
+.psm-elite-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 24px;
+    background: white;
+    border-radius: 24px;
+    box-shadow: 0 10px 40px 0 rgba(62,57,107,0.07);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    &:hover { transform: translateY(-3px); box-shadow: 0 15px 50px rgba(0,0,0,0.1); 
+        .psm-elite-icon { transform: scale(1.1) rotate(-5deg); }
+    }
+
+    .psm-elite-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        color: white;
+        transition: all 0.3s ease;
+    }
+
+    .psm-elite-num { font-size: 32px; font-weight: 900; color: $brand-dark; line-height: 1; 
+        &--sm { font-size: 20px; }
+    }
+    .psm-elite-txt { font-size: 12px; font-weight: 700; color: $muted; text-transform: uppercase; margin-top: 5px; }
+
+    &--blue   .psm-elite-icon { background: #3b82f6; box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3); }
+    &--orange .psm-elite-icon { background: #f59e0b; box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3); }
+    &--green  .psm-elite-icon { background: #10b981; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3); }
+    &--red    .psm-elite-icon { background: #ef4444; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3); }
+    &--dark   .psm-elite-icon { background: $brand-grad; box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+}
+
+// ── Content Panels Polish ───────────────
+.psm-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 25px;
+    padding: 0 28px 40px;
+}
+
+.psm-panel {
+    background: transparent;
+    &__head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 18px;
+        padding: 0 5px;
+    }
+    &__title {
+        font-size: 15px;
+        font-weight: 800;
+        color: $brand-dark;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+}
+
+.psm-delivery-card {
+    background: $white;
+    border-radius: 20px;
+    padding: 18px;
+    margin-bottom: 15px;
+    border: 1px solid rgba(0,0,0,0.03);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+    transition: all 0.2s;
+    cursor: pointer;
+
+    &:hover {
+        box-shadow: 0 12px 30px rgba(0,0,0,0.06);
+        border-color: rgba($brand-red, 0.1);
+        transform: translateX(5px);
+    }
+
+    &__top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+    }
+    &__ref { 
+        font-weight: 900; 
+        color: $brand-red; 
+        font-size: 13px;
+        &.clickable {
+            text-decoration: underline dotted;
+            cursor: pointer;
+            transition: color 0.2s;
+            &:hover {
+                color: darken($brand-red, 15%);
+            }
+        }
+    }
+    
+    &__customer {
+        font-size: 14px;
+        font-weight: 700;
+        color: $brand-dark;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 15px;
+        i { color: $muted; font-size: 16px; }
+    }
+
+    &__footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-top: 1px solid #f8fafc;
+        padding-top: 12px;
+    }
+
+    &__messenger {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: $muted;
+        i { color: $brand-red; }
+    }
+}
+
+.psm-chip {
+    padding: 3px 10px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+
+    &--red { background: #fee2e2; color: #ef4444; border: 1px solid #fecaca; }
+    &--blue { background: #eff6ff; color: #3b82f6; border: 1px solid #dbeafe; }
+    &--amber { background: #fffbeb; color: #f59e0b; border: 1px solid #fef3c7; }
+    &--green { background: #ecfdf5; color: #10b981; border: 1px solid #d1fae5; }
+}
+
+.psm-time-pill {
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    color: $muted;
+}
+
+.psm-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    &--blue { background: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
+    &--amber { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2); }
+    &--green { background: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); }
+    &--red { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2); }
+}
+
+.psm-badge {
+    font-size: 12px;
+    font-weight: 900;
+    padding: 4px 12px;
+    border-radius: 10px;
+    &--blue { background: #eff6ff; color: #3b82f6; }
+    &--amber { background: #fffbeb; color: #f59e0b; }
+    &--green { background: #ecfdf5; color: #10b981; }
+    &--red { background: #fee2e2; color: #ef4444; }
+}
+
+.psm-settle-btn {
+    background: $brand-grad;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 800;
+    box-shadow: 0 4px 12px rgba($brand-red, 0.2);
+    cursor: pointer;
+    transition: all 0.2s;
+    &:hover { transform: scale(1.05); box-shadow: 0 8px 20px rgba($brand-red, 0.3); }
+}
+
+.psm-refresh-elite {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    border: none;
+    background: #f1f5f9;
+    color: $brand-dark;
+    cursor: pointer;
+    transition: all 0.2s;
+    &:hover { background: $brand-dark; color: white; transform: rotate(90deg); }
+}
+
+.psm-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    gap: 8px;
+    &__icon { font-size: 36px; }
+    &__text { font-size: 13px; color: $muted; font-weight: 500; }
+}
+
+.psm-empty-mini {
+    padding: 20px;
+    text-align: center;
+    font-size: 12px;
+    color: #94a3b8;
+    font-style: italic;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px dashed #e2e8f0;
+}
+
+// ── Glow Effect for Search ──
+.psm-search-box:focus-within {
+    input {
+        box-shadow: 0 0 20px rgba($brand-red, 0.15);
+        background: white;
+        border-color: rgba($brand-red, 0.3);
+    }
+    i { color: $brand-red; }
+}

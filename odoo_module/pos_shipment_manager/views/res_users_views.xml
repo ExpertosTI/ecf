@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Premium List View for Messengers -->
+    <record id="view_users_tree_messenger" model="ir.ui.view">
+        <field name="name">res.users.messenger.list</field>
+        <field name="model">res.users</field>
+        <field name="arch" type="xml">
+            <list string="Mensajeros" decoration-success="messenger_pending_balance == 0" decoration-warning="messenger_pending_balance &gt; 0">
+                <field name="name"/>
+                <field name="messenger_whatsapp" widget="phone"/>
+                <field name="currency_id" column_invisible="True"/>
+                <field name="messenger_pending_balance" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Ultra-Simplified Form View for Messengers -->
+    <record id="view_users_form_messenger_simple" model="ir.ui.view">
+        <field name="name">res.users.form.messenger.simple</field>
+        <field name="model">res.users</field>
+        <field name="arch" type="xml">
+            <form string="Nuevo Mensajero">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" string="Nombre Completo"/>
+                        <h1><field name="name" placeholder="Ej. Juan Pérez" required="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Datos de Contacto">
+                            <field name="messenger_whatsapp" widget="phone" string="WhatsApp / Teléfono" placeholder="Ej. 18091234567" required="1"/>
+                            <field name="is_messenger" invisible="1"/>
+                            <!-- Login es obligatorio en Odoo, lo ocultamos y lo llenaremos vía JS/Python -->
+                            <field name="login" invisible="1"/>
+                        </group>
+                        <group string="Balances">
+                            <field name="currency_id" invisible="1"/>
+                            <field name="messenger_pending_balance" widget="monetary" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Heritage for the standard form (still useful for admins) -->
+    <record id="view_users_form_shipment" model="ir.ui.view">
+        <field name="name">res.users.form.shipment</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="before">
+                <header>
+                    <button name="action_share_whatsapp" string="WhatsApp" type="object" icon="fa-whatsapp" class="btn-success" invisible="not messenger_whatsapp"/>
+                </header>
+            </xpath>
+            <xpath expr="//div[contains(@class, 'oe_title')]" position="after">
+                <div class="o_row mb-4" invisible="not is_messenger">
+                    <span class="badge rounded-pill bg-primary" style="font-size: 14px; padding: 10px 20px;">
+                        <i class="fa fa-motorcycle me-2"/> MENSAJERO RENACE
+                    </span>
+                </div>
+            </xpath>
+            <xpath expr="//notebook/page[@name='access_rights']" position="after">
+                <page string="Logística y Pagos" name="messenger_config" invisible="not is_messenger">
+                    <group>
+                        <group string="Configuración de Envíos">
+                            <field name="is_messenger"/>
+                            <field name="messenger_whatsapp" widget="phone" placeholder="Ej. 18091234567"/>
+                        </group>
+                        <group string="Estado Financiero">
+                            <field name="currency_id" invisible="1"/>
+                            <field name="messenger_pending_balance" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

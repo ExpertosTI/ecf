@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Diálogo de Compartir Enlaces (Mejorado) -->
+    <t t-name="pos_shipment_manager.ShipmentShareDialog" owl="1">
+        <Dialog title="'🔗 Compartir Enlaces de Envío'" size="'md'">
+            <t t-set-slot="default">
+                <div class="psm-share-dialog p-0">
+                    
+                    <!-- Header Info -->
+                    <div class="p-4 text-white" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div style="font-size: 11px; font-weight: 800; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px;">Monto a Cobrar</div>
+                                <div style="font-size: 24px; font-weight: 900;">RD$ <t t-esc="props.shipment.total_order.toFixed(2)"/></div>
+                            </div>
+                            <div class="text-end">
+                                <div class="badge rounded-pill bg-white text-primary px-3 py-2 fw-bolder" style="font-size: 10px;">
+                                    <t t-if="props.shipment.is_cod">CONTRA ENTREGA</t>
+                                    <t t-else="">PAGADO</t>
+                                </div>
+                                <div class="mt-1" style="font-size: 12px; font-weight: 700; opacity: 0.9;" t-esc="props.shipment.partner_name"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-light">
+                        
+                        <!-- 1. LINK DEL CLIENTE (PRIMERO) -->
+                        <div class="mb-4">
+                            <label class="d-flex align-items-center gap-2 mb-2" style="font-size: 11px; font-weight: 800; color: #4f46e5; text-transform: uppercase;">
+                                <i class="fa fa-user-circle" style="font-size: 14px;"/> ENLACE PARA EL CLIENTE
+                            </label>
+                            <div class="input-group shadow-sm">
+                                <input type="text" class="form-control border-0 bg-white" 
+                                       t-att-value="props.customer_url" readonly="readonly" 
+                                       style="font-size: 13px; font-weight: 600; padding: 12px;"/>
+                                <button class="btn btn-primary px-3" t-on-click="() => this.copyToClipboard(props.customer_url)">
+                                    <i class="fa fa-copy"/>
+                                </button>
+                            </div>
+                            <p class="mt-1 mb-0" style="font-size: 10px; color: #6b7280;">Envía esto al cliente para que confirme sus datos.</p>
+                        </div>
+
+                        <hr style="border-top: 1px dashed #cbd5e1; margin: 25px 0;"/>
+
+                        <!-- 2. LINK DEL MENSAJERO (SEGUNDO) -->
+                        <div class="mb-4">
+                            <label class="d-flex align-items-center gap-2 mb-2" style="font-size: 11px; font-weight: 800; color: #1e293b; text-transform: uppercase;">
+                                <i class="fa fa-motorcycle" style="font-size: 14px;"/> ENLACE PARA EL MENSAJERO
+                            </label>
+                            <div class="input-group shadow-sm">
+                                <input type="text" class="form-control border-0 bg-white" 
+                                       t-att-value="props.messenger_url" readonly="readonly" 
+                                       style="font-size: 13px; font-weight: 600; padding: 12px; color: #64748b;"/>
+                                <button class="btn btn-dark px-3" t-on-click="() => this.copyToClipboard(props.messenger_url)">
+                                    <i class="fa fa-copy"/>
+                                </button>
+                            </div>
+                            <p class="mt-1 mb-0" style="font-size: 10px; color: #6b7280;">Envía esto al mensajero para su hoja de ruta.</p>
+                        </div>
+
+                        <!-- Botones Rápidos de WhatsApp -->
+                        <div class="d-flex gap-2 mt-4">
+                            <button class="btn btn-success flex-grow-1 py-3 rounded-3 shadow-sm fw-bold d-flex align-items-center justify-content-center gap-2" t-on-click="() => this.shareWhatsApp('customer')">
+                                <i class="fa fa-whatsapp" style="font-size: 18px;"/> WhatsApp Cliente
+                            </button>
+                            <button class="btn btn-outline-success flex-grow-1 py-3 rounded-3 shadow-sm fw-bold d-flex align-items-center justify-content-center gap-2" t-on-click="() => this.shareWhatsApp('messenger')">
+                                <i class="fa fa-whatsapp" style="font-size: 18px;"/> WhatsApp Mensajero
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </t>
+            <t t-set-slot="footer">
+                <button class="btn btn-light rounded-pill px-4 fw-bold" t-on-click="this.cancel">Cerrar</button>
+            </t>
+        </Dialog>
+    </t>
+
+    <!-- Diálogo de Liquidación de Envíos -->
+    <t t-name="pos_shipment_manager.ShipmentSettleDialog" owl="1">
+        <Dialog title="'💵 Liquidación de Envíos'" size="'md'">
+            <t t-set-slot="default">
+                <div class="psm-settle-dialog p-0" style="background: #f8f9fa;">
+                    
+                    <div class="d-flex justify-content-between align-items-center p-3 bg-white border-bottom shadow-sm">
+                        <div>
+                            <div style="font-size: 14px; font-weight: 800; color: #111;">DINERO POR RECIBIR</div>
+                            <p class="text-muted mb-0" style="font-size: 11px;">Selecciona los envíos entregados hoy</p>
+                        </div>
+                        <button class="btn btn-sm btn-primary rounded-pill px-3 fw-bold" t-on-click="props.onRefresh">
+                            <i class="fa fa-refresh me-1"/> Sincronizar
+                        </button>
+                    </div>
+
+                    <div class="psm-settle-dialog__list px-3 py-3" style="max-height: 400px; overflow-y: auto;">
+                        <t t-foreach="props.shipments" t-as="s" t-key="s.id">
+                            <div class="psm-settle-item mb-3 bg-white"
+                                 t-att-class="state.checked[s.id] ? 'psm-settle-item--selected' : ''"
+                                 style="border-radius: 16px; transition: all 0.2s ease; border: 2px solid transparent; box-shadow: 0 4px 12px rgba(0,0,0,0.05);"
+                                 t-on-click="() => this.toggle(s.id)">
+
+                                <div class="d-flex align-items-center p-3">
+                                    <div class="psm-settle-item__check me-3" 
+                                         t-att-style="state.checked[s.id] ? 'background: #10b981; border-color: #10b981;' : 'background: #fff; border-color: #e5e7eb;'"
+                                         style="width: 24px; height: 24px; border-radius: 8px; border: 2px solid; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                                        <t t-if="state.checked[s.id]">
+                                            <i class="fa fa-check" style="color: white; font-size: 14px;"/>
+                                        </t>
+                                    </div>
+
+                                    <div class="flex-grow-1 min-width-0">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div class="fw-bolder" style="font-size: 15px; color: #111;" t-esc="s.name"/>
+                                                    <span t-if="s.state === 'delivered'" 
+                                                          class="badge rounded-pill bg-success text-white" 
+                                                          style="font-size: 10px; padding: 2px 8px;">ENTREGADO</span>
+                                                    <span t-if="s.state === 'street'" 
+                                                          class="badge rounded-pill bg-info text-white" 
+                                                          style="font-size: 10px; padding: 2px 8px;">EN LA CALLE</span>
+                                                    <span class="text-muted" style="font-size: 10px; font-weight: 700;" t-esc="s.date"/>
+                                                </div>
+                                                <div class="text-muted text-truncate" style="font-size: 12px; font-weight: 600;">
+                                                    <t t-esc="s.partner_name"/> 
+                                                    <span style="font-size: 10px; opacity: 0.7; margin-left: 4px;">• Vend: <t t-esc="s.seller"/></span>
+                                                </div>
+                                            </div>
+                                            <div class="text-end">
+                                                <t t-if="s.is_cod">
+                                                    <div style="font-size: 18px; font-weight: 900; color: #111;">
+                                                        RD$ <t t-esc="s.total_order.toFixed(2)"/>
+                                                    </div>
+                                                    <span class="badge bg-danger rounded-pill" style="font-size: 10px; padding: 3px 8px;">CONTRA ENTREGA</span>
+                                                </t>
+                                                <t t-else="">
+                                                    <div style="font-size: 18px; font-weight: 900; color: #0d6efd;">
+                                                        RD$ <t t-esc="s.charge.toFixed(2)"/>
+                                                    </div>
+                                                    <span class="badge bg-success rounded-pill" style="font-size: 10px; padding: 3px 8px;">PAGADO</span>
+                                                </t>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mt-2 d-flex align-items-center justify-content-between" style="font-size: 11px; color: #6b7280;">
+                                            <span class="bg-light px-2 py-1 rounded">🏍 <t t-esc="s.messenger_name"/></span>
+                                            <div class="d-flex gap-1">
+                                                <button class="btn btn-sm btn-outline-primary rounded-pill px-2 py-1 fw-bold d-flex align-items-center gap-1" 
+                                                        style="font-size: 10px;"
+                                                        t-on-click.stop="() => this.copyToClipboard(s.customer_url, 'Cliente')">
+                                                    <i class="fa fa-user"/> Cliente
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-dark rounded-pill px-2 py-1 fw-bold d-flex align-items-center gap-1" 
+                                                        style="font-size: 10px;"
+                                                        t-on-click.stop="() => this.copyToClipboard(s.messenger_url, 'Mensajero')">
+                                                    <i class="fa fa-motorcycle"/> Mensajero
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+
+                    <div class="p-3 bg-white border-top">
+                        <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded-pill bg-light">
+                            <div class="d-flex align-items-center">
+                                <i class="fa fa-motorcycle me-2 text-primary"/>
+                                <span class="fw-bold" style="font-size: 13px;">Confirmar pago a Mensajero</span>
+                            </div>
+                            <div class="form-check form-switch m-0">
+                                <input class="form-check-input" type="checkbox" t-model="state.payMessenger" style="width: 40px; height: 20px; cursor: pointer;"/>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center bg-dark text-white p-3" style="border-radius: 14px; box-shadow: 0 8px 20px rgba(0,0,0,0.15);">
+                            <div>
+                                <div style="font-size: 11px; font-weight: 700; opacity: 0.7; text-transform: uppercase;">Total Seleccionado</div>
+                                <div style="font-size: 13px; font-weight: 500;"><t t-esc="selectedIds.length"/> envío(s)</div>
+                            </div>
+                            <div style="font-size: 26px; font-weight: 900;">RD$ <t t-esc="totalSelected"/></div>
+                        </div>
+                    </div>
+                </div>
+            </t>
+            <t t-set-slot="footer">
+                <button class="btn btn-light rounded-pill px-4 fw-bold" t-on-click="this.cancel">Cerrar</button>
+                <button class="btn btn-success rounded-pill px-4 fw-bold shadow-sm" t-on-click="this.confirm" t-att-disabled="selectedIds.length === 0">
+                    ✓ Confirmar Recibo
+                </button>
+            </t>
+        </Dialog>
+    </t>
+
+    <!-- Botón en ProductScreen -->
+    <t t-name="pos_shipment_manager.ProductScreen" t-inherit="point_of_sale.ProductScreen" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('leftpane')]" position="inside">
+            <div class="psm-pos-logistics-bar px-2">
+                <button class="psm-bar-btn psm-bar-btn--settle" t-on-click="onClickSettleShipments" title="Liquidar Envíos">
+                    <span class="psm-bar-btn__icon">💵</span>
+                    <t t-if="shipmentState.pendingCount > 0">
+                        <span class="psm-bar-btn__badge" t-esc="shipmentState.pendingCount"/>
+                    </t>
+                </button>
+                <ShipmentModeButton />
+                <button class="psm-bar-btn psm-bar-btn--share" t-on-click="onClickShareCurrent" title="Compartir Enlaces">
+                    <i class="fa fa-whatsapp"/>
+                </button>
+            </div>
+        </xpath>
+    </t>
+
+    <!-- Diálogo Unificado de Configuración de Envío (Opción B) -->
+    <t t-name="pos_shipment_manager.ShipmentConfigDialog" owl="1">
+        <Dialog title="'🚚 Configuración de Entrega'" size="'md'">
+            <t t-set-slot="default">
+                <div class="psm-config-dialog p-4">
+                    
+                    <!-- 1. Selección de Modo -->
+                    <div class="mb-4">
+                        <label class="fw-bold mb-2" style="font-size: 13px; color: #475569;">1. MODO DE ENVÍO</label>
+                        <div class="d-flex gap-2">
+                            <button class="btn flex-grow-1 py-3 fw-bold rounded-3 border-2" 
+                                    t-att-class="state.mode === 'paid' ? 'btn-primary border-primary' : 'btn-outline-secondary'"
+                                    t-on-click="() => this.setMode('paid')">
+                                <i class="fa fa-credit-card me-2"/> PAGO AL INSTANTE
+                                <t t-if="state.isAlreadyPaid"><div style="font-size: 8px; opacity: 0.8; color: #10b981;">(VALIDADO EN CAJA)</div></t>
+                            </button>
+                            <button class="btn flex-grow-1 py-3 fw-bold rounded-3 border-2" 
+                                    t-att-class="state.mode === 'cod' ? 'btn-danger border-danger' : (state.isAlreadyPaid ? 'btn-light text-muted opacity-50' : 'btn-outline-secondary')"
+                                    t-att-disabled="state.isAlreadyPaid"
+                                    t-on-click="() => this.setMode('cod')">
+                                <i class="fa fa-money me-2"/> CONTRA ENTREGA
+                                <t t-if="state.isAlreadyPaid"><div style="font-size: 8px; opacity: 0.7;">(BLOQUEADO POR PAGO)</div></t>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 2. Selección de Mensajero -->
+                    <div class="mb-4">
+                        <label class="fw-bold mb-2" style="font-size: 13px; color: #475569;">2. ASIGNAR MENSAJERO</label>
+                        <select class="form-select form-select-lg fw-bold" t-model="state.messengerId" style="border-radius: 12px; border: 2px solid #e2e8f0;">
+                            <option value="">Seleccionar mensajero...</option>
+                            <t t-foreach="props.messengers" t-as="m" t-key="m.id">
+                                <option t-att-value="m.id"><t t-esc="m.name"/></option>
+                            </t>
+                        </select>
+                    </div>
+
+                    <!-- 3. Ubicación Manual (Input) -->
+                    <div class="mb-2">
+                        <label class="fw-bold mb-2" style="font-size: 13px; color: #475569;">3. LINK DE UBICACIÓN (CLIENTE)</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white border-2" style="border-right: 0; border-radius: 12px 0 0 12px;"><i class="fa fa-map-marker text-danger"/></span>
+                            <input type="text" class="form-control form-control-lg" 
+                                   placeholder="Pegar link de Google Maps o Waze aquí..."
+                                   t-model="state.locationLink"
+                                   style="border-left: 0; border-radius: 0 12px 12px 0; border: 2px solid #e2e8f0; font-size: 14px;"/>
+                        </div>
+                        <p class="mt-2 text-muted" style="font-size: 11px;">
+                            Pega el enlace que el cliente compartió por WhatsApp para que el mensajero pueda navegar directamente.
+                        </p>
+                    </div>
+
+                </div>
+            </t>
+            <t t-set-slot="footer">
+                <button class="btn btn-light rounded-pill px-4 fw-bold" t-on-click="this.cancel">Cancelar</button>
+                <button class="btn btn-primary rounded-pill px-5 fw-bold shadow-sm" 
+                        t-on-click="this.confirm" 
+                        t-att-disabled="!state.mode || !state.messengerId">
+                    Guardar Configuración
+                </button>
+            </t>
+        </Dialog>
+    </t>
+
+</templates>

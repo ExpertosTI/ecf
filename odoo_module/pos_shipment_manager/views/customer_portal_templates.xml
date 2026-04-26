@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 1. Formulario de Confirmación (Antes de la entrega) -->
+    <template id="shipment_customer_portal_template">
+        <t t-call="web.layout">
+            <t t-set="head">
+                <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"/>
+                <style>
+                    :root { --primary: #FFD100; --primary-dark: #eab308; --secondary: #000000; --bg: #f8fafc; --text: #1e293b; --success: #10b981; --warning: #f59e0b; }
+                    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding-bottom: 20px; }
+                    .hero { background: var(--secondary); color: white; padding: 30px 20px 60px; text-align: center; border-bottom-left-radius: 40px; border-bottom-right-radius: 40px; position: relative; }
+                    .company-logo { height: 45px; max-width: 180px; margin-bottom: 15px; object-fit: contain; }
+                    
+                    /* Dynamic Banner */
+                    .status-banner { 
+                        background: white; border-radius: 24px; padding: 20px; margin: -40px 15px 20px; 
+                        box-shadow: 0 10px 40px rgba(0,0,0,0.08); display: flex; align-items: center; gap: 15px; 
+                        text-align: left; position: relative; z-index: 10; border: 1px solid #f1f5f9;
+                    }
+                    .status-icon { width: 50px; height: 50px; border-radius: 15px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+                    .status-icon.in-route { background: #fff7ed; color: #f97316; animation: pulse 2s infinite; }
+                    .status-content h2 { margin: 0; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; }
+                    .status-content p { margin: 2px 0 0; font-size: 14px; font-weight: 700; color: #1e293b; line-height: 1.3; }
+                    
+                    @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); } 70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(249, 115, 22, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); } }
+
+                    .hero h1 { font-size: 22px; font-weight: 900; margin: 0; letter-spacing: -0.5px; opacity: 0.9; }
+                    .hero p { opacity: 0.6; font-size: 12px; margin-top: 4px; font-weight: 600; }
+                    
+                    .eta-badge { 
+                        position: absolute; bottom: 75px; left: 50%; transform: translateX(-50%);
+                        background: var(--primary); color: #000; padding: 6px 16px; border-radius: 99px; 
+                        font-size: 12px; font-weight: 900; box-shadow: 0 4px 15px rgba(255,209,0,0.4);
+                    }
+
+                    .sheet { max-width: 480px; margin: 0 auto; padding: 0 15px; }
+                    .card { background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); margin-bottom: 12px; overflow: hidden; border: 1px solid #f1f5f9; }
+                    /* ... rest of styles remain the same but using slightly more padding/roundedness ... */
+                    .card-header { padding: 12px 20px; border-bottom: 1px solid #f8fafc; display: flex; align-items: center; gap: 8px; }
+                    .card-header i { color: var(--primary-dark); font-size: 14px; }
+                    .card-header span { font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; }
+                    .product-row { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid #f8fafc; }
+                    .product-img { width: 45px; height: 45px; border-radius: 10px; object-fit: cover; background: #f1f5f9; }
+                    .product-info { flex: 1; min-width: 0; }
+                    .product-info h4 { font-size: 13px; font-weight: 700; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                    .product-info p { font-size: 11px; color: #64748b; margin: 0; }
+                    .totals { padding: 15px 20px; background: #fafafa; }
+                    .total-line { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px; color: #64748b; }
+                    .grand-total { border-top: 1px dashed #e2e8f0; margin-top: 10px; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; }
+                    .grand-total span:first-child { font-weight: 800; color: #000; font-size: 12px; text-transform: uppercase; }
+                    .grand-total span:last-child { font-size: 24px; font-weight: 900; color: #000; letter-spacing: -0.5px; }
+                    .form-section { padding: 18px 20px; }
+                    .input-group { margin-bottom: 12px; }
+                    .input-group label { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; }
+                    .input-group input, .input-group textarea { width: 100%; border: 1.5px solid #f1f5f9; border-radius: 12px; padding: 12px; font-size: 14px; background: #fdfdfd; }
+                    .btn-confirm { background: var(--primary); color: #000; border: none; width: 100%; border-radius: 14px; padding: 18px; font-weight: 900; font-size: 16px; cursor: pointer; text-transform: uppercase; box-shadow: 0 8px 20px rgba(255,209,0,0.3); }
+                    .footer { text-align: center; margin-top: 30px; font-size: 10px; font-weight: 800; color: #cbd5e1; letter-spacing: 1px; }
+                    .footer a { color: inherit; text-decoration: none; transition: 0.2s; }
+                    .footer a:hover { color: var(--primary-dark); }
+                </style>
+            </t>
+
+            <div class="hero">
+                <t t-set="company" t-value="shipment.company_id"/>
+                <img t-attf-src="/logo.png?company=#{company.id}" class="company-logo"/>
+                <h1>Seguimiento de Pedido</h1>
+                <p><t t-esc="shipment.name"/> — <t t-esc="partner.name"/></p>
+                <div class="eta-badge" t-if="shipment.dynamic_eta">
+                    <t t-esc="shipment.dynamic_eta"/>
+                </div>
+            </div>
+
+            <!-- Banner Dinámico Renquitec -->
+            <div class="status-banner">
+                <div t-attf-class="status-icon #{'in-route' if shipment.elapsed_minutes >= 12 and shipment.state == 'street' else ''}">
+                    <t t-if="shipment.state == 'street'"><i class="fa fa-motorcycle"/></t>
+                    <t t-if="shipment.state == 'draft'"><i class="fa fa-clock-o"/></t>
+                    <t t-if="shipment.state in ['delivered', 'settled']"><i class="fa fa-check-circle text-success"/></t>
+                </div>
+                <div class="status-content">
+                    <h2 t-esc="shipment.dynamic_status_title"/>
+                    <p t-esc="shipment.dynamic_status_message"/>
+                </div>
+            </div>
+
+            <div class="sheet">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fa fa-shopping-basket"/>
+                        <span>Artículos del Pedido</span>
+                    </div>
+                    <t t-set="order_lines" t-value="shipment.order_id.lines if shipment.order_id else (shipment.sale_order_id.order_line if shipment.sale_order_id else False)"/>
+                    <t t-if="order_lines">
+                        <t t-foreach="order_lines" t-as="l">
+                            <t t-set="is_ship" t-value="False"/>
+                            <t t-set="p_name" t-value="(l.product_id.name or '').lower()"/>
+                            <t t-if="'envio' in p_name or 'envío' in p_name or 'delivery' in p_name or 'cargo' in p_name or 'flete' in p_name"><t t-set="is_ship" t-value="True"/></t>
+                            <t t-if="not is_ship">
+                                <t t-set="l_qty" t-value="l.qty if shipment.order_id else l.product_uom_qty"/>
+                                <t t-if="l_qty > 0">
+                                    <div class="product-row">
+                                        <img t-att-src="'/web/image/product.product/%s/image_128' % l.product_id.id" class="product-img"/>
+                                        <div class="product-info">
+                                            <h4 t-esc="l.product_id.name"/>
+                                            <p><t t-esc="int(l_qty)"/> unidades</p>
+                                        </div>
+                                        <div style="font-size: 13px; font-weight: 800; color: #000;">
+                                            <t t-esc="l.price_subtotal_incl if shipment.order_id else l.price_total" t-options='{"widget": "monetary", "display_currency": shipment.currency_id}'/>
+                                        </div>
+                                    </div>
+                                </t>
+                            </t>
+                        </t>
+                        <div class="totals">
+                            <t t-set="grand_total" t-value="shipment.order_id.amount_total or shipment.sale_order_id.amount_total or 0.0"/>
+                            <div class="total-line">
+                                <span>Cargo por Envío</span>
+                                <span style="color: #10b981; font-weight: 700;">+ <t t-esc="shipment.shipping_charge or 0.0" t-options='{"widget": "monetary", "display_currency": shipment.currency_id}'/></span>
+                            </div>
+                            <div class="grand-total">
+                                <span>Total a Pagar</span>
+                                <span t-esc="grand_total" t-options='{"widget": "monetary", "display_currency": shipment.currency_id}'/>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+
+                <div class="card">
+                    <div class="form-section">
+                        <form t-attf-action="/pos/shipment/customer/#{shipment.customer_token}/confirm" method="post">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                            <div class="input-group">
+                                <label>¿Quién recibe el pedido?</label>
+                                <input type="text" name="signature_name" t-att-value="partner.name" required="required"/>
+                            </div>
+                            <div class="input-group" style="margin-bottom: 15px;">
+                                <label>Nota Adicional (opcional)</label>
+                                <textarea name="notes" rows="1" placeholder="Instrucciones para el mensajero..."></textarea>
+                            </div>
+                            <button type="submit" class="btn-confirm">
+                                <i class="fa fa-check"/> Confirmar Pedido
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="footer">
+                    © <t t-esc="shipment.company_id.name"/> ® <a href="https://renace.tech" target="_blank">RENACE</a>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- 2. Ranking de Estrellas (Compacto) -->
+    <template id="shipment_customer_rating_template">
+        <t t-call="web.layout">
+            <t t-set="head">
+                <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&amp;display=swap" rel="stylesheet"/>
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"/>
+                <style>
+                    :root { --primary: #FFD100; --secondary: #000; }
+                    body { font-family: 'Inter', sans-serif; background: #fff; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; text-align: center; }
+                    
+                    @keyframes float { 0% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-10px) rotate(5deg); } 100% { transform: translateY(0px) rotate(0deg); } }
+                    @keyframes sparkle { 0% { filter: brightness(1); } 50% { filter: brightness(1.5) drop-shadow(0 0 10px var(--primary)); } 100% { filter: brightness(1); } }
+                    
+                    .avatar { 
+                        width: 100px; height: 100px; background: var(--primary); border-radius: 50%; 
+                        display: flex; align-items: center; justify-content: center; font-size: 50px; 
+                        margin-bottom: 20px; box-shadow: 0 15px 30px rgba(255,209,0,0.3);
+                        animation: float 3s ease-in-out infinite, sparkle 2s ease-in-out infinite;
+                    }
+
+                    h1 { font-size: 26px; font-weight: 900; margin: 0 0 5px; }
+                    p { color: #64748b; font-size: 14px; margin-bottom: 30px; }
+                    .star-box { background: #f8fafc; padding: 20px; border-radius: 20px; margin-bottom: 15px; width: 100%; max-width: 400px; }
+                    .star-box label { display: block; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 10px; }
+                    .stars { display: flex; justify-content: center; gap: 12px; align-items: flex-end; padding: 10px 0; }
+                    .star { cursor: pointer; color: #cbd5e1; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: inline-block; }
+                    .star:nth-child(1) { font-size: 24px; }
+                    .star:nth-child(2) { font-size: 30px; }
+                    .star:nth-child(3) { font-size: 38px; }
+                    .star:nth-child(4) { font-size: 48px; }
+                    .star:nth-child(5) { font-size: 60px; }
+                    .star.active { color: #f59e0b; transform: translateY(-5px) scale(1.1); filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.4)); }
+                    .star:hover { transform: scale(1.2); color: #fbbf24; }
+                    .star:active { transform: scale(0.9); }
+                    @keyframes starPop {
+                        0% { transform: scale(1); }
+                        50% { transform: scale(1.4); }
+                        100% { transform: scale(1.1); }
+                    }
+                    .star.just-clicked { animation: starPop 0.4s ease; }
+                    textarea { width: 100%; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px; margin-top: 10px; font-size: 13px; font-family: inherit; resize: none; }
+                    .btn-rate { background: var(--secondary); color: var(--primary); border: none; width: 100%; max-width: 400px; border-radius: 16px; padding: 18px; font-weight: 900; font-size: 15px; cursor: pointer; text-transform: uppercase; margin-top: 15px; }
+                    .footer-brand { margin-top: 40px; font-size: 10px; font-weight: 800; color: #cbd5e1; }
+                    .footer-brand a { color: inherit; text-decoration: none; }
+                </style>
+            </t>
+            <div class="avatar">⭐</div>
+            <h1>¡Pedido Entregado!</h1>
+            <p>¿Qué tal fue el servicio de <t t-esc="shipment.messenger_id.name or 'nuestro equipo'"/>?</p>
+
+            <form t-attf-action="/pos/shipment/customer/#{token}/rate" method="post" style="width: 100%; max-width: 400px;">
+                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                <input type="hidden" name="rating" id="rating_value" value="5"/>
+                <input type="hidden" name="vendor_rating" id="vendor_rating_value" value="5"/>
+
+                <div class="star-box">
+                    <label>Servicio de Mensajería</label>
+                    <div class="stars" id="messenger_stars">
+                        <span class="star active" data-val="1">★</span>
+                        <span class="star active" data-val="2">★</span>
+                        <span class="star active" data-val="3">★</span>
+                        <span class="star active" data-val="4">★</span>
+                        <span class="star active" data-val="5">★</span>
+                    </div>
+                    <textarea name="comment" rows="1" placeholder="Comentario (opcional)"></textarea>
+                </div>
+
+                <div class="star-box">
+                    <label>Calidad de la Tienda</label>
+                    <div class="stars" id="vendor_stars">
+                        <span class="star active" data-val="1">★</span>
+                        <span class="star active" data-val="2">★</span>
+                        <span class="star active" data-val="3">★</span>
+                        <span class="star active" data-val="4">★</span>
+                        <span class="star active" data-val="5">★</span>
+                    </div>
+                    <textarea name="vendor_comment" rows="1" placeholder="Comentario (opcional)"></textarea>
+                </div>
+
+                <button type="submit" class="btn-rate">Enviar Valoración</button>
+            </form>
+
+            <div class="footer-brand">
+                © <t t-esc="shipment.company_id.name"/> ® <a href="https://renace.tech" target="_blank">RENACE</a>
+            </div>
+
+            <script>
+                function initStars(containerId, inputId) {
+                    const stars = document.querySelectorAll(`#${containerId} .star`);
+                    const input = document.getElementById(inputId);
+                    stars.forEach(star => {
+                        star.addEventListener('click', () => {
+                            const val = star.getAttribute('data-val');
+                            input.value = val;
+                            stars.forEach(s => {
+                                if (s.getAttribute('data-val') &lt;= val) s.classList.add('active');
+                                else s.classList.remove('active');
+                            });
+                        });
+                    });
+                }
+                initStars('messenger_stars', 'rating_value');
+                initStars('vendor_stars', 'vendor_rating_value');
+            </script>
+        </t>
+    </template>
+</odoo>

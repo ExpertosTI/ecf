@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_pos_shipment_share_wizard" model="ir.ui.view">
+        <field name="name">pos.shipment.share.wizard.form</field>
+        <field name="model">pos.shipment.share.wizard</field>
+        <field name="arch" type="xml">
+            <form string="🚀 COMPARTIR ENVÍO (TRANSIC V2)">
+                <sheet>
+                    <!-- Cabecera Premium con gradiente -->
+                    <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border-radius: 15px; padding: 20px; color: white; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(79, 70, 229, 0.2);">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div>
+                                <div style="font-size: 11px; font-weight: 800; opacity: 0.85; text-transform: uppercase; letter-spacing: 1px;">Monto a Cobrar</div>
+                                <div style="font-size: 26px; font-weight: 900; margin-top: 2px;">
+                                    <field name="amount_label" readonly="1" nolabel="1"/>
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <!-- Usamos invisible para el backend en lugar de t-if -->
+                                <div invisible="not is_cod" style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 10px; font-weight: 800; display: inline-block; margin-bottom: 5px;">
+                                    CONTRA ENTREGA
+                                </div>
+                                <div invisible="is_cod" style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 10px; font-weight: 800; display: inline-block; margin-bottom: 5px;">
+                                    PAGADO
+                                </div>
+                                <div style="font-size: 13px; font-weight: 700; opacity: 0.9;">
+                                    <field name="partner_name" readonly="1" nolabel="1"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 1. LINK DEL CLIENTE -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 style="font-size: 12px; font-weight: 800; color: #4f46e5; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 18px;">👤</span> ENLACE PARA EL CLIENTE
+                        </h3>
+                        <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 4px;">
+                            <field name="customer_url" widget="CopyClipboardChar" readonly="1" nolabel="1"/>
+                        </div>
+                        <p style="font-size: 11px; color: #64748b; margin-top: 6px; margin-left: 5px;">
+                            Envía esto al cliente para que confirme sus datos y vea su pedido.
+                        </p>
+                    </div>
+
+                    <hr style="border-top: 1px dashed #cbd5e1; margin: 25px 0;"/>
+
+                    <!-- 2. LINK DEL MENSAJERO -->
+                    <div style="margin-bottom: 15px;">
+                        <h3 style="font-size: 12px; font-weight: 800; color: #1e293b; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 18px;">🛵</span> ENLACE PARA EL MENSAJERO
+                        </h3>
+                        <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 4px;">
+                            <field name="messenger_url" widget="CopyClipboardChar" readonly="1" nolabel="1"/>
+                        </div>
+                        <p style="font-size: 11px; color: #64748b; margin-top: 6px; margin-left: 5px;">
+                            Hoja de ruta y confirmación de entrega para el mensajero.
+                        </p>
+                    </div>
+
+                    <field name="shipment_id" invisible="1"/>
+                    <field name="is_cod" invisible="1"/>
+                </sheet>
+                <footer style="padding: 20px; background: #fafafa; border-top: 1px solid #f1f5f9; display: flex; gap: 10px;">
+                    <button name="action_open_customer_whatsapp" string="WhatsApp Cliente"
+                            type="object" class="btn-primary" style="flex: 1; padding: 12px; border-radius: 10px; font-weight: 800; background-color: #25D366 !important; border-color: #25D366 !important;"/>
+                    <button name="action_open_messenger_whatsapp" string="WhatsApp Mensajero"
+                            type="object" class="btn-success" style="flex: 1; padding: 12px; border-radius: 10px; font-weight: 800; background-color: #128C7E !important; border-color: #128C7E !important;"/>
+                    <button string="Cerrar" class="btn-secondary" special="cancel" style="padding: 12px 25px; border-radius: 10px; font-weight: 700;"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_pos_shipment_share_wizard" model="ir.actions.act_window">
+        <field name="name">Compartir Envío</field>
+        <field name="res_model">pos.shipment.share.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="context">{'default_shipment_id': active_id}</field>
+    </record>
+</odoo>

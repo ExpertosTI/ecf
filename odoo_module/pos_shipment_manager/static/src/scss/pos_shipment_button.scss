@@ -1,0 +1,102 @@
+// PSM POS — Logistics Bar Premium (Option C)
+// ─────────────────────────────────────────────────────────
+
+/* Glassmorphism Effect for the Bar */
+.psm-pos-logistics-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 6px;
+    padding: 6px 8px;
+    margin-top: 4px;
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 14px;
+}
+
+/* Base style for bar buttons */
+.psm-bar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+    padding: 0 12px;
+    height: 48px;
+
+    &--settle {
+        background: #10b981;
+        color: white;
+        flex: 0 0 54px; /* Cuadrado */
+        font-size: 20px;
+        box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);
+    }
+
+    &--share {
+        background: #25d366; /* WhatsApp Green */
+        color: white;
+        flex: 0 0 54px; /* Cuadrado */
+        font-size: 22px;
+        box-shadow: 0 4px 10px rgba(37, 211, 102, 0.2);
+    }
+
+    &:hover { transform: translateY(-2px); filter: brightness(1.1); }
+    &:active { transform: scale(0.95); }
+
+    &__badge {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        background: #ef4444;
+        color: white;
+        font-size: 10px;
+        font-weight: 900;
+        min-width: 18px;
+        height: 18px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+}
+
+/* Modo de Envío Button (Central & Flexible) */
+.psm-mode-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    color: #1e293b;
+    border: 2px solid #FFD100;
+    border-radius: 10px;
+    padding: 0 14px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    min-width: 0; /* Para permitir truncado */
+    transition: all 0.15s ease;
+
+    &:hover { background: #fffcf0; }
+
+    &__icon { font-size: 16px; flex-shrink: 0; }
+    &__label { 
+        flex: 1; 
+        text-align: left; 
+        white-space: nowrap; 
+        overflow: hidden; 
+        text-overflow: ellipsis; 
+    }
+}
+
+/* Selector de categorías - Opción B/C: Ocultar si no tiene imagen vía CSS */
+.product-category-selector .category-item:not(:has(.category-img)) {
+    display: none !important;
+}

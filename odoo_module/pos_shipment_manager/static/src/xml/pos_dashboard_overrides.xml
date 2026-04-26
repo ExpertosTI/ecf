@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="pos_shipment_manager.PosDashboard" t-inherit="dashboard_pos.PosDashboard" t-inherit-mode="extension">
+        <!-- Añadir Filtro de Envíos en el Header -->
+        <xpath expr="//div[contains(@class, 'pos-chips')]" position="inside">
+            <label class="pos-chip ms-3" style="background: #eff6ff; border: 1px solid #3b82f6;">
+                <input type="checkbox" t-ref="is_shipment_check" t-on-change="applyFilters"/>
+                <span class="pos-chip-label" style="color: #1d4ed8;"><i class="fa fa-motorcycle me-1"/> Solo Envíos</span>
+            </label>
+        </xpath>
+
+        <!-- Añadir Métrica de Envíos en la Grid -->
+        <xpath expr="//div[contains(@class, 'metrics-grid')]" position="inside">
+            <div class="metric-card" style="background: linear-gradient(135deg, #3498db, #2980b9); color: white; cursor: pointer;" t-on-click="() => this.actionService.doAction('pos_shipment_manager.action_pos_shipment_dashboard')">
+                <div class="metric-icon text-white"><i class="fa fa-truck"/></div>
+                <div>
+                    <div class="metric-title">En la Calle</div>
+                    <div class="metric-value"><t t-esc="state.shipment_street_count || 0"/></div>
+                    <div class="small mt-1"><t t-esc="state.shipment_cash_transit || '$ 0.00'"/> en ruta</div>
+                </div>
+            </div>
+        </xpath>
+
+        <!-- Mejorar la tarjeta de venta para mostrar info del mensajero -->
+        <xpath expr="//div[contains(@class, 'sale-card')]//div[contains(@class, 'customer-chip')]" position="after">
+            <t t-if="sale.messenger">
+                <span class="badge bg-info text-white d-inline-flex align-items-center gap-1 ms-1 p-1" style="font-size: 10px;">
+                    <i class="fa fa-bicycle"/> <t t-esc="sale.messenger"/>
+                </span>
+                <span t-if="sale.delivery_status === 'street'" class="badge bg-warning rounded-pill ms-1 p-1" style="font-size: 10px;">En camino</span>
+                <span t-if="sale.delivery_status === 'delivered'" class="badge bg-success rounded-pill ms-1 p-1" style="font-size: 10px;">Entregado</span>
+            </t>
+            
+            <!-- Botón de Liquidación Directa en la Tarjeta -->
+            <div t-if="sale.delivery_status === 'delivered'" class="mt-2">
+                <button class="btn btn-sm btn-success w-100 fw-bold border-0 shadow-sm" 
+                        style="background: #10b981; border-radius: 8px;"
+                        t-on-click.stop="() => this.settleShipmentFromPos(sale)">
+                    <i class="fa fa-money me-1"/> Recibir Dinero
+                </button>
+            </div>
+        </xpath>
+    </t>
+</templates>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_pos_payment_method_form_shipment" model="ir.ui.view">
+        <field name="name">pos.payment.method.form.shipment</field>
+        <field name="model">pos.payment.method</field>
+        <field name="inherit_id" ref="point_of_sale.pos_payment_method_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='journal_id']" position="after">
+                <field name="is_messenger_method"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_pos_payment_method_list_shipment" model="ir.ui.view">
+        <field name="name">pos.payment.method.list.shipment</field>
+        <field name="model">pos.payment.method</field>
+        <field name="inherit_id" ref="point_of_sale.pos_payment_method_view_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="is_messenger_method"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

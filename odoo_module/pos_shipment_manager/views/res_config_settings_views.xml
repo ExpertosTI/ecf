@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_shipment" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.shipment</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="90"/>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Logística RENACE" string="Logística RENACE" name="pos_shipment_manager">
+                    <block title="Configuración de Envíos" name="shipment_setting_block">
+                        <setting id="pricing_setting" string="Precios y Costos" help="Configura los montos por kilómetro">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="pos_shipment_price_per_km" class="col-lg-3 o_light_label"/>
+                                    <field name="pos_shipment_price_per_km" class="oe_inline"/>
+                                    <span class="ml8">por KM</span>
+                                </div>
+                                <div class="row mt8">
+                                    <label for="pos_shipment_cost_per_km" class="col-lg-3 o_light_label"/>
+                                    <field name="pos_shipment_cost_per_km" class="oe_inline"/>
+                                    <span class="ml8">por KM</span>
+                                </div>
+                            </div>
+                        </setting>
+
+                        <setting id="product_setting" string="Producto de Envío" help="Elegir producto para las líneas de cargo">
+                            <div class="content-group">
+                                <div class="mt16">
+                                    <field name="pos_shipment_product_id" class="oe_inline" options="{'no_create': True, 'no_open': True}"/>
+                                </div>
+                            </div>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_pos_shipment_config" model="ir.actions.act_window">
+        <field name="name">Configuración de Logística</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">res.config.settings</field>
+        <field name="view_mode">form</field>
+        <field name="target">inline</field>
+        <field name="context">{'module' : 'pos_shipment_manager'}</field>
+    </record>
+</odoo>

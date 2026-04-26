@@ -52,7 +52,7 @@
         'web.report_assets_common': [
             'ecf_connector/static/src/css/ecf_report.css',
         ],
-        'point_of_sale.assets': [
+        'point_of_sale._assets_pos': [
             'ecf_connector/static/src/js/ecf_pos.js',
             'ecf_connector/static/src/js/ecf_type_button.js',
             'ecf_connector/static/src/xml/ecf_pos_templates.xml',

@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+    <t t-name="pos_shipment_manager.ShipmentDashboard" owl="1">
+        <div class="psm-dashboard">
+
+            <!-- ── Top Bar Elite ── -->
+            <div class="psm-topbar-elite">
+                <div class="psm-topbar__brand">
+                    <div class="psm-topbar__brand-icon">🛵</div>
+                    <div>
+                        <div class="psm-topbar__brand-name">Gestión de Envíos</div>
+                        <div class="psm-topbar__brand-sub">Centro de Control · Renace Tech</div>
+                    </div>
+                </div>
+
+                <!-- Búsqueda Glassmorphism -->
+                <div class="psm-search-box">
+                    <i t-att-class="state.loading ? 'fa fa-spinner fa-spin' : 'fa fa-search'"/>
+                    <input type="text" placeholder="Buscar cliente, mensajero o teléfono..." t-on-input="onSearch" t-att-value="state.searchQuery"/>
+                </div>
+
+                <div class="psm-topbar__actions">
+                    <div class="psm-filter-chips">
+                        <button t-att-class="{'active': state.dateFilter === 'today'}" t-on-click="() => this.setDateFilter('today')">Hoy</button>
+                        <button t-att-class="{'active': state.dateFilter === 'yesterday'}" t-on-click="() => this.setDateFilter('yesterday')">Ayer</button>
+                        <button t-att-class="{'active': state.dateFilter === 'week'}" t-on-click="() => this.setDateFilter('week')">Semana</button>
+                        <button t-att-class="{'active': state.dateFilter === 'all'}" t-on-click="() => this.setDateFilter('all')">Todo</button>
+                    </div>
+
+                    <select class="psm-select-dark ms-2" t-on-change="onMonthChange" t-model="state.selectedMonth">
+                        <option value="1">Enero</option>
+                        <option value="2">Febrero</option>
+                        <option value="3">Marzo</option>
+                        <option value="4">Abril</option>
+                        <option value="5">Mayo</option>
+                        <option value="6">Junio</option>
+                        <option value="7">Julio</option>
+                        <option value="8">Agosto</option>
+                        <option value="9">Septiembre</option>
+                        <option value="10">Octubre</option>
+                        <option value="11">Noviembre</option>
+                        <option value="12">Diciembre</option>
+                    </select>
+
+                    <button class="psm-refresh-elite" t-on-click="onRefresh">
+                        <i t-att-class="state.loading ? 'fa fa-spinner fa-spin' : 'fa fa-refresh'"/>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ── SECCIÓN DE MÉTRICAS ELITE ── -->
+            <div class="psm-metrics-row p-4 pt-3">
+                <div class="psm-analytics-widget" t-att-style="state.loading ? 'opacity: 0.6; pointer-events: none;' : ''">
+                    <div class="psm-analytics-head">
+                        <i class="fa fa-line-chart me-2"/> RENDIMIENTO DE OPERACIONES
+                        <span class="ms-auto opacity-50" t-esc="state.columns.stats.total_count + ' registros'"/>
+                    </div>
+                    <div class="psm-analytics-grid">
+                        <!-- Top Messengers -->
+                        <div class="psm-analytics-col">
+                            <label>Top Mensajeros</label>
+                            <t t-foreach="state.columns.stats.messenger_perf || []" t-as="m" t-key="m.name">
+                                <div class="psm-stat-row">
+                                    <span class="psm-stat-name"><i class="fa fa-motorcycle me-2 opacity-50"/> <t t-esc="m.name"/></span>
+                                    <span class="psm-stat-val" t-esc="m.count"/>
+                                </div>
+                            </t>
+                            <t t-if="state.columns.stats and state.columns.stats.messenger_perf and !state.columns.stats.messenger_perf.length">
+                                <div class="psm-empty-mini">Sin entregas en este periodo...</div>
+                            </t>
+                        </div>
+                        <!-- Top Sellers -->
+                        <div class="psm-analytics-col">
+                            <label>Top Vendedores</label>
+                            <t t-foreach="state.columns.stats.seller_perf || []" t-as="v" t-key="v.name">
+                                <div class="psm-stat-row">
+                                    <span class="psm-stat-name"><i class="fa fa-user-circle-o me-2 opacity-50"/> <t t-esc="v.name"/></span>
+                                    <span class="psm-stat-val psm-stat-val--blue" t-esc="v.count"/>
+                                </div>
+                            </t>
+                            <t t-if="state.columns.stats and state.columns.stats.seller_perf and !state.columns.stats.seller_perf.length">
+                                <div class="psm-empty-mini">Sin ventas en este periodo...</div>
+                            </t>
+                        </div>
+                        <!-- Efficiency -->
+                        <div class="psm-analytics-col psm-analytics-col--summary">
+                            <div class="psm-mega-metric">
+                                <div class="psm-mega-val"><t t-esc="state.columns.stats.avg_time"/> <small>min</small></div>
+                                <div class="psm-mega-label">Tiempo de Entrega</div>
+                            </div>
+                            <div class="psm-mega-metric mt-3">
+                                <div class="psm-mega-val text-warning"><t t-esc="state.columns.stats.avg_rating"/> <small>⭐</small></div>
+                                <div class="psm-mega-label">Satisfacción Cliente</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── KPI Boxes Estilo Elite ── -->
+            <div class="psm-kpi-grid p-4 pt-0" t-att-style="state.loading ? 'opacity: 0.6;' : ''">
+                <div class="psm-elite-card psm-elite-card--blue" t-on-click="() => this.openShipmentList('draft')">
+                    <div class="psm-elite-icon"><i class="fa fa-file-text-o"/></div>
+                    <div class="psm-elite-content">
+                        <div class="psm-elite-num" t-esc="state.columns.draft ? state.columns.draft.length : 0"/>
+                        <div class="psm-elite-txt">Por Asignar</div>
+                    </div>
+                </div>
+                <div class="psm-elite-card psm-elite-card--orange" t-on-click="() => this.openShipmentList('street')">
+                    <div class="psm-elite-icon"><i class="fa fa-motorcycle"/></div>
+                    <div class="psm-elite-content">
+                        <div class="psm-elite-num" t-esc="state.columns.street ? state.columns.street.length : 0"/>
+                        <div class="psm-elite-txt">En la Calle</div>
+                    </div>
+                </div>
+                <div class="psm-elite-card psm-elite-card--green" t-on-click="() => this.openShipmentList('delivered')">
+                    <div class="psm-elite-icon"><i class="fa fa-check-circle-o"/></div>
+                    <div class="psm-elite-content">
+                        <div class="psm-elite-num" t-esc="state.columns.all_delivered_count || 0"/>
+                        <div class="psm-elite-txt">Entregados</div>
+                    </div>
+                </div>
+                <div class="psm-elite-card psm-elite-card--red" t-on-click="() => this.openShipmentList('cancel')">
+                    <div class="psm-elite-icon"><i class="fa fa-times-circle-o"/></div>
+                    <div class="psm-elite-content">
+                        <div class="psm-elite-num" t-esc="state.columns.cancelled ? state.columns.cancelled.length : 0"/>
+                        <div class="psm-elite-txt">No Entregados</div>
+                    </div>
+                </div>
+                <div class="psm-elite-card psm-elite-card--dark" t-on-click="() => this.openShipmentList('liquidate')">
+                    <div class="psm-elite-icon"><i class="fa fa-money"/></div>
+                    <div class="psm-elite-content">
+                        <div class="psm-elite-num psm-elite-num--sm">RD$ <t t-esc="state.columns.reconciliation ? state.columns.reconciliation.in_transit : '0.00'"/></div>
+                        <div class="psm-elite-txt">Por Liquidar</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="psm-content">
+                <!-- ── Panel: Por Asignar ── -->
+                <div class="psm-panel" id="panel-draft">
+                    <div class="psm-panel__head">
+                        <div class="psm-panel__title">
+                            <span class="psm-status-dot psm-status-dot--blue"/>
+                            Pendientes por Asignar
+                        </div>
+                        <span class="psm-badge psm-badge--blue" t-esc="state.columns.draft ? state.columns.draft.length : 0"/>
+                    </div>
+                    <t t-if="!state.columns.draft or !state.columns.draft.length">
+                        <div class="psm-empty">
+                            <div class="psm-empty__icon">📋</div>
+                            <div class="psm-empty__text">No hay pedidos esperando asignación</div>
+                        </div>
+                    </t>
+                    <t t-if="state.columns.draft">
+                        <t t-foreach="state.columns.draft || []" t-as="s" t-key="s.id">
+                            <div class="psm-delivery-card">
+                                <div class="psm-delivery-card__top">
+                                    <span class="psm-delivery-card__ref clickable" t-on-click.stop="() => this.openOrder(s)" t-esc="s.name" title="Ver Pedido/Cotización"/>
+                                    <span class="psm-chip psm-chip--blue">Nuevo</span>
+                                </div>
+                                <div class="psm-delivery-card__customer" t-on-click="() => this.openShipment(s.id)">
+                                    <i class="fa fa-user-circle"/>
+                                    <span t-esc="s.partner_name"/>
+                                </div>
+                                <div class="psm-delivery-card__footer">
+                                    <span class="psm-time-pill" t-esc="s.time_ago"/>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+                </div>
+
+                <!-- ── Panel: En Ruta ── -->
+                <div class="psm-panel" id="panel-street">
+                    <div class="psm-panel__head">
+                        <div class="psm-panel__title">
+                            <span class="psm-status-dot psm-status-dot--amber"/>
+                            Envíos en Ruta
+                        </div>
+                        <span class="psm-badge psm-badge--amber" t-esc="state.columns.street ? state.columns.street.length : 0"/>
+                    </div>
+                    <t t-if="!state.columns.street or !state.columns.street.length">
+                        <div class="psm-empty">
+                            <div class="psm-empty__icon">🏍</div>
+                            <div class="psm-empty__text">Sin envíos en ruta ahora mismo</div>
+                        </div>
+                    </t>
+                    <t t-if="state.columns.street">
+                        <t t-foreach="state.columns.street || []" t-as="s" t-key="s.id">
+                            <div class="psm-delivery-card">
+                                <div class="psm-delivery-card__top">
+                                    <span class="psm-delivery-card__ref clickable" t-on-click.stop="() => this.openOrder(s)" t-esc="s.name" title="Ver Pedido/Cotización"/>
+                                    <div class="d-flex gap-1 align-items-center">
+                                         <span t-if="s.is_cod" class="psm-chip psm-chip--red">POR COBRAR</span>
+                                         <span t-elif="s.is_transfer" class="psm-chip psm-chip--blue">PAGADO</span>
+                                         <span t-else="" class="psm-chip psm-chip--blue">FACTURADO</span>
+                                         <span class="psm-chip psm-chip--amber">En Ruta</span>
+                                    </div>
+                                </div>
+                                <div class="psm-delivery-card__customer" t-on-click="() => this.openShipment(s.id)">
+                                    <i class="fa fa-user-circle"/>
+                                    <span t-esc="s.partner_name"/>
+                                </div>
+                                <div class="psm-delivery-card__footer">
+                                    <div class="psm-delivery-card__messenger">
+                                        <i class="fa fa-motorcycle"/>
+                                        <span t-esc="s.messenger_name"/>
+                                    </div>
+                                    <div class="psm-delivery-card__right">
+                                        <div class="text-end">
+                                            <div style="font-size: 14px; font-weight: 800;" t-esc="'RD$ ' + s.total_order"/>
+                                        </div>
+                                        <span class="psm-time-pill" t-esc="s.time_ago"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+                </div>
+
+                <!-- ── Panel: Por Liquidar ── -->
+                <div class="psm-panel" id="panel-delivered">
+                    <div class="psm-panel__head">
+                        <div class="psm-panel__title">
+                            <span class="psm-status-dot psm-status-dot--green"/>
+                            Dinero en Mano — Recibir
+                        </div>
+                        <span class="psm-badge psm-badge--green" t-esc="state.columns.delivered ? state.columns.delivered.length : 0"/>
+                    </div>
+                    <t t-if="!state.columns.delivered or !state.columns.delivered.length">
+                        <div class="psm-empty">
+                            <div class="psm-empty__icon">💰</div>
+                            <div class="psm-empty__text">Todo cuadrado</div>
+                        </div>
+                    </t>
+                    <t t-if="state.columns.delivered">
+                        <t t-foreach="state.columns.delivered || []" t-as="d" t-key="d.id">
+                            <div class="psm-delivery-card psm-delivery-card--settle">
+                                <div class="psm-delivery-card__top">
+                                    <span class="psm-delivery-card__ref clickable" t-on-click.stop="() => this.openOrder(d)" t-esc="d.name" title="Ver Pedido/Cotización"/>
+                                    <div class="d-flex gap-1">
+                                         <span t-if="d.is_cod" class="psm-chip psm-chip--red">POR COBRAR</span>
+                                         <span t-elif="d.is_transfer" class="psm-chip psm-chip--blue">PAGADO</span>
+                                         <span t-else="" class="psm-chip psm-chip--blue">FACTURADO</span>
+                                         <span class="psm-chip psm-chip--green">Entregado</span>
+                                    </div>
+                                </div>
+                                <div class="psm-delivery-card__customer" t-on-click="() => this.openShipment(d.id)">
+                                    <i class="fa fa-user-circle"/>
+                                    <span t-esc="d.partner_name"/>
+                                </div>
+                                <div class="psm-delivery-card__footer">
+                                    <div class="psm-delivery-card__messenger">
+                                        <i class="fa fa-motorcycle"/>
+                                        <span t-esc="d.messenger_name"/>
+                                    </div>
+                                    <div class="psm-delivery-card__right">
+                                        <div class="text-end me-2">
+                                            <div style="font-size: 11px; font-weight: 900; color: #dc2626;">
+                                                <t t-if="d.is_cod">RECIBIR: RD$ <t t-esc="d.total_order"/></t>
+                                                <t t-else="">RECIBIR: RD$ <t t-esc="d.charge"/></t>
+                                            </div>
+                                        </div>
+                                        <button class="psm-settle-btn" t-on-click="() => this.settleShipment(d.id)">
+                                            <i class="fa fa-check"/> Recibir
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+                </div>
+
+                <!-- ── Panel: No Entregados ── -->
+                <div class="psm-panel" id="panel-cancel">
+                    <div class="psm-panel__head">
+                        <div class="psm-panel__title">
+                            <span class="psm-status-dot psm-status-dot--red"/>
+                            No Entregados / Devoluciones
+                        </div>
+                        <span class="psm-badge psm-badge--red" t-esc="state.columns.cancelled ? state.columns.cancelled.length : 0"/>
+                    </div>
+                    <t t-if="!state.columns.cancelled or !state.columns.cancelled.length">
+                        <div class="psm-empty">
+                            <div class="psm-empty__icon">🚫</div>
+                            <div class="psm-empty__text">Sin devoluciones pendientes</div>
+                        </div>
+                    </t>
+                    <t t-if="state.columns.cancelled and state.columns.cancelled.length">
+                        <t t-foreach="state.columns.cancelled || []" t-as="c" t-key="c.id">
+                            <div class="psm-delivery-card">
+                                <div class="psm-delivery-card__top">
+                                    <span class="psm-delivery-card__ref clickable" t-on-click.stop="() => this.openOrder(c)" t-esc="c.name" title="Ver Pedido/Cotización"/>
+                                    <span class="psm-chip psm-chip--red">Cancelado</span>
+                                </div>
+                                <div class="psm-delivery-card__customer" t-on-click="() => this.openShipment(c.id)">
+                                    <i class="fa fa-user-circle"/>
+                                    <span t-esc="c.partner_name"/>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

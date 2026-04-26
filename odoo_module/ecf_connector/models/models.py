@@ -644,6 +644,16 @@ class PosOrder(models.Model):
 class PosSession(models.Model):
     _inherit = 'pos.session'
 
+    def _loader_params_res_company(self):
+        params = super()._loader_params_res_company()
+        params['search_params']['fields'] += ['ecf_saas_url', 'ecf_api_key', 'ecf_ambiente']
+        return params
+
+    def _pos_ui_models_to_load(self):
+        result = super()._pos_ui_models_to_load()
+        result.append('ecf.tipo')
+        return result
+
     def _loader_params_ecf_tipo(self):
         return {
             'search_params': {
@@ -652,8 +662,5 @@ class PosSession(models.Model):
             },
         }
 
-    def _get_pos_ui_models_to_load(self):
-        result = super()._get_pos_ui_models_to_load()
-        result.append('ecf.tipo')
-        return result
+
 

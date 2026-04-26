@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+
+    <t t-name="pos_shipment_manager.OrderReceipt" t-inherit="point_of_sale.OrderReceipt" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('pos-receipt')]/*[1]" position="before">
+            <t t-if="props.data.shipment_mode and props.data.shipment_mode !== 'none'">
+                <div class="psm-ticket-logistics" 
+                     style="display: flex; justify-content: space-between; align-items: center; gap: 5px; margin-bottom: 12px; padding: 6px 10px; border: 2px solid #000; border-radius: 6px; font-family: 'Courier New', Courier, monospace; background: #fff;">
+                    
+                    <div style="font-weight: 900; text-transform: uppercase; font-size: 11px; white-space: nowrap;">
+                        <t t-if="props.data.shipment_mode === 'paid'"><i class="fa fa-check-circle"/> PAGADO</t>
+                        <t t-if="props.data.shipment_mode === 'cod'"><i class="fa fa-money"/> CONTRA ENTREGA</t>
+                    </div>
+                    
+                    <div t-if="props.data.messenger_name" style="font-size: 10px; font-weight: 700; flex-grow: 1; text-align: center; border-left: 1px solid #ddd; border-right: 1px solid #ddd; padding: 0 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        🛵 <t t-esc="props.data.messenger_name.toUpperCase()"/>
+                    </div>
+                    
+                    <div t-if="props.data.shipment_mode === 'cod'" style="font-size: 10px; font-weight: 900; background: #000; color: #fff; padding: 2px 6px; border-radius: 3px; white-space: nowrap;">
+                        COBRAR
+                    </div>
+                </div>
+            </t>
+        </xpath>
+    </t>
+
+</templates>

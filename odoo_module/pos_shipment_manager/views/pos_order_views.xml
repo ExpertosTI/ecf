@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_pos_pos_form_shipment" model="ir.ui.view">
+        <field name="name">pos.order.form.shipment</field>
+        <field name="model">pos.order</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_pos_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="shipment_id" invisible="1"/>
+            </xpath>
+            <xpath expr="//sheet" position="inside">
+                <div class="oe_button_box" name="button_box">
+                    <button name="action_view_shipment" type="object" class="oe_stat_button" icon="fa-motorcycle" invisible="not shipment_id">
+                        <div class="o_stat_info">
+                            <span class="o_stat_text">Envío RENACE</span>
+                        </div>
+                    </button>
+                </div>
+            </xpath>
+            <xpath expr="//field[@name='lines']/list//field[@name='price_unit']" position="after">
+                <field name="line_cost" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

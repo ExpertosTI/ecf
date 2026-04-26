@@ -1,25 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <templates id="template" xml:space="preserve">
 
+    <!-- Definición del componente del botón -->
     <t t-name="ecf_connector.EcfTypeButton" owl="1">
-        <button class="control-button btn btn-light border py-2 px-3 d-flex align-items-center gap-2" 
+        <button class="control-button btn btn-light border py-2 px-3 d-flex align-items-center gap-2 mb-2 w-100 shadow-sm" 
                 t-on-click="onClick"
-                t-attf-class="{{ currentType and currentType.codigo == 31 ? 'text-primary' : 'text-success' }}">
-            <i class="fa fa-file-text-o"/>
+                t-attf-class="{{ currentType and currentType.codigo == 31 ? 'text-primary' : 'text-success' }}"
+                style="border-radius: 12px; transition: all 0.2s;">
+            <i class="fa fa-file-text-o" style="font-size: 1.2rem;"/>
             <div class="d-flex flex-column align-items-start">
-                <span class="fw-bold" style="font-size: 0.8rem;">
-                    <t t-esc="currentType ? currentType.prefijo : 'e-CF'"/>
+                <span class="fw-bold" style="font-size: 0.85rem; letter-spacing: 0.5px;">
+                    <t t-esc="currentType ? currentType.prefijo : 'E32'"/>
                 </span>
-                <span style="font-size: 0.65rem; opacity: 0.8;">
-                    <t t-esc="currentType ? currentType.nombre : 'Tipo Comprobante'"/>
+                <span style="font-size: 0.6rem; opacity: 0.7; text-transform: uppercase; font-weight: 700;">
+                    <t t-esc="currentType ? currentType.nombre : 'CONSUMIDOR FINAL'"/>
                 </span>
             </div>
         </button>
     </t>
 
-    <!-- Insertar botón en la ProductScreen -->
-    <xpath expr="//div[hasclass('control-buttons')]" position="inside">
-        <EcfTypeButton />
-    </xpath>
+    <!-- Inyectar el botón en la ProductScreen de Odoo 18 -->
+    <t t-name="ecf_connector.ProductScreen" t-inherit="point_of_sale.ProductScreen" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('control-buttons')]" position="inside">
+            <EcfTypeButton />
+        </xpath>
+    </t>
 
 </templates>

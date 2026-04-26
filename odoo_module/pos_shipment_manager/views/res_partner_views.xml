@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_geolocate" model="ir.ui.view">
+        <field name="name">res.partner.form.geolocate</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='contact_addresses']" position="inside">
+                <group string="Geolocalización (Sin Costos)">
+                    <group>
+                        <label for="partner_latitude" string="Coordenadas GPS"/>
+                        <div class="o_row">
+                            <field name="partner_latitude" placeholder="Latitud"/>
+                            <field name="partner_longitude" placeholder="Longitud"/>
+                            <button name="action_geolocalize" string="Obtener GPS" type="object" icon="fa-map-marker" class="btn-link"/>
+                        </div>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

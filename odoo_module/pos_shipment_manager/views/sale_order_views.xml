@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_order_form_shipment" model="ir.ui.view">
+        <field name="name">sale.order.form.shipment</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+
+            <!-- 1. Botón de etiqueta en header -->
+            <xpath expr="//header" position="inside">
+                <button name="%(action_report_shipping_label)d"
+                        string="Imprimir Etiqueta"
+                        type="action"
+                        invisible="not shipment_id"/>
+            </xpath>
+
+            <!-- 2. Smart Button -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_shipment"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-motorcycle"
+                        invisible="not shipment_id">
+                    <div class="o_stat_info">
+                        <span class="o_stat_value">
+                            <field name="shipment_id" nolabel="1"/>
+                        </span>
+                        <span class="o_stat_text">Ver Envío</span>
+                    </div>
+                </button>
+            </xpath>
+
+            <!--
+                3. Sección de Logística ANTES del notebook (ancho completo).
+                   Usamos el notebook como ancla para colocar el bloque
+                   inmediatamente antes de él — así queda en el cuerpo del form,
+                   no dentro de ningún <group>, evitando conflicto con el chatter.
+            -->
+            <xpath expr="//notebook" position="before">
+                <div class="psm-logistics-strip o_field_widget">
+
+                    <!-- Fila de selección de modo (pills horizontales) -->
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="fw-bold text-muted" style="font-size:13px; white-space:nowrap;">Modo de Envío:</span>
+                        <field name="shipment_mode" widget="radio"
+                               options="{'horizontal': true}"
+                               nolabel="1"/>
+                    </div>
+
+                    <!-- Fila de detalles (solo visible cuando hay envío) -->
+                    <div class="d-flex align-items-stretch gap-2"
+                         invisible="shipment_mode == 'none'">
+
+                        <!-- Cargo por envío -->
+                        <div class="psm-logistics-card" style="max-width: 150px;">
+                            <i class="fa fa-tag psm-logistics-card__icon" style="color: #6366f1;"/>
+                            <div class="psm-logistics-card__body">
+                                <span class="psm-logistics-card__label">Cargo</span>
+                                <field name="shipping_fee"
+                                       class="psm-logistics-card__value"
+                                       nolabel="1"/>
+                            </div>
+                        </div>
+
+                        <!-- Mensajero -->
+                        <div class="psm-logistics-card" style="flex: 1;">
+                            <i class="fa fa-user-o psm-logistics-card__icon" style="color: #0ea5e9;"/>
+                            <div class="psm-logistics-card__body" style="flex: 1; min-width: 0;">
+                                <span class="psm-logistics-card__label">Mensajero</span>
+                                <field name="messenger_id"
+                                       options="{'no_create': True, 'no_open': True}"
+                                       domain="[('is_messenger', '=', True)]"
+                                       class="psm-logistics-card__value"
+                                       placeholder="Asignar..."
+                                       nolabel="1"/>
+                            </div>
+                            <!-- Distancia (KM) -->
+                            <div class="psm-logistics-card__body border-start ps-3 ms-2" style="max-width: 100px;">
+                                <span class="psm-logistics-card__label">KM</span>
+                                <field name="distance_km"
+                                       class="psm-logistics-card__value"
+                                       placeholder="0.0"
+                                       nolabel="1"/>
+                            </div>
+                            <!-- Link Ubicación Manual -->
+                            <div class="psm-logistics-card__body border-start ps-3 ms-2" style="flex: 1; min-width: 0;">
+                                <span class="psm-logistics-card__label">Ubicación</span>
+                                <field name="manual_location_link"
+                                       class="psm-logistics-card__value"
+                                       placeholder="Pegar link..."
+                                       nolabel="1"/>
+                            </div>
+                            <!-- WhatsApp buttons -->
+                            <div class="d-flex gap-1 ms-auto align-items-center">
+                                <button name="action_share_whatsapp_messenger_from_so"
+                                        title="Enviar al Mensajero"
+                                        type="object"
+                                        icon="fa-paper-plane-o"
+                                        class="btn btn-link text-success p-0"
+                                        invisible="not messenger_id"/>
+                                <button name="action_share_whatsapp_customer_from_so"
+                                        title="Enviar al Cliente"
+                                        type="object"
+                                        icon="fa-whatsapp"
+                                        class="btn btn-link text-primary p-0"/>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </xpath>
+
+            <!-- 4. Pestaña Logística para links y estado -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Logística" name="renace_logistics" invisible="not shipment_id">
+                    <group>
+                        <group string="Links">
+                            <label for="messenger_portal_url" string="Mensajero"/>
+                            <div class="o_row">
+                                <field name="messenger_portal_url" widget="CopyClipboardChar" readonly="1"/>
+                            </div>
+                            <label for="customer_portal_url" string="Cliente"/>
+                            <div class="o_row">
+                                <field name="customer_portal_url" widget="CopyClipboardChar" readonly="1"/>
+                            </div>
+                        </group>
+                        <group string="Estado">
+                            <field name="shipment_id" readonly="1"/>
+                            <field name="payment_status_label" readonly="1"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>

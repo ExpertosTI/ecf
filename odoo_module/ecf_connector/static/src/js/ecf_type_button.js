@@ -1,8 +1,9 @@
+/** @odoo-module **/
 import { Component } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/store/pos_hook";
 import { SelectionPopup } from "@point_of_sale/app/utils/input_popups/selection_popup";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
-import { registry } from "@web/core/registry";
+import { _t } from "@web/core/l10n/translation";
 
 export class EcfTypeButton extends Component {
     static template = "ecf_connector.EcfTypeButton";
@@ -12,16 +13,36 @@ export class EcfTypeButton extends Component {
     }
 
     get currentType() {
-        return this.pos.get_order().get_ecf_tipo();
+        const order = this.pos.get_order();
+        if (!order || !order.ecf_tipo_id) return null;
+        return this.pos.models["ecf.tipo"].get(order.ecf_tipo_id);
     }
 
     async onClick() {
+        const order = this.pos.get_order();
+        if (!order) return;
+
+        // Chequeo rápido de conexión al SaaS para demostrar "funciones que conecten"
+        try {
+            const response = await fetch(`${this.pos.company.ecf_saas_url}/v1/health`, {
+                headers: { "X-API-Key": this.pos.company.ecf_api_key },
+                signal: AbortSignal.timeout(3000)
+            });
+            if (!response.ok) throw new Error("SaaS Offline");
+            console.log("e-CF SaaS Online");
+        } catch (err) {
+            this.pos.popup.add(SelectionPopup, {
+                title: "⚠️ SaaS Desconectado",
+                list: [{ id: 1, label: "Verifique conexión con Renace.tech", item: true }],
+            });
+        }
+
         const types = this.pos.models["ecf.tipo"].getAll();
         const selectionList = types.map(t => ({
             id: t.id,
             item: t,
             label: `${t.prefijo} - ${t.nombre}`,
-            isSelected: this.currentType && t.id === this.currentType.id,
+            isSelected: order.ecf_tipo_id === t.id,
         }));
 
         const { confirmed, payload: selectedType } = await this.pos.popup.add(SelectionPopup, {
@@ -30,12 +51,13 @@ export class EcfTypeButton extends Component {
         });
 
         if (confirmed) {
-            this.pos.get_order().set_ecf_tipo(selectedType);
+            order.ecf_tipo_id = selectedType.id;
+            
             // Si selecciona Crédito Fiscal (31), sugerir elegir cliente
-            if (selectedType.codigo === 31 && !this.pos.get_order().get_partner()) {
+            if (selectedType.codigo === 31 && !order.get_partner()) {
                 this.pos.popup.add(SelectionPopup, {
-                    title: "Atención",
-                    list: [{ id: 1, label: "Seleccionar Cliente ahora", item: true }],
+                    title: "Atención: Crédito Fiscal",
+                    list: [{ id: 1, label: "Seleccionar Cliente (RNC requerido)", item: true }],
                 }).then(({ confirmed }) => {
                     if (confirmed) {
                         this.pos.selectPartner();
@@ -46,10 +68,5 @@ export class EcfTypeButton extends Component {
     }
 }
 
-// Registrar el componente en la ProductScreen (área de botones de control)
-ProductScreen.addControlButton({
-    component: EcfTypeButton,
-    condition: function () {
-        return true;
-    },
-});
+// Registrar el componente en la ProductScreen para que pueda ser inyectado vía XML
+ProductScreen.components = { ...ProductScreen.components, EcfTypeButton };
