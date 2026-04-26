@@ -17,9 +17,9 @@ info()  { echo -e "${BLUE}[INFO]${NC} $1"; }
 
 AMBIENTE="${1:-certificacion}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_FILE="-f ${SCRIPT_DIR}/docker-compose.yml"
+COMPOSE_ARGS=("-f" "${SCRIPT_DIR}/docker-compose.yml")
 if [ -f "${SCRIPT_DIR}/docker-compose.override.yml" ]; then
-    COMPOSE_FILE="${COMPOSE_FILE} -f ${SCRIPT_DIR}/docker-compose.override.yml"
+    COMPOSE_ARGS+=("-f" "${SCRIPT_DIR}/docker-compose.override.yml")
 fi
 ENV_FILE="${SCRIPT_DIR}/.env"
 BACKUP_DIR="${SCRIPT_DIR}/backups"
@@ -173,29 +173,30 @@ set +a
 
 # Build de imagenes
 log "Construyendo imagenes Docker..."
-$DC $COMPOSE_FILE build --no-cache api
+$DC "${COMPOSE_ARGS[@]}" build --no-cache api
 
 # Detener servicios actuales con gracia
-if $DC $COMPOSE_FILE ps --quiet 2>/dev/null | head -1 | grep -q .; then
+if $DC "${COMPOSE_ARGS[@]}" ps --quiet 2>/dev/null | head -1 | grep -q .; then
     log "Deteniendo servicios actuales..."
-    $DC $COMPOSE_FILE down --timeout 30
+    $DC "${COMPOSE_ARGS[@]}" down --timeout 30
 fi
 
 # Levantar infraestructura primero (PostgreSQL, Redis)
 log "Levantando infraestructura (PostgreSQL, Redis)..."
-$DC $COMPOSE_FILE up -d postgres redis
+$DC "${COMPOSE_ARGS[@]}" up -d postgres redis
 
 # Esperar a que DB y Redis esten saludables
 log "Esperando a que PostgreSQL y Redis esten saludables..."
 for i in $(seq 1 30); do
     if [ "$DC" = "docker compose" ]; then
-        PG_OK=$($DC -f "$COMPOSE_FILE" ps postgres --format json 2>/dev/null | grep -c '"healthy"' || echo 0)
-        RD_OK=$($DC -f "$COMPOSE_FILE" ps redis --format json 2>/dev/null | grep -c '"healthy"' || echo 0)
-    else
         # Fallback para v1: verificar que el contenedor este UP
-        PG_OK=$($DC -f "$COMPOSE_FILE" ps postgres | grep -c "Up" || echo 0)
-        RD_OK=$($DC -f "$COMPOSE_FILE" ps redis | grep -c "Up" || echo 0)
+        PG_OK=$($DC "${COMPOSE_ARGS[@]}" ps postgres | grep -c "Up" || echo 0)
+        RD_OK=$($DC "${COMPOSE_ARGS[@]}" ps redis | grep -c "Up" || echo 0)
     fi
+
+    # Asegurar que sean números
+    PG_OK=${PG_OK:-0}
+    RD_OK=${RD_OK:-0}
 
     if [ "$PG_OK" -ge 1 ] && [ "$RD_OK" -ge 1 ]; then
         log "Infraestructura activa"
@@ -225,13 +226,13 @@ done
 
 # Levantar aplicacion (workers escalados a 2 instancias)
 log "Levantando servicios de aplicacion..."
-$DC $COMPOSE_FILE up -d api scheduler
-$DC $COMPOSE_FILE up -d --scale worker=2 worker
+$DC "${COMPOSE_ARGS[@]}" up -d api scheduler
+$DC "${COMPOSE_ARGS[@]}" up -d --scale worker=2 worker
 
 # Esperar a que la API este saludable
 log "Esperando a que la API responda..."
 for i in $(seq 1 20); do
-    API_CONTAINER=$($DC -f "$COMPOSE_FILE" ps api --format "{{.ID}}" 2>/dev/null | head -1)
+    API_CONTAINER=$($DC "${COMPOSE_ARGS[@]}" ps api --format "{{.ID}}" 2>/dev/null | head -1)
     if [ -n "$API_CONTAINER" ]; then
         if docker exec "$API_CONTAINER" curl -sf http://localhost:8000/health &>/dev/null; then
             log "API respondiendo correctamente"
@@ -255,7 +256,7 @@ log "=========================================="
 
 # Verificar todos los servicios
 log "Estado de servicios:"
-$DC -f "$COMPOSE_FILE" ps
+$DC "${COMPOSE_ARGS[@]}" ps
 
 # Verificar red Docker
 NETWORK_SERVICES=$(docker network inspect ecf_network --format '{{range .Containers}}{{.Name}} {{end}}' 2>/dev/null || echo "")
