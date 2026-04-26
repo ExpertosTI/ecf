@@ -15,6 +15,10 @@ Regla de oro: ecf_emision_automatica = False por defecto.
 El trigger NUNCA se dispara solo — solo acción manual del usuario.
 """
 
+import logging
+import requests
+from datetime import datetime, date, timedelta
+
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 

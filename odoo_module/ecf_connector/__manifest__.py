@@ -1,23 +1,19 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'ECF Connector — DGII e-CF República Dominicana',
-    'version': '18.0.3.0',
+    'version': '18.0.3.5',
     'category': 'Accounting/Localizations',
-    'summary': 'Facturación Electrónica e-CF DGII — SaaS Renace.tech (e-CF Recibidas)',
+    'summary': 'Facturación Electrónica e-CF DGII — SaaS Renace.tech (Premium Dashboard)',
     'description': """
         Módulo oficial de Renace.tech para emisión de comprobantes fiscales
         electrónicos (e-CF) ante la DGII de la República Dominicana.
 
-        Funcionalidades:
+        Funcionalidades Premium:
+        - Dashboard Interactivo (OWL + Chart.js): KPIs de facturación y estados DGII
+        - Integración POS Premium: Selección de e-CF (E32/E31) con Health Check dinámico
         - Emisión manual de e-CF (trigger NUNCA automático por defecto)
         - Flujo POS diferido: facturas de envíos/créditos quedan pendientes de conciliación
-        - e-CF Recibidas: descarga automática de facturas de proveedor desde DGII
         - Impresión DGII-compliant: NCF, CUFE, QR, timestamp de aprobación, ambiente
-        - Dashboard Kanban de e-CF con KPIs por estado
-        - Cron de conciliación: detecta facturas listas para emitir
-        - Test de conexión al SaaS desde Ajustes
-        - Soporte multi-empresa (aislado por company_id)
-        - Webhook HMAC-SHA256 anti-replay
     """,
     'author': 'Renace.tech',
     'website': 'https://renace.tech',
@@ -48,14 +44,11 @@
             'ecf_connector/static/src/css/ecf_backend.css',
             'ecf_connector/static/src/js/ecf_status_widget.js',
             'ecf_connector/static/src/js/ecf_dashboard.js',
+            'ecf_connector/static/src/xml/ecf_dashboard.xml',
+            'ecf_connector/static/lib/chartjs/chart.umd.min.js',
         ],
         'web.report_assets_common': [
             'ecf_connector/static/src/css/ecf_report.css',
-        ],
-        'web.assets_backend': [
-            'ecf_connector/static/src/js/ecf_dashboard.js',
-            'ecf_connector/static/src/xml/ecf_dashboard.xml',
-            'ecf_connector/static/lib/chartjs/chart.umd.min.js',
         ],
         'point_of_sale._assets_pos': [
             'ecf_connector/static/src/js/ecf_pos.js',
@@ -63,7 +56,11 @@
             'ecf_connector/static/src/xml/ecf_pos_templates.xml',
         ],
     },
+    'images': [
+        'static/description/icon.png',
+        'static/description/banner.png'
+    ],
     'installable': True,
-    'application': False,
+    'application': True,
     'auto_install': False,
 }
