@@ -49,9 +49,6 @@
         'web.report_assets_common': [
             'ecf_connector/static/src/css/ecf_report.css',
         ],
-        'point_of_sale._assets_pos': [
-            'ecf_connector/static/src/xml/pos_receipt.xml',
-        ],
     },
     'installable': True,
     'application': False,
