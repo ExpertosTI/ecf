@@ -3,7 +3,7 @@
     <t t-name="ecf_connector.EcfTypeButton" owl="1">
         <button class="control-button btn btn-light rounded-pill shadow-sm d-flex align-items-center px-3 py-2 border" 
                 t-on-click="onClick"
-                style="min-width: 180px; transition: all 0.2s ease;">
+                style="min-width: 180px; transition: all 0.2s ease; margin-bottom: 5px;">
             <div class="d-flex flex-column align-items-start me-2">
                 <span class="text-uppercase fw-bold small text-primary" style="font-size: 0.7rem; letter-spacing: 0.5px;">Tipo e-CF</span>
                 <span class="fw-bold" style="font-size: 0.9rem; color: #1e293b;">
@@ -15,8 +15,10 @@
     </t>
 
     <t t-inherit="point_of_sale.ProductScreen" t-inherit-mode="extension">
-        <xpath expr="//div[hasclass('control-buttons')]" position="inside">
-            <EcfTypeButton />
+        <xpath expr="//div[hasclass('leftpane')]" position="inside">
+            <div class="ecf-pos-controls-wrapper px-2 mt-2">
+                <EcfTypeButton />
+            </div>
         </xpath>
     </t>
 </templates>
