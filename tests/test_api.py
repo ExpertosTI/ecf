@@ -21,7 +21,8 @@ from fastapi.testclient import TestClient
 # Set env vars BEFORE importing the app
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
-os.environ.setdefault("VAULT_MASTER_KEY", "a" * 64)
+# VAULT_MASTER_KEY must be exactly 32 bytes after base64 decoding (256 bits)
+os.environ.setdefault("VAULT_MASTER_KEY", "YTVhNWE1YTVhNWE1YTVhNWE1YTVhNWE1YTVhNWE1YTU=") # 32 bytes of 'a'
 os.environ.setdefault("ADMIN_API_KEY", "test-admin-key-12345")
 
 
@@ -107,6 +108,15 @@ class FakeRedis:
 
     async def zcard(self, key):
         return 0
+
+    async def rpush(self, key, *values):
+        if key not in self._store:
+            self._store[key] = []
+        if isinstance(self._store[key], list):
+            self._store[key].extend(values)
+
+    async def set(self, key, value, ex=None):
+        self._store[key] = value
 
 
 # ── Fixtures ───────────────────────────────────────────
@@ -328,7 +338,8 @@ class TestAdminAPI:
         resp = client.get("/v1/admin/tenants", headers=self.ADMIN_HEADERS)
         assert resp.status_code == 200
         data = resp.json()
-        assert isinstance(data, list)
+        assert "tenants" in data
+        assert isinstance(data["tenants"], list)
 
     def test_admin_get_stats(self, client, fake_pool):
         fake_pool.conn.fetchval.return_value = 5

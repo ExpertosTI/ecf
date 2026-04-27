@@ -257,27 +257,31 @@ async def list_tenants(
     _: None = Depends(require_admin),
 ):
     """List all tenants with summary info."""
-    db = _get_pool()
-    async with db.acquire() as conn:
-        if estado:
-            rows = await conn.fetch("""
-                SELECT id, rnc, razon_social, plan, estado, ambiente,
-                       ecf_emitidos_mes, max_ecf_mensual, cert_vencimiento,
-                       created_at
-                FROM public.tenants
-                WHERE deleted_at IS NULL AND estado = $1
-                ORDER BY created_at DESC
-            """, estado)
-        else:
-            rows = await conn.fetch("""
-                SELECT id, rnc, razon_social, plan, estado, ambiente,
-                       ecf_emitidos_mes, max_ecf_mensual, cert_vencimiento,
-                       created_at
-                FROM public.tenants
-                WHERE deleted_at IS NULL
-                ORDER BY created_at DESC
-            """)
-    return {"tenants": [dict(r) for r in rows]}
+    try:
+        db = _get_pool()
+        async with db.acquire() as conn:
+            if estado:
+                rows = await conn.fetch("""
+                    SELECT id, rnc, razon_social, plan, estado, ambiente,
+                           ecf_emitidos_mes, max_ecf_mensual, cert_vencimiento,
+                           created_at
+                    FROM public.tenants
+                    WHERE deleted_at IS NULL AND estado = $1
+                    ORDER BY created_at DESC
+                """, estado)
+            else:
+                rows = await conn.fetch("""
+                    SELECT id, rnc, razon_social, plan, estado, ambiente,
+                           ecf_emitidos_mes, max_ecf_mensual, cert_vencimiento,
+                           created_at
+                    FROM public.tenants
+                    WHERE deleted_at IS NULL
+                    ORDER BY created_at DESC
+                """)
+        return {"tenants": [dict(r) for r in rows]}
+    except Exception as e:
+        logger.error("Error listando tenants: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error al listar empresas: {type(e).__name__}: {e}")
 
 
 @router.get("/tenants/{tenant_id}")
@@ -641,39 +645,43 @@ async def system_stats(
     _: None = Depends(require_admin),
 ):
     """System-wide statistics."""
-    db = _get_pool()
-    redis_client = _get_redis()
+    try:
+        db = _get_pool()
+        redis_client = _get_redis()
 
-    async with db.acquire() as conn:
-        tenants_total = await conn.fetchval(
-            "SELECT COUNT(*) FROM public.tenants WHERE deleted_at IS NULL"
-        )
-        tenants_activos = await conn.fetchval(
-            "SELECT COUNT(*) FROM public.tenants "
-            "WHERE estado = 'activo' AND deleted_at IS NULL"
-        )
-        certs_por_vencer = await conn.fetchval(
-            "SELECT COUNT(*) FROM public.tenants "
-            "WHERE cert_vencimiento <= CURRENT_DATE + INTERVAL '30 days' "
-            "AND deleted_at IS NULL AND estado = 'activo'"
-        )
+        async with db.acquire() as conn:
+            tenants_total = await conn.fetchval(
+                "SELECT COUNT(*) FROM public.tenants WHERE deleted_at IS NULL"
+            )
+            tenants_activos = await conn.fetchval(
+                "SELECT COUNT(*) FROM public.tenants "
+                "WHERE estado = 'activo' AND deleted_at IS NULL"
+            )
+            certs_por_vencer = await conn.fetchval(
+                "SELECT COUNT(*) FROM public.tenants "
+                "WHERE cert_vencimiento <= CURRENT_DATE + INTERVAL '30 days' "
+                "AND deleted_at IS NULL AND estado = 'activo'"
+            )
 
-    pending = await redis_client.llen("ecf:pending")
-    retry = await redis_client.zcard("ecf:retry")
-    dlq = await redis_client.llen("ecf:dlq")
+        pending = await redis_client.llen("ecf:pending")
+        retry = await redis_client.zcard("ecf:retry")
+        dlq = await redis_client.llen("ecf:dlq")
 
-    return {
-        "tenants": {
-            "total": tenants_total,
-            "activos": tenants_activos,
-            "certs_por_vencer": certs_por_vencer,
-        },
-        "queues": {
-            "pending": pending,
-            "retry": retry,
-            "dlq": dlq,
-        },
-    }
+        return {
+            "tenants": {
+                "total": tenants_total,
+                "activos": tenants_activos,
+                "certs_por_vencer": certs_por_vencer,
+            },
+            "queues": {
+                "pending": pending,
+                "retry": retry,
+                "dlq": dlq,
+            },
+        }
+    except Exception as e:
+        logger.error("Error en system_stats: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error en estadísticas: {type(e).__name__}: {e}")
 
 # ---------------------------------------------------------------------------
 # DGII RNC Lookup
