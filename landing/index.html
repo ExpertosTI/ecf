@@ -352,9 +352,7 @@
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
             overflow: hidden;
-            box-shadow:
-                0 40px 80px rgba(0,0,0,0.4),
-                0 0 0 1px rgba(255,255,255,0.03);
+            box-shadow: var(--shadow-card);
         }
         .terminal-bar {
             display: flex;
@@ -867,7 +865,6 @@
            ═══════════════════════════════════════════ */
         @media (max-width: 1024px) {
             .hero-grid { grid-template-columns: 1fr; gap: 48px; }
-            .hero-visual { order: -1; }
             .features-grid { grid-template-columns: repeat(2, 1fr); }
             .pricing-hero-cards { grid-template-columns: repeat(2, 1fr); }
             .compliance-grid { grid-template-columns: 1fr 1fr; }
