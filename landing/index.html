@@ -282,7 +282,7 @@
         }
         .hero h1 {
             font-family: var(--font-display);
-            font-size: clamp(2.6rem, 5.8vw, 4.4rem);
+            font-size: clamp(2rem, 8vw, 4.4rem);
             font-weight: 900;
             letter-spacing: -0.04em;
             line-height: 1.06;
@@ -867,18 +867,35 @@
             .hero-grid { grid-template-columns: 1fr; gap: 48px; }
             .hero-visual { order: -1; }
             .features-grid { grid-template-columns: repeat(2, 1fr); }
-            .pricing-cards { grid-template-columns: repeat(2, 1fr); }
+            .pricing-hero-cards { grid-template-columns: repeat(2, 1fr); }
             .compliance-grid { grid-template-columns: 1fr 1fr; }
+            .calc-grid { grid-template-columns: 1fr; }
         }
         @media (max-width: 768px) {
             section { padding: 64px 0; }
-            .nav-links { display: none; }
-            .mobile-toggle { display: block; }
+            .nav-links { 
+                display: none; 
+                position: absolute;
+                top: 64px;
+                left: 0;
+                right: 0;
+                background: var(--nav-bg);
+                backdrop-filter: blur(24px);
+                flex-direction: column;
+                padding: 20px;
+                border-bottom: 1px solid var(--border);
+                gap: 20px;
+            }
+            .nav-links.active { display: flex; }
+            .mobile-toggle { display: block; font-size: 1.5rem; }
+            .nav-actions { display: none !important; }
+            .mobile-actions { display: flex !important; flex-direction: column; gap: 10px; margin-top: 10px; }
             .features-grid,
             .security-grid,
             .odoo-features,
-            .pricing-cards,
-            .compliance-grid { grid-template-columns: 1fr; }
+            .pricing-hero-cards,
+            .contact-grid,
+            .compliance-grid { grid-template-columns: 1fr !important; }
             .hero h1 { font-size: 2.2rem; }
             .arch-flow { flex-direction: column; }
             .arch-arrow { transform: rotate(90deg); }
@@ -887,8 +904,25 @@
             .footer-inner { flex-direction: column; gap: 16px; text-align: center; }
             .api-table { font-size: 0.8rem; }
             .api-table thead { display: none; }
-            .api-table tbody td { display: block; padding: 8px 16px; }
-            .api-table tbody tr { border-bottom: 1px solid var(--border); padding: 12px 0; }
+            .api-table tbody td { display: block; padding: 10px 16px; border: none; }
+            .api-table tbody td::before { 
+                content: attr(data-label); 
+                display: block; 
+                font-weight: bold; 
+                font-size: 0.75rem; 
+                color: var(--accent);
+                margin-bottom: 4px;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }
+            .api-table tbody tr { border-bottom: 1px solid var(--border); padding: 16px 0; display: block; }
+            .plan-tabs { grid-template-columns: 1fr; gap: 12px; }
+        }
+        @media (max-width: 480px) {
+            .container { padding: 0 16px; }
+            .trust-items { gap: 20px; }
+            .hero-actions { flex-direction: column; width: 100%; }
+            .hero-actions .btn-primary, .hero-actions .btn-outline { width: 100%; text-align: center; justify-content: center; }
         }
 
         /* ═══════════════════════════════════════════
@@ -934,6 +968,10 @@
             border-radius: 100px;
         }
         .calc-body { padding: 28px; }
+
+        /* Utility grids */
+        .calc-grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 32px; margin-top: 48px; align-items: start; }
+        .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
         /* Plan selector tabs */
         .plan-tabs {
@@ -1091,16 +1129,25 @@
               </g>
             </svg>
         </a>
-        <ul class="nav-links">
+        <ul class="nav-links" id="navLinks">
             <li><a href="#funcionalidades">Beneficios</a></li>
             <li><a href="#odoo">Integración</a></li>
             <li><a href="#planes">Precios</a></li>
+            <div class="mobile-actions" style="display: none;">
+                <a href="/portal" class="btn-outline" style="padding: 10px 20px; border: 1px solid var(--border); color: var(--text-primary); border-radius: 8px; text-align: center;">Iniciar Sesión</a>
+                <a href="#contacto" class="nav-cta" style="text-align: center; justify-content: center;">Solicitar Demo</a>
+            </div>
         </ul>
         <div style="display: flex; align-items: center; gap: 12px;">
-            <a href="/portal" class="btn-outline" style="padding: 10px 20px; border: 1px solid var(--border); color: var(--text-primary); border-radius: 8px;">Iniciar Sesión</a>
-            <a href="#contacto" class="nav-cta">Solicitar Demo</a>
+            <div class="nav-actions" style="display: flex; gap: 12px; align-items: center;">
+                <a href="/portal" class="btn-outline" style="padding: 10px 20px; border: 1px solid var(--border); color: var(--text-primary); border-radius: 8px;">Iniciar Sesión</a>
+                <a href="#contacto" class="nav-cta">Solicitar Demo</a>
+            </div>
             <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema">
                 <span id="themeIcon">☀️</span>
+            </button>
+            <button class="mobile-toggle" id="mobileToggle" aria-label="Menú">
+                ☰
             </button>
         </div>
     </div>
@@ -1280,7 +1327,7 @@
         <div class="section-label reveal">Inversión y Planes</div>
         <h2 class="section-title reveal">Precios claros y escalables.</h2>
         
-        <div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 32px; margin-top: 48px; align-items: start;">
+        <div class="calc-grid reveal">
             <!-- Left: Implementation costs -->
             <div class="reveal">
                 <div style="margin-bottom: 16px;">
@@ -1482,7 +1529,7 @@
             Nuestro equipo te acompaña en la certificación DGII.
         </p>
         <form id="contactForm" class="reveal" style="max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="contact-grid">
                 <input type="text" name="nombre" placeholder="Nombre *" required
                     style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.95rem; outline: none; transition: border-color .2s;"
                     onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
@@ -1617,6 +1664,24 @@
     window.addEventListener('scroll', () => {
         nav.classList.toggle('scrolled', window.scrollY > 20);
     }, { passive: true });
+
+    /* ─── MOBILE MENU ─── */
+    const mobileToggle = document.getElementById('mobileToggle');
+    const navLinks = document.getElementById('navLinks');
+    if (mobileToggle) {
+        mobileToggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            mobileToggle.textContent = navLinks.classList.contains('active') ? '✕' : '☰';
+        });
+        
+        // Close menu when clicking a link
+        navLinks.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                navLinks.classList.remove('active');
+                mobileToggle.textContent = '☰';
+            });
+        });
+    }
 
     /* ─── CONTACT FORM ─── */
     const contactForm = document.getElementById('contactForm');
