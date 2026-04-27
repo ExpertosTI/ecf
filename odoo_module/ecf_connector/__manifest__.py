@@ -36,6 +36,7 @@
         'views/ecf_dashboard_views.xml',
         'views/ecf_pending_views.xml',
         'views/ecf_compras_views.xml',
+        'views/report_ecf_summary.xml',
         'report/ecf_invoice_report.xml',
         'wizard/ecf_anular_wizard_views.xml',
     ],

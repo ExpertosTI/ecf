@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_ecf_summary" model="ir.actions.report">
+        <field name="name">Reporte Consolidado e-CF</field>
+        <field name="model">account.move</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">ecf_connector.report_ecf_summary_template</field>
+        <field name="report_file">ecf_connector.report_ecf_summary_template</field>
+        <field name="print_report_name">'Reporte_eCF_%s' % object.name</field>
+        <field name="binding_model_id" ref="account.model_account_move"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_ecf_summary_template">
+        <t t-call="web.html_container">
+            <t t-call="web.external_layout">
+                <div class="page" style="font-family: 'Helvetica';">
+                    <div class="row mb-4">
+                        <div class="col-12 text-center">
+                            <h2 style="color: #0087ff; font-weight: bold;">Reporte Consolidado de Facturación Electrónica</h2>
+                            <p class="text-muted">Resumen Fiscal DGII - Periodo de Auditoría</p>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-6">
+                            <div style="border: 1px solid #dee2e6; padding: 15px; border-radius: 10px;">
+                                <h5 class="fw-bold">Datos de la Empresa</h5>
+                                <strong>RNC:</strong> <span t-esc="res_company.vat"/><br/>
+                                <strong>Nombre:</strong> <span t-esc="res_company.name"/><br/>
+                                <strong>Ambiente:</strong> Certificación
+                            </div>
+                        </div>
+                    </div>
+
+                    <table class="table table-sm table-striped mt-4">
+                        <thead style="background-color: #f8f9fa;">
+                            <tr>
+                                <th>NCF</th>
+                                <th>Fecha</th>
+                                <th>Cliente / Proveedor</th>
+                                <th class="text-end">Monto Bruto</th>
+                                <th class="text-end">ITBIS</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="docs" t-as="o">
+                                <tr>
+                                    <td><span t-field="o.name"/></td>
+                                    <td><span t-field="o.invoice_date"/></td>
+                                    <td><span t-field="o.partner_id.name"/></td>
+                                    <td class="text-end"><span t-field="o.amount_untaxed"/></td>
+                                    <td class="text-end"><span t-field="o.amount_tax"/></td>
+                                    <td class="text-end fw-bold"><span t-field="o.amount_total"/></td>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+
+                    <div class="row justify-content-end mt-4">
+                        <div class="col-4">
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>Total Bruto:</strong></td>
+                                    <td class="text-end">RD$ <t t-esc="sum(docs.mapped('amount_untaxed'))"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Total ITBIS:</strong></td>
+                                    <td class="text-end">RD$ <t t-esc="sum(docs.mapped('amount_tax'))"/></td>
+                                </tr>
+                                <tr class="table-active">
+                                    <td><strong>TOTAL GENERAL:</strong></td>
+                                    <td class="text-end fw-bold">RD$ <t t-esc="sum(docs.mapped('amount_total'))"/></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="footer text-center small text-muted mt-5" style="border-top: 1px solid #dee2e6; padding-top: 10px;">
+                        Generado por Renace e-CF Connector para <span t-esc="res_company.name"/>
+                    </div>
+                </div>
+            </t>
+        </t>
+    </template>
+</odoo>

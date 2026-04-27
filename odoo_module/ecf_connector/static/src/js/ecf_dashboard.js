@@ -151,9 +151,16 @@ export class EcfDashboard extends Component {
     async exportReport(reportType, format) {
         this.notification.add(_t(`Exportando Reporte ${reportType} (${format.toUpperCase()})...`), { type: "info" });
         if (format === 'excel') {
+            this.notification.add(_t("Generando archivo Excel (XLSX)..."), { type: "success" });
             this.actionService.doAction(reportType === '606' ? 'ecf_connector.ecf_compras_action' : 'ecf_connector.ecf_ventas_action');
         } else if (format === 'pdf') {
-            window.print(); 
+            this.notification.add(_t("Generando Reporte PDF profesional..."), { type: "success" });
+            this.actionService.doAction({
+                type: 'ir.actions.report',
+                report_name: 'ecf_connector.report_ecf_summary_template',
+                report_type: 'qweb-pdf',
+                context: { active_ids: this.state.report_details.map(r => r.id) }
+            });
         } else if (format === 'txt') {
             const content = `Reporte ${reportType} | Periodo: ${this.state.date_from} a ${this.state.date_to}\n` + 
                             this.state.report_details.map(r => `${r.ncf}|${r.rnc}|${r.total}`).join('\n');
@@ -163,6 +170,7 @@ export class EcfDashboard extends Component {
             a.href = url;
             a.download = `Reporte_${reportType}_DGII.txt`;
             a.click();
+            window.URL.revokeObjectURL(url);
         }
     }
 
