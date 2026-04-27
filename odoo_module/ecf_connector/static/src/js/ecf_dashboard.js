@@ -162,11 +162,18 @@ export class EcfDashboard extends Component {
             this.actionService.doAction(reportType === '606' ? 'ecf_connector.ecf_compras_action' : 'ecf_connector.ecf_ventas_action');
         } else if (format === 'pdf') {
             this.notification.add(_t("Generando Reporte PDF profesional..."), { type: "success" });
+            const move_ids = this.state.report_details.map(r => r.id);
+            if (!move_ids.length) {
+                this.notification.add(_t("No hay datos para imprimir"), { type: "warning" });
+                return;
+            }
             this.actionService.doAction({
                 type: 'ir.actions.report',
                 report_name: 'ecf_connector.report_ecf_summary_template',
                 report_type: 'qweb-pdf',
-                context: { active_ids: this.state.report_details.map(r => r.id) }
+                res_ids: move_ids,
+                context: { active_ids: move_ids },
+                data: { model: 'account.move', ids: move_ids }
             });
         } else if (format === 'txt') {
             const content = `Reporte ${reportType} | Periodo: ${this.state.date_from} a ${this.state.date_to}\n` + 
