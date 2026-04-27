@@ -1271,9 +1271,26 @@ async function lookupRnc() {
 }
 
 
-// ═══════════════════════════════════════════
-// UTILITIES
-// ═══════════════════════════════════════════
+// API Wrapper
+async function api(path, options = {}) {
+    const url = `${API_URL}${path}`;
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ADMIN_KEY}`
+    };
+    
+    const resp = await fetch(url, {
+        ...options,
+        headers: { ...headers, ...options.headers }
+    });
+
+    const data = await resp.json();
+    if (!resp.ok) {
+        throw new Error(data.detail || 'Error en la petición');
+    }
+    return data;
+}
+
 function esc(s) {
     if (s == null) return '';
     const d = document.createElement('div');
