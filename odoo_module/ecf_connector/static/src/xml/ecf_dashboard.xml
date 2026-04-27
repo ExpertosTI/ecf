@@ -10,23 +10,26 @@
                         <span t-if="state.saas_status === 'online'" class="ms-3 badge rounded-pill bg-success small" style="font-size: 0.8rem; vertical-align: middle;">
                             <i class="oi oi-check-circle me-1"></i> SaaS Online
                         </span>
-                        <span t-if="state.saas_status === 'offline'" class="ms-3 badge rounded-pill bg-danger small" style="font-size: 0.8rem; vertical-align: middle;">
-                            <i class="oi oi-circle-x me-1"></i> SaaS Offline
-                        </span>
-                        <span t-if="state.saas_status === 'checking'" class="ms-3 badge rounded-pill bg-secondary small" style="font-size: 0.8rem; vertical-align: middle;">
-                            <i class="oi oi-reload me-1"></i> Verificando...
-                        </span>
                     </h1>
                     <p class="text-muted mb-0" style="font-size: 1.1rem;">Gestión centralizada de facturación electrónica RD</p>
                 </div>
 
-                <div class="d-flex gap-2">
-                    <button class="btn btn-outline-primary border-2 rounded-pill px-4" t-on-click="openHistory">
-                        <i class="oi oi-view-list me-2"></i>Historial
-                    </button>
-                    <button class="btn btn-primary shadow rounded-pill px-4 fw-bold" t-on-click="loadData">
-                        <i class="oi oi-reload me-2"></i>Actualizar
-                    </button>
+                <div class="d-flex align-items-center gap-3">
+                    <!-- Buscador por Fechas -->
+                    <div class="d-flex align-items-center bg-white border rounded-pill px-3 py-1 shadow-sm">
+                        <i class="oi oi-calendar me-2 text-primary small"></i>
+                        <input type="date" class="border-0 small fw-bold" t-model="state.date_from" t-on-change="loadData" style="outline: none; width: 140px;"/>
+                        <span class="mx-2 text-muted">-</span>
+                        <input type="date" class="border-0 small fw-bold" t-model="state.date_to" t-on-change="loadData" style="outline: none; width: 140px;"/>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-primary border-2 rounded-pill px-4" t-on-click="openHistory">
+                            <i class="oi oi-view-list me-2"></i>Historial
+                        </button>
+                        <button class="btn btn-primary shadow rounded-pill px-4 fw-bold" t-on-click="loadData">
+                            <i class="oi oi-reload me-1"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -36,7 +39,7 @@
                     <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 20px; background: linear-gradient(135deg, #0087ff 0%, #0056a3 100%); color: white;">
                         <div class="small fw-bold text-uppercase opacity-75 mb-2">Total Facturado</div>
                         <div class="h2 fw-bold mb-0 text-truncate">RD$ <t t-esc="state.stats.total_amount?.toLocaleString() || '0'"/></div>
-                        <div class="mt-2 small opacity-75">Acumulado del mes</div>
+                        <div class="mt-2 small opacity-75">En el periodo seleccionado</div>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -68,7 +71,7 @@
                     <div class="card border-0 shadow-sm p-4" style="border-radius: 24px; background-color: #f8fafc;">
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h5 class="fw-bold mb-0" style="color: #0f172a;">Reportes Fiscales e Inteligencia</h5>
-                            <span class="text-muted small">Periodo: <t t-esc="state.fiscal.periodo || 'Cargando...'"/></span>
+                            <span class="text-muted small">Mostrando datos filtrados por fecha</span>
                         </div>
                         <div class="row g-4">
                             <!-- Tarjeta 606 -->
@@ -81,17 +84,16 @@
                                     <div class="h4 fw-bold text-primary mb-1">RD$ <t t-esc="state.fiscal.compras?.total.toLocaleString() || '0'"/></div>
                                     <div class="small text-muted mb-3"><t t-esc="state.fiscal.compras?.count || 0"/> Compras registradas</div>
                                     
-                                    <!-- Botones de Exportación Premium -->
+                                    <!-- Botones de Acción Premium -->
+                                    <div class="d-flex gap-1 mb-2">
+                                        <button class="btn btn-primary btn-sm flex-fill rounded-pill py-2 fw-bold" t-on-click="() => this.openReportDetail('606')">
+                                            <i class="oi oi-view-list me-1"></i> VER DATOS
+                                        </button>
+                                    </div>
                                     <div class="d-flex gap-1">
-                                        <button class="btn btn-primary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('606', 'txt')">
-                                            <i class="oi oi-file-text me-1"></i> TXT
-                                        </button>
-                                        <button class="btn btn-outline-primary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('606', 'excel')">
-                                            <i class="oi oi-spreadsheet me-1"></i> Excel
-                                        </button>
-                                        <button class="btn btn-outline-primary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('606', 'pdf')">
-                                            <i class="oi oi-printer me-1"></i> PDF
-                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('606', 'txt')">TXT</button>
+                                        <button class="btn btn-outline-secondary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('606', 'excel')">Excel</button>
+                                        <button class="btn btn-outline-secondary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('606', 'pdf')">PDF</button>
                                     </div>
                                 </div>
                             </div>
@@ -105,21 +107,19 @@
                                     <div class="h4 fw-bold text-success mb-1">RD$ <t t-esc="state.fiscal.ventas?.total.toLocaleString() || '0'"/></div>
                                     <div class="small text-muted mb-3"><t t-esc="state.fiscal.ventas?.count || 0"/> Ventas con e-CF</div>
 
-                                    <!-- Botones de Exportación Premium -->
+                                    <!-- Botones de Acción Premium -->
+                                    <div class="d-flex gap-1 mb-2">
+                                        <button class="btn btn-success btn-sm flex-fill rounded-pill py-2 fw-bold" t-on-click="() => this.openReportDetail('607')">
+                                            <i class="oi oi-view-list me-1"></i> VER DATOS
+                                        </button>
+                                    </div>
                                     <div class="d-flex gap-1">
-                                        <button class="btn btn-success btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('607', 'txt')">
-                                            <i class="oi oi-file-text me-1"></i> TXT
-                                        </button>
-                                        <button class="btn btn-outline-success btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('607', 'excel')">
-                                            <i class="oi oi-spreadsheet me-1"></i> Excel
-                                        </button>
-                                        <button class="btn btn-outline-success btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('607', 'pdf')">
-                                            <i class="oi oi-printer me-1"></i> PDF
-                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('607', 'txt')">TXT</button>
+                                        <button class="btn btn-outline-secondary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('607', 'excel')">Excel</button>
+                                        <button class="btn btn-outline-secondary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('607', 'pdf')">PDF</button>
                                     </div>
                                 </div>
                             </div>
-
                             <!-- Tarjeta 608 -->
                             <div class="col-md-4">
                                 <div class="card border-0 shadow-sm p-3 bg-white" style="border-radius: 16px;">
@@ -129,7 +129,7 @@
                                     </div>
                                     <div class="h4 fw-bold text-danger mb-1"><t t-esc="state.stats.stats_estado?.rechazado || 0"/></div>
                                     <div class="small text-muted mb-3">Comprobantes Anulados</div>
-                                    <button class="btn btn-outline-danger btn-sm w-100 rounded-pill" t-on-click="printReport608">
+                                    <button class="btn btn-outline-danger btn-sm w-100 rounded-pill py-2 fw-bold" t-on-click="printReport608">
                                         <i class="oi oi-view-list me-1"></i> Ver Anulaciones
                                     </button>
                                 </div>
@@ -139,6 +139,56 @@
                 </div>
             </div>
 
+            <!-- VISOR DE REPORTES PREMIUM (Overlay) -->
+            <div t-if="state.show_report_viewer" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background: rgba(15, 23, 42, 0.85); z-index: 9999; backdrop-filter: blur(10px);">
+                <div class="card border-0 shadow-lg w-75 h-75 overflow-hidden" style="border-radius: 32px;">
+                    <div class="card-header bg-white p-4 border-0 d-flex justify-content-between align-items-center shadow-sm">
+                        <div>
+                            <h3 class="fw-bold mb-0">Visor Fiscal Premium: Reporte <t t-esc="state.current_report_type"/></h3>
+                            <p class="text-muted mb-0 small">Análisis detallado de registros fiscales</p>
+                        </div>
+                        <button class="btn btn-light rounded-pill p-3" t-on-click="() => state.show_report_viewer = false">
+                            <i class="oi oi-close h4 mb-0"></i>
+                        </button>
+                    </div>
+                    <div class="card-body bg-light overflow-auto p-4">
+                        <table class="table table-hover bg-white shadow-sm border-0" style="border-radius: 16px; overflow: hidden;">
+                            <thead class="bg-dark text-white text-uppercase small fw-bold">
+                                <tr>
+                                    <th class="p-3">NCF / Documento</th>
+                                    <th class="p-3">Fecha</th>
+                                    <th class="p-3">RNC / Cédula</th>
+                                    <th class="p-3">Cliente / Proveedor</th>
+                                    <th class="p-3 text-end">Subtotal</th>
+                                    <th class="p-3 text-end">ITBIS</th>
+                                    <th class="p-3 text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="state.report_details || []" t-as="row" t-key="row.id">
+                                    <tr class="align-middle">
+                                        <td class="p-3 fw-bold text-primary"><t t-esc="row.ncf"/></td>
+                                        <td class="p-3"><t t-esc="row.date"/></td>
+                                        <td class="p-3 small text-muted"><t t-esc="row.rnc"/></td>
+                                        <td class="p-3"><t t-esc="row.partner"/></td>
+                                        <td class="p-3 text-end">RD$ <t t-esc="row.base.toLocaleString()"/></td>
+                                        <td class="p-3 text-end text-success">RD$ <t t-esc="row.tax.toLocaleString()"/></td>
+                                        <td class="p-3 text-end fw-bold">RD$ <t t-esc="row.total.toLocaleString()"/></td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card-footer bg-white p-4 border-0 d-flex gap-3 shadow-lg-top">
+                        <button class="btn btn-dark rounded-pill px-5 py-3 fw-bold flex-fill" t-on-click="() => this.exportReport(state.current_report_type, 'excel')">
+                            <i class="oi oi-spreadsheet me-2"></i>Exportar Excel
+                        </button>
+                        <button class="btn btn-outline-dark rounded-pill px-5 py-3 fw-bold flex-fill" t-on-click="() => this.exportReport(state.current_report_type, 'pdf')">
+                            <i class="oi oi-printer me-2"></i>Imprimir Reporte
+                        </button>
+                    </div>
+                </div>
+            </div>
 
             <!-- Gráficas Row -->
             <div class="row g-4 mb-5">
@@ -146,7 +196,7 @@
                     <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 24px;">
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h5 class="fw-bold mb-0">Volumen de Emisión</h5>
-                            <span class="badge bg-primary bg-opacity-10 text-primary px-3 rounded-pill">Últimos 30 días</span>
+                            <span class="badge bg-primary bg-opacity-10 text-primary px-3 rounded-pill">Histórico</span>
                         </div>
                         <div style="height: 350px;">
                             <canvas t-ref="chartVolume"></canvas>
@@ -163,13 +213,11 @@
                 </div>
             </div>
 
-            <!-- Actividad y Salud del Sistema -->
+            <!-- Actividad y Salud -->
             <div class="row g-4">
                 <div class="col-md-8">
-                    <!-- Tabla de Actividad (Ya existente) -->
                     <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 24px;">
-                        <h5 class="fw-bold mb-4">Actividad Reciente de e-CF</h5>
-                        <!-- ... (contenido de la tabla) ... -->
+                        <h5 class="fw-bold mb-4">Actividad Reciente</h5>
                         <div class="table-responsive">
                             <table class="table table-hover align-middle border-top">
                                 <thead class="text-muted small text-uppercase">
@@ -183,7 +231,7 @@
                                 </thead>
                                 <tbody>
                                     <t t-foreach="state.stats.recent_logs || []" t-as="log" t-key="log.id">
-                                        <tr>
+                                        <tr t-on-click="() => this.openMove(log.move_id)" style="cursor: pointer;">
                                             <td class="fw-bold text-primary"><t t-esc="log.ncf"/></td>
                                             <td><t t-esc="log.cliente"/></td>
                                             <td class="fw-bold">RD$ <t t-esc="log.monto.toLocaleString()"/></td>
@@ -200,45 +248,24 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- Widget de Homologación y Certificado -->
                 <div class="col-md-4">
+                    <!-- Widget de Homologación -->
                     <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 24px; background: #0f172a; color: white;">
-                        <h5 class="fw-bold mb-3">Estado de Homologación</h5>
+                        <h5 class="fw-bold mb-3">Salud Técnica DGII</h5>
                         <div class="d-flex align-items-center mb-4">
                             <div class="h1 fw-bold mb-0 text-primary me-3"><t t-esc="state.compliance.compliance_score || 0"/>%</div>
-                            <div class="small opacity-75">Cumplimiento técnico de la DGII</div>
                         </div>
                         <div class="progress mb-4" style="height: 8px; background: rgba(255,255,255,0.1);">
-                            <div class="progress-bar bg-primary" role="progressbar" t-attf-style="width: #{state.compliance.compliance_score || 0}%" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+                            <div class="progress-bar bg-primary" role="progressbar" t-attf-style="width: #{state.compliance.compliance_score || 0}%"></div>
                         </div>
-                        <div class="small">
+                        <div class="small opacity-75">
                             <t t-foreach="state.compliance.issues || []" t-as="issue" t-key="issue.msg">
-                                <div class="d-flex align-items-start mb-2">
-                                    <i t-attf-class="oi #{issue.type === 'error' ? 'oi-circle-x text-danger' : (issue.type === 'warning' ? 'oi-warning text-warning' : 'oi-check-circle text-success')} me-2 mt-1"></i>
-                                    <span class="opacity-75"><t t-esc="issue.msg"/></span>
-                                </div>
+                                <div class="mb-2"><i class="oi oi-check-circle me-1 text-primary"></i> <t t-esc="issue.msg"/></div>
                             </t>
                         </div>
                     </div>
-
-                    <div class="card border-0 shadow-sm p-4" style="border-radius: 24px;">
-                        <h5 class="fw-bold mb-4">Firma Digital</h5>
-                        <div class="d-flex align-items-center">
-                            <div class="bg-primary bg-opacity-10 p-3 rounded-circle me-3 text-primary">
-                                <i class="oi oi-key h4 mb-0"></i>
-                            </div>
-                            <div>
-                                <div class="fw-bold">Certificado Activo</div>
-                                <div class="small text-muted">Vence en Octubre 2026</div>
-                            </div>
-                        </div>
-                        <hr/>
-                        <button class="btn btn-outline-primary w-100 rounded-pill btn-sm">Renovar Firma</button>
-                    </div>
                 </div>
             </div>
-
         </div>
     </t>
 </templates>
