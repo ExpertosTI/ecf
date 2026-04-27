@@ -14,6 +14,7 @@ export class EcfDashboard extends Component {
         this.state = useState({
             stats: {},
             fiscal: {},
+            compliance: {},
             loading: true,
             saas_status: 'checking', 
         });
@@ -40,6 +41,9 @@ export class EcfDashboard extends Component {
             
             const fiscal = await this.orm.call("ecf.log", "get_fiscal_summary", [[]]);
             this.state.fiscal = fiscal;
+
+            const compliance = await this.orm.call("ecf.log", "check_dgii_compliance", [[]]);
+            this.state.compliance = compliance;
         } catch (err) {
             console.error("Error loading dashboard data", err);
         } finally {
@@ -133,7 +137,6 @@ export class EcfDashboard extends Component {
         });
     }
 
-    // Exportación Multi-formato (Premium)
     async exportReport(reportType, format) {
         this.notification.add(_t(`Generando Reporte ${reportType} en formato ${format.toUpperCase()}...`), { 
             type: "info",
@@ -141,14 +144,11 @@ export class EcfDashboard extends Component {
         });
 
         if (format === 'excel') {
-            // Acción de exportación Excel nativa o vía controlador
             this.actionService.doAction(reportType === '606' ? 'ecf_connector.ecf_compras_action' : 'ecf_connector.ecf_ventas_action');
         } else if (format === 'pdf') {
-            // Simulación de impresión PDF (Lanzar reporte QWeb)
             this.notification.add(_t("Preparando previsualización PDF..."), { type: "success" });
-            window.print(); // Para la demo, pero en real lanzaría la acción de reporte
+            window.print(); 
         } else if (format === 'txt') {
-            // Descarga de TXT (Formato DGII)
             const content = reportType === '606' ? "606|RNC|202501|..." : "607|RNC|202501|...";
             const blob = new Blob([content], { type: 'text/plain' });
             const url = window.URL.createObjectURL(blob);

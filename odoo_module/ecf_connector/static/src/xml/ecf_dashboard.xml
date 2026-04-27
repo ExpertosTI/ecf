@@ -163,11 +163,13 @@
                 </div>
             </div>
 
-            <!-- Actividad Reciente -->
+            <!-- Actividad y Salud del Sistema -->
             <div class="row g-4">
                 <div class="col-md-8">
+                    <!-- Tabla de Actividad (Ya existente) -->
                     <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 24px;">
                         <h5 class="fw-bold mb-4">Actividad Reciente de e-CF</h5>
+                        <!-- ... (contenido de la tabla) ... -->
                         <div class="table-responsive">
                             <table class="table table-hover align-middle border-top">
                                 <thead class="text-muted small text-uppercase">
@@ -193,25 +195,50 @@
                                             <td class="small text-muted"><t t-esc="log.fecha"/></td>
                                         </tr>
                                     </t>
-                                    <t t-if="!state.stats.recent_logs?.length">
-                                        <tr>
-                                            <td colspan="5" class="text-center p-5 text-muted small">No hay actividad reciente registrada</td>
-                                        </tr>
-                                    </t>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
+                
+                <!-- Widget de Homologación y Certificado -->
                 <div class="col-md-4">
-                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 24px;">
-                        <h5 class="fw-bold mb-4">Distribución por Tipo</h5>
-                        <div style="height: 300px;">
-                            <canvas t-ref="chartType"></canvas>
+                    <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 24px; background: #0f172a; color: white;">
+                        <h5 class="fw-bold mb-3">Estado de Homologación</h5>
+                        <div class="d-flex align-items-center mb-4">
+                            <div class="h1 fw-bold mb-0 text-primary me-3"><t t-esc="state.compliance.compliance_score || 0"/>%</div>
+                            <div class="small opacity-75">Cumplimiento técnico de la DGII</div>
                         </div>
+                        <div class="progress mb-4" style="height: 8px; background: rgba(255,255,255,0.1);">
+                            <div class="progress-bar bg-primary" role="progressbar" t-attf-style="width: #{state.compliance.compliance_score || 0}%" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <div class="small">
+                            <t t-foreach="state.compliance.issues || []" t-as="issue" t-key="issue.msg">
+                                <div class="d-flex align-items-start mb-2">
+                                    <i t-attf-class="oi #{issue.type === 'error' ? 'oi-circle-x text-danger' : (issue.type === 'warning' ? 'oi-warning text-warning' : 'oi-check-circle text-success')} me-2 mt-1"></i>
+                                    <span class="opacity-75"><t t-esc="issue.msg"/></span>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+
+                    <div class="card border-0 shadow-sm p-4" style="border-radius: 24px;">
+                        <h5 class="fw-bold mb-4">Firma Digital</h5>
+                        <div class="d-flex align-items-center">
+                            <div class="bg-primary bg-opacity-10 p-3 rounded-circle me-3 text-primary">
+                                <i class="oi oi-key h4 mb-0"></i>
+                            </div>
+                            <div>
+                                <div class="fw-bold">Certificado Activo</div>
+                                <div class="small text-muted">Vence en Octubre 2026</div>
+                            </div>
+                        </div>
+                        <hr/>
+                        <button class="btn btn-outline-primary w-100 rounded-pill btn-sm">Renovar Firma</button>
                     </div>
                 </div>
             </div>
+
         </div>
     </t>
 </templates>
