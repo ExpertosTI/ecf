@@ -34,6 +34,7 @@ class ECFCompraRecibida(models.Model):
     ambiente         = fields.Selection([
         ('produccion',    'Producción'),
         ('certificacion', 'Certificación'),
+        ('simulacion',    'Simulación (Mock Local)'),
         ('pruebas',       'Pruebas'),
     ], string='Ambiente', default='produccion')
 

@@ -920,6 +920,31 @@
             }
             .api-table tbody tr { border-bottom: 1px solid var(--border); padding: 16px 0; display: block; }
             .plan-tabs { grid-template-columns: 1fr; gap: 12px; }
+            
+            /* Mobile Calculator Overrides */
+            .calc-wrapper {
+                border-radius: 16px;
+                border: 2px solid var(--accent);
+                box-shadow: 0 8px 32px rgba(0, 229, 160, 0.15);
+            }
+            .calc-header {
+                padding: 16px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            .calc-badge { align-self: flex-start; }
+            .calc-body { padding: 16px; }
+            .vol-value { font-size: 2.2rem; }
+            input[type=range]::-webkit-slider-thumb {
+                width: 36px;
+                height: 36px;
+                margin-top: -16px;
+                border-width: 4px;
+            }
+            .price-amount { font-size: 3rem; min-width: 110px; }
+            .savings-val { font-size: 1.4rem; }
+            #calc-cta { padding: 18px !important; font-size: 1.05rem; font-weight: 800; border-radius: 12px; }
         }
         @media (max-width: 480px) {
             .container { padding: 0 16px; }

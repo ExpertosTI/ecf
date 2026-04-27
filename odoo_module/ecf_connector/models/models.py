@@ -57,7 +57,7 @@ class ResCompany(models.Model):
         help='Secret para verificar los callbacks del SaaS ECF (HMAC-SHA256)',
     )
     ecf_ambiente = fields.Selection(
-        selection=[('certificacion', 'Certificación'), ('produccion', 'Producción')],
+        selection=[('simulacion', 'Simulación (Mock Local)'), ('certificacion', 'Certificación'), ('produccion', 'Producción')],
         string='Ambiente DGII',
         default='certificacion',
     )
