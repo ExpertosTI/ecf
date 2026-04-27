@@ -896,9 +896,13 @@
             .security-grid,
             .odoo-features,
             .pricing-hero-cards,
+            .calc-grid,
             .contact-grid,
             .compliance-grid { grid-template-columns: 1fr !important; }
-            .hero h1 { font-size: 2.2rem; }
+            .hero h1 { font-size: clamp(1.8rem, 8vw, 2.2rem) !important; line-height: 1.1; }
+            .hero-desc { font-size: 1rem !important; }
+            .terminal { max-width: 100vw; box-sizing: border-box; }
+            .terminal-body { font-size: 0.75rem !important; padding: 16px !important; word-break: break-word; overflow-wrap: break-word; }
             .arch-flow { flex-direction: column; }
             .arch-arrow { transform: rotate(90deg); }
             .trust-items { gap: 32px; }
@@ -1329,7 +1333,7 @@
         <div class="section-label reveal">Inversión y Planes</div>
         <h2 class="section-title reveal">Precios claros y escalables.</h2>
         
-        <div class="calc-grid reveal">
+        <div class="calc-grid reveal reveal-delay-2">
             <!-- Left: Implementation costs -->
             <div class="reveal">
                 <div style="margin-bottom: 16px;">
