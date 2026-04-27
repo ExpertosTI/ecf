@@ -1106,6 +1106,69 @@
             font-size: 1.15rem;
             color: var(--accent);
         }
+
+        /* ═══════════════════════════════════════════
+           PREMIUM SMART CALCULATOR
+           ═══════════════════════════════════════════ */
+        .range-container { margin-bottom: 32px; }
+        .range-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 16px;
+        }
+        .vol-label {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .vol-value {
+            font-family: var(--font-mono);
+            font-size: 1.6rem;
+            font-weight: 900;
+            color: var(--accent);
+        }
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 28px;
+            width: 28px;
+            border-radius: 50%;
+            background: #fff;
+            border: 3px solid var(--accent);
+            cursor: pointer;
+            margin-top: -12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:active {
+            transform: scale(1.15);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: var(--border);
+            border-radius: 4px;
+        }
+        .savings-box {
+            background: rgba(0, 212, 168, 0.08);
+            border: 1px dashed var(--accent-2);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            margin-top: 16px;
+        }
+        .savings-val {
+            color: var(--accent-2);
+            font-weight: 800;
+            font-size: 1.2rem;
+            font-family: var(--font-display);
+        }
     </style>
 </head>
 <body>
@@ -1383,20 +1446,13 @@
                                 Anual <span style="background: var(--accent-glow); color: var(--accent); font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: 800;">-5%</span>
                             </span>
                         </div>
-                        <!-- Plan selector tabs -->
-                        <div class="plan-tabs">
-                            <div class="plan-tab active" data-plan="0" onclick="selectPlan(0)">
-                                <div class="plan-tab-name">Pyme</div>
-                                <div class="plan-tab-vol">hasta 1,000</div>
+                        <!-- Smart Volume Slider -->
+                        <div class="range-container">
+                            <div class="range-header">
+                                <div class="vol-label">Volumen Mensual de e-CF</div>
+                                <div class="vol-value"><span id="calc-vol">1,000</span> <span style="font-size:0.55em; color:var(--text-dim); font-weight:500;">/mes</span></div>
                             </div>
-                            <div class="plan-tab" data-plan="1" onclick="selectPlan(1)">
-                                <div class="plan-tab-name">Standard</div>
-                                <div class="plan-tab-vol">hasta 10,000</div>
-                            </div>
-                            <div class="plan-tab" data-plan="2" onclick="selectPlan(2)">
-                                <div class="plan-tab-name">Empresarial</div>
-                                <div class="plan-tab-vol">ilimitado</div>
-                            </div>
+                            <input type="range" id="volSlider" min="0" max="8" value="3" step="1" oninput="updateCalculator()">
                         </div>
 
                         <!-- Animated price -->
@@ -1405,13 +1461,17 @@
                             <span class="price-amount" id="calc-price">1,500</span>
                             <span class="price-period">/mes</span>
                         </div>
-                        <div class="price-note" id="calc-note">Ideal para empresas con facturación baja o en arranque</div>
+                        <div class="price-note" id="calc-note">Plan Pyme detectado.</div>
+
+                        <!-- Savings estimation -->
+                        <div class="savings-box">
+                            <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:4px;">Ahorro estimado en horas manuales</div>
+                            <div class="savings-val">~ <span id="calc-savings">25</span> hrs/mes</div>
+                        </div>
 
                         <!-- Included features -->
-                        <div id="calc-features" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; padding: 16px; background: var(--bg-card-alt); border-radius: 12px;">
-                            <div class="calc-feat" style="font-size: 0.83rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;"><span style="color:var(--accent);">✓</span> Módulo Odoo 18 incluido</div>
-                            <div class="calc-feat" style="font-size: 0.83rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;"><span style="color:var(--accent);">✓</span> Certificación y Producción DGII</div>
-                            <div class="calc-feat" style="font-size: 0.83rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;"><span style="color:var(--accent);">✓</span> Soporte técnico</div>
+                        <div id="calc-features" style="display: flex; flex-direction: column; gap: 8px; margin: 24px 0; padding: 16px; background: var(--bg-card-alt); border-radius: 12px;">
+                            <!-- Auto injected -->
                         </div>
 
                         <a href="#contacto" class="btn-primary" id="calc-cta" style="display: block; text-align: center; padding: 14px;">Solicitar Plan Pyme</a>
@@ -1445,16 +1505,25 @@
         },
     ];
 
-    let currentPlan = 0;
-    let isAnnual    = false;
+    const VOL_STOPS = [100, 250, 500, 1000, 2500, 5000, 10000, 20000, 50000];
+    
+    /* ─── SMART PLAN DETECTION ─── */
+    function getPlanForVolume(vol) {
+        if (vol <= 1000) return 0; // Pyme
+        if (vol <= 10000) return 1; // Standard
+        return 2; // Empresarial
+    }
+
+    let isAnnual = false;
+    let currentTargetPrice = 1500;
 
     /* Animates price counter */
-    function animatePrice(el, from, to, duration) {
+    function animateValue(el, from, to, duration, formatStr = true) {
         const start = performance.now();
-        const format = n => n.toLocaleString('en-US');
+        const format = n => formatStr ? n.toLocaleString('en-US') : n.toString();
         function tick(now) {
             const t = Math.min((now - start) / duration, 1);
-            const eased = 1 - Math.pow(1 - t, 4);
+            const eased = 1 - Math.pow(1 - t, 4); // easeOutQuart
             el.textContent = format(Math.round(from + (to - from) * eased));
             if (t < 1) requestAnimationFrame(tick);
         }
@@ -1463,61 +1532,53 @@
 
     function toggleBilling() {
         isAnnual = document.getElementById('billingToggle').checked;
-        
-        // Update labels
         document.getElementById('lbl-monthly').style.color = isAnnual ? 'var(--text-dim)' : 'var(--accent)';
-        document.getElementById('lbl-monthly').style.fontWeight = isAnnual ? '500' : '700';
         document.getElementById('lbl-annual').style.color = isAnnual ? 'var(--accent)' : 'var(--text-dim)';
-        document.getElementById('lbl-annual').style.fontWeight = isAnnual ? '700' : '500';
-        
-        // Update badge
         document.getElementById('calc-period-badge').textContent = isAnnual ? 'Anual' : 'Mensual';
-        
-        // Update price period text
-        document.querySelectorAll('.price-period').forEach(el => {
-            el.textContent = isAnnual ? '/año' : '/mes';
-        });
-
-        selectPlan(currentPlan);
+        document.querySelectorAll('.price-period').forEach(el => el.textContent = isAnnual ? '/año' : '/mes');
+        updateCalculator();
     }
 
-    function selectPlan(idx) {
-        const plan = PLANS[idx];
-        const priceEl = document.getElementById('calc-price');
-        const noteEl  = document.getElementById('calc-note');
-        const ctaEl   = document.getElementById('calc-cta');
-        const featEl  = document.getElementById('calc-features');
+    function updateCalculator() {
+        const sliderIdx = parseInt(document.getElementById('volSlider').value);
+        const volume = VOL_STOPS[sliderIdx];
+        const planIdx = getPlanForVolume(volume);
+        const plan = PLANS[planIdx];
 
-        /* Tab highlight */
-        document.querySelectorAll('.plan-tab').forEach((t, i) => {
-            t.classList.toggle('active', i === idx);
-        });
+        // UI Updates
+        const volStr = volume === 50000 ? '+50k' : volume.toLocaleString('en-US');
+        document.getElementById('calc-vol').textContent = volStr;
+        
+        // Calculate savings (aprox 3 mins per manual invoice = 0.05 hrs * volume)
+        const hrsSaved = Math.round(volume * 0.05);
+        document.getElementById('calc-savings').textContent = hrsSaved.toLocaleString('en-US');
 
-        /* Calculate target price */
+        // Price calculations
         let targetPrice = plan.price;
-        if (isAnnual) {
-            targetPrice = (plan.price * 12) * 0.95;
+        if (isAnnual) targetPrice = (plan.price * 12) * 0.95;
+
+        // Animate price if changed
+        if (currentTargetPrice !== targetPrice) {
+            const priceEl = document.getElementById('calc-price');
+            const from = parseInt(priceEl.textContent.replace(/,/g, '')) || 0;
+            animateValue(priceEl, from, targetPrice, 400);
+            currentTargetPrice = targetPrice;
         }
 
-        /* Animate number from current to new */
-        const from = parseInt(priceEl.textContent.replace(/,/g, '')) || 0;
-        priceEl.classList.remove('updating');
-        void priceEl.offsetWidth; 
-        priceEl.classList.add('updating');
-        animatePrice(priceEl, from, targetPrice, 380);
+        // Contextual messaging
+        document.getElementById('calc-note').innerHTML = `<strong style="color:var(--text-primary)">Plan ${plan.name}:</strong> ${plan.note}`;
+        document.getElementById('calc-cta').textContent = `Solicitar Plan ${plan.name} (${isAnnual ? 'Anual' : 'Mensual'})`;
 
-        noteEl.textContent = plan.note;
-        ctaEl.textContent  = `Solicitar Plan ${plan.name} (${isAnnual ? 'Anual' : 'Mensual'})`;
-
-        /* Update feature list */
-        featEl.innerHTML = plan.features.map(f =>
+        // Update features
+        document.getElementById('calc-features').innerHTML = plan.features.map(f =>
             `<div class="calc-feat" style="font-size:0.83rem;color:var(--text-muted);display:flex;align-items:center;gap:8px;">
                 <span style="color:var(--accent);">✓</span> ${f}
-             </div>`
+            </div>`
         ).join('');
-
-        currentPlan = idx;
     }
+
+    // Init
+    document.addEventListener('DOMContentLoaded', updateCalculator);
 </script>
 
 <!-- ═══════════════════════════════════════════
