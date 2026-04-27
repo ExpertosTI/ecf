@@ -1,24 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="ecf_connector.EcfTypeButton" owl="1">
-        <button class="control-button btn btn-light rounded-pill shadow-sm d-flex align-items-center px-3 py-2 border" 
-                t-on-click="onClick"
-                style="min-width: 180px; transition: all 0.2s ease; margin-bottom: 5px;">
-            <div class="d-flex flex-column align-items-start me-2">
-                <span class="text-uppercase fw-bold small text-primary" style="font-size: 0.7rem; letter-spacing: 0.5px;">Tipo e-CF</span>
-                <span class="fw-bold" style="font-size: 0.9rem; color: #1e293b;">
-                    <t t-esc="currentTypeName"/>
-                </span>
-            </div>
-            <i class="oi oi-chevron-down ms-auto text-muted" style="font-size: 0.8rem;"></i>
-        </button>
+        <div class="ecf-pos-controls-wrapper w-100 px-2 mt-2">
+            <button class="control-button btn btn-light w-100 rounded-pill shadow-sm d-flex align-items-center px-4 py-3 border-2" 
+                    t-on-click="onClick"
+                    style="transition: all 0.2s ease; background: #f8fafc; border-color: #e2e8f0; min-height: 60px;">
+                
+                <div class="bg-primary bg-opacity-10 p-2 rounded-circle me-3 text-primary d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                    <i class="oi oi-document-text" style="font-size: 1rem;"></i>
+                </div>
+
+                <div class="d-flex flex-column align-items-start">
+                    <span class="text-uppercase fw-bold text-muted" style="font-size: 0.65rem; letter-spacing: 1px;">Tipo de e-CF</span>
+                    <span class="fw-bolder" style="font-size: 1rem; color: #0f172a;">
+                        <t t-esc="currentTypeName"/>
+                    </span>
+                </div>
+
+                <div class="ms-auto d-flex align-items-center">
+                    <span class="badge rounded-pill bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 me-2" style="font-size: 0.6rem; font-weight: 800;">
+                        LINKED
+                    </span>
+                    <i class="oi oi-chevron-down text-muted" style="font-size: 0.8rem;"></i>
+                </div>
+            </button>
+        </div>
     </t>
 
     <t t-inherit="point_of_sale.ProductScreen" t-inherit-mode="extension">
         <xpath expr="//div[hasclass('leftpane')]" position="inside">
-            <div class="ecf-pos-controls-wrapper px-2 mt-2">
-                <EcfTypeButton />
-            </div>
+            <EcfTypeButton />
         </xpath>
     </t>
 </templates>

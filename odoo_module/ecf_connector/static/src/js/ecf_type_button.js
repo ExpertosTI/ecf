@@ -12,12 +12,12 @@ export class EcfTypeButton extends Component {
     setup() {
         this.pos = usePos();
         this.orm = useService("orm");
+        this.popup = useService("popup"); // Crucial para Odoo 18
         this.state = useState({
             types: [],
         });
 
         onWillStart(async () => {
-            // Carga quirúrgica vía RPC (Evita fallos si el modelo no carga en el POS boot)
             try {
                 const types = await this.orm.searchRead(
                     "ecf.tipo",
@@ -44,20 +44,22 @@ export class EcfTypeButton extends Component {
 
         // Health Check con el SaaS Renace
         try {
-            const response = await fetch(`${this.pos.company.ecf_saas_url}/v1/health`, {
-                headers: { "X-API-Key": this.pos.company.ecf_api_key },
-                signal: AbortSignal.timeout(3000)
-            });
-            if (!response.ok) throw new Error("SaaS Offline");
+            const configs = await this.orm.searchRead("res.company", [["id", "=", this.pos.company.id]], ["ecf_saas_url", "ecf_api_key"]);
+            if (configs.length && configs[0].ecf_saas_url) {
+                const response = await fetch(`${configs[0].ecf_saas_url}/v1/health`, {
+                    headers: { "X-API-Key": configs[0].ecf_api_key },
+                    signal: AbortSignal.timeout(3000)
+                });
+                if (!response.ok) throw new Error("SaaS Offline");
+            }
         } catch (err) {
-            this.pos.popup.add(SelectionPopup, {
+            this.popup.add(SelectionPopup, {
                 title: "⚠️ SaaS Desconectado",
                 list: [{ id: 1, label: "Verifique conexión con Renace.tech", item: true }],
             });
         }
 
         if (this.state.types.length === 0) {
-            // Reintentar carga si falló al inicio
             this.state.types = await this.orm.searchRead("ecf.tipo", [["activo", "=", true]], ["id", "nombre", "codigo", "prefijo"]);
         }
 
@@ -68,7 +70,7 @@ export class EcfTypeButton extends Component {
             isSelected: order.ecf_tipo_id === t.id,
         }));
 
-        const { confirmed, payload: selectedType } = await this.pos.popup.add(SelectionPopup, {
+        const { confirmed, payload: selectedType } = await this.popup.add(SelectionPopup, {
             title: "Seleccionar Tipo de Comprobante",
             list: selectionList,
         });
@@ -77,7 +79,7 @@ export class EcfTypeButton extends Component {
             order.ecf_tipo_id = selectedType.id;
             
             if (selectedType.codigo === 31 && !order.get_partner()) {
-                this.pos.popup.add(SelectionPopup, {
+                this.popup.add(SelectionPopup, {
                     title: "Atención: Crédito Fiscal",
                     list: [{ id: 1, label: "Seleccionar Cliente (RNC requerido)", item: true }],
                 }).then(({ confirmed }) => {
