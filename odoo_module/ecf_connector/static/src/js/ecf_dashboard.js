@@ -133,16 +133,31 @@ export class EcfDashboard extends Component {
         });
     }
 
-    // Acciones de Reportes (Friendly View)
-    async printReport606() {
-        this.notification.add(_t("Preparando archivo TXT para Reporte 606..."), { type: "info" });
-        // Simulación de generación de archivo para la demo premium
-        this.actionService.doAction("ecf_connector.ecf_compras_action");
-    }
+    // Exportación Multi-formato (Premium)
+    async exportReport(reportType, format) {
+        this.notification.add(_t(`Generando Reporte ${reportType} en formato ${format.toUpperCase()}...`), { 
+            type: "info",
+            sticky: false 
+        });
 
-    async printReport607() {
-        this.notification.add(_t("Generando consolidado fiscal 607..."), { type: "success" });
-        this.actionService.doAction("ecf_connector.ecf_ventas_action");
+        if (format === 'excel') {
+            // Acción de exportación Excel nativa o vía controlador
+            this.actionService.doAction(reportType === '606' ? 'ecf_connector.ecf_compras_action' : 'ecf_connector.ecf_ventas_action');
+        } else if (format === 'pdf') {
+            // Simulación de impresión PDF (Lanzar reporte QWeb)
+            this.notification.add(_t("Preparando previsualización PDF..."), { type: "success" });
+            window.print(); // Para la demo, pero en real lanzaría la acción de reporte
+        } else if (format === 'txt') {
+            // Descarga de TXT (Formato DGII)
+            const content = reportType === '606' ? "606|RNC|202501|..." : "607|RNC|202501|...";
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Reporte_${reportType}_DGII.txt`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
     }
 
     printReport608() {

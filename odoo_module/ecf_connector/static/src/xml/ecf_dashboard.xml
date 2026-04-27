@@ -80,9 +80,19 @@
                                     </div>
                                     <div class="h4 fw-bold text-primary mb-1">RD$ <t t-esc="state.fiscal.compras?.total.toLocaleString() || '0'"/></div>
                                     <div class="small text-muted mb-3"><t t-esc="state.fiscal.compras?.count || 0"/> Compras registradas</div>
-                                    <button class="btn btn-outline-primary btn-sm w-100 rounded-pill" t-on-click="printReport606">
-                                        <i class="oi oi-download me-1"></i> Descargar TXT (606)
-                                    </button>
+                                    
+                                    <!-- Botones de Exportación Premium -->
+                                    <div class="d-flex gap-1">
+                                        <button class="btn btn-primary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('606', 'txt')">
+                                            <i class="oi oi-file-text me-1"></i> TXT
+                                        </button>
+                                        <button class="btn btn-outline-primary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('606', 'excel')">
+                                            <i class="oi oi-spreadsheet me-1"></i> Excel
+                                        </button>
+                                        <button class="btn btn-outline-primary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('606', 'pdf')">
+                                            <i class="oi oi-printer me-1"></i> PDF
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             <!-- Tarjeta 607 -->
@@ -94,11 +104,22 @@
                                     </div>
                                     <div class="h4 fw-bold text-success mb-1">RD$ <t t-esc="state.fiscal.ventas?.total.toLocaleString() || '0'"/></div>
                                     <div class="small text-muted mb-3"><t t-esc="state.fiscal.ventas?.count || 0"/> Ventas con e-CF</div>
-                                    <button class="btn btn-outline-success btn-sm w-100 rounded-pill" t-on-click="printReport607">
-                                        <i class="oi oi-download me-1"></i> Descargar TXT (607)
-                                    </button>
+
+                                    <!-- Botones de Exportación Premium -->
+                                    <div class="d-flex gap-1">
+                                        <button class="btn btn-success btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('607', 'txt')">
+                                            <i class="oi oi-file-text me-1"></i> TXT
+                                        </button>
+                                        <button class="btn btn-outline-success btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('607', 'excel')">
+                                            <i class="oi oi-spreadsheet me-1"></i> Excel
+                                        </button>
+                                        <button class="btn btn-outline-success btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('607', 'pdf')">
+                                            <i class="oi oi-printer me-1"></i> PDF
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
+
                             <!-- Tarjeta 608 -->
                             <div class="col-md-4">
                                 <div class="card border-0 shadow-sm p-3 bg-white" style="border-radius: 16px;">
