@@ -73,22 +73,29 @@ export class EcfDashboard extends Component {
                 ['invoice_date', '>=', this.state.date_from],
                 ['invoice_date', '<=', this.state.date_to],
                 ['move_type', '=', type === '606' ? 'in_invoice' : 'out_invoice'],
-                ['state', '=', 'posted']
+                ['state', '=', 'posted'],
+                ['l10n_latam_document_number', '!=', false] // Solo facturas con NCF/e-NCF
             ];
             
-            const fields = ['name', 'invoice_date', 'partner_id', 'amount_untaxed', 'amount_tax', 'amount_total'];
+            const fields = [
+                'name', 'invoice_date', 'partner_id', 'amount_untaxed', 
+                'amount_tax', 'amount_total', 'l10n_latam_document_number',
+                'payment_state'
+            ];
             const data = await this.orm.searchRead("account.move", domain, fields);
             
             this.state.report_details = data.map(m => ({
                 id: m.id,
-                ncf: m.name,
+                ncf: m.l10n_latam_document_number || m.name,
                 date: m.invoice_date,
                 rnc: m.partner_id[1].match(/\(([^)]+)\)/)?.[1] || '---',
                 partner: m.partner_id[1].split('(')[0],
                 base: m.amount_untaxed,
                 tax: m.amount_tax,
-                total: m.amount_total
+                total: m.amount_total,
+                status: m.payment_state === 'paid' ? 'Pagado' : 'Pendiente'
             }));
+
             
             this.state.show_report_viewer = true;
         } catch (err) {
