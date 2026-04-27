@@ -1,19 +1,19 @@
 /** @odoo-module **/
 import { Component, useState, onWillStart } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/store/pos_hook";
-import { EcfSelectionDialog } from "@ecf_connector/js/EcfSelectionDialog";
+import { SelectionPopup } from "@point_of_sale/app/utils/input_popups/selection_popup";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 
 export class EcfTypeButton extends Component {
-    static template = "ecf_connector.EcfTypeButton";
+    static template = "ecf_connector_v19.EcfTypeButton";
 
     setup() {
         this.pos = usePos();
         this.orm = useService("orm");
         this.notification = useService("notification");
-        this.dialog = useService("dialog");
+        this.popup = useService("popup");
         this.state = useState({
             types: [],
         });
@@ -43,14 +43,14 @@ export class EcfTypeButton extends Component {
         const order = this.pos.get_order();
         if (!order) return;
 
-        // Health Check simplificado
+        // Health Check simplificado para máxima velocidad
         try {
             const configs = await this.orm.searchRead("res.company", [["id", "=", this.pos.company.id]], ["ecf_saas_url", "ecf_api_key"]);
             if (configs.length && configs[0].ecf_saas_url) {
                 fetch(`${configs[0].ecf_saas_url}/v1/health`, {
                     headers: { "X-API-Key": configs[0].ecf_api_key },
                     signal: AbortSignal.timeout(1500)
-                }).catch(() => {});
+                }).catch(() => console.warn("SaaS Offline check ignored"));
             }
         } catch (e) {}
 
@@ -58,19 +58,32 @@ export class EcfTypeButton extends Component {
             this.state.types = await this.orm.searchRead("ecf.tipo", [["activo", "=", true]], ["id", "nombre", "codigo", "prefijo"]);
         }
 
-        // Usamos el Dialog nativo siguiendo el patrón de pos_shipment_manager
-        this.dialog.add(EcfSelectionDialog, {
+        const selectionList = this.state.types.map(t => ({
+            id: t.id,
+            item: t,
+            label: `${t.prefijo} - ${t.nombre}`,
+            isSelected: order.ecf_tipo_id === t.id,
+        }));
+
+        const { confirmed, payload: selectedType } = await this.popup.add(SelectionPopup, {
             title: "Seleccionar Tipo de Comprobante",
-            types: this.state.types,
-            onSelect: async (selectedType) => {
-                order.ecf_tipo_id = selectedType.id;
-                
-                if (selectedType.codigo === 31 && !order.get_partner()) {
-                    this.notification.add("Atención: Crédito Fiscal requiere seleccionar un cliente con RNC.", { type: "warning" });
-                    this.pos.selectPartner();
-                }
-            }
+            list: selectionList,
         });
+
+        if (confirmed) {
+            order.ecf_tipo_id = selectedType.id;
+            
+            if (selectedType.codigo === 31 && !order.get_partner()) {
+                this.popup.add(SelectionPopup, {
+                    title: "Atención: Crédito Fiscal",
+                    list: [{ id: 1, label: "Seleccionar Cliente (RNC requerido)", item: true }],
+                }).then(({ confirmed }) => {
+                    if (confirmed) {
+                        this.pos.selectPartner();
+                    }
+                });
+            }
+        }
     }
 }
 

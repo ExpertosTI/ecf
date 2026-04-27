@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══════════════════════════════════════════════
+         VISTA: Facturas Pendientes de e-CF
+         Facturas diferidas listas para emitir
+         ══════════════════════════════════════════════ -->
+    <record id="ecf_pending_action" model="ir.actions.act_window">
+        <field name="name">Pendientes e-CF</field>
+        <field name="res_model">account.move</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[
+            ('move_type', 'in', ['out_invoice', 'out_refund']),
+            ('ecf_tipo_id', '!=', False),
+            '|',
+            ('ecf_listo_para_emitir', '=', True),
+            ('ecf_pendiente_conciliacion', '=', True)
+        ]</field>
+        <field name="context">{
+            'search_default_group_by_ecf_modo': 1
+        }</field>
+    </record>
+
+    <!-- Vista de lista específica para pendientes -->
+    <record id="ecf_pending_view_list" model="ir.ui.view">
+        <field name="name">account.move.ecf.pending.list</field>
+        <field name="model">account.move</field>
+        <field name="arch" type="xml">
+            <list string="Facturas Pendientes e-CF"
+                  decoration-success="ecf_listo_para_emitir == True"
+                  decoration-warning="ecf_pendiente_conciliacion == True">
+                <field name="name" string="Factura"/>
+                <field name="invoice_date" string="Fecha"/>
+                <field name="partner_id" string="Cliente"/>
+                <field name="ecf_tipo_id" string="Tipo e-CF"/>
+                <field name="ecf_modo" string="Modo"/>
+                <field name="amount_total" string="Total"/>
+                <field name="payment_state" string="Pago"/>
+                <field name="ecf_pendiente_conciliacion" string="Pendiente Conciliación"/>
+                <field name="ecf_listo_para_emitir" string="Listo para Emitir"/>
+                <field name="ecf_estado" string="Estado e-CF"
+                       decoration-success="ecf_estado == 'aprobado'"
+                       decoration-danger="ecf_estado == 'rechazado'"
+                       decoration-warning="ecf_estado == 'condicionado'"
+                       decoration-muted="ecf_estado == 'pendiente'"/>
+                <!-- Acción masiva: Emitir e-CF seleccionados -->
+                <button name="action_emitir_ecf"
+                        string="Emitir e-CF"
+                        type="object"
+                        class="btn-primary btn-sm"
+                        invisible="not ecf_listo_para_emitir"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Menú: Facturas Pendientes e-CF bajo el menú e-CF DGII -->
+    <menuitem id="ecf_menu_pending"
+              name="Pendientes e-CF"
+              parent="ecf_connector_v19.ecf_menu_root"
+              action="ecf_pending_action"
+              sequence="5"
+              groups="ecf_connector_v19.group_ecf_user"/>
+
+</odoo>

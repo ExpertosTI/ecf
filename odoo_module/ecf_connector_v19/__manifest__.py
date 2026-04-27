@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'ECF Connector — DGII e-CF República Dominicana',
-    'version': '18.0.3.5',
+    'name': 'ECF Connector v19 — DGII e-CF República Dominicana',
+    'version': '19.0.1.0',
     'category': 'Accounting/Localizations',
     'summary': 'Facturación Electrónica e-CF DGII — SaaS Renace.tech (Premium Dashboard)',
     'description': """
@@ -26,11 +26,11 @@
         'mail',
     ],
     'data': [
-        'security/ecf_security.xml',
-        'security/ir.model.access.csv',
-        'data/ecf_tipo_data.xml',
+        'data/ecf_v19_master.xml',
         'data/ecf_cron_data.xml',
         'views/res_config_settings_views.xml',
+        'views/res_partner_views.xml',
+        'views/pos_order_views.xml',
         'views/account_move_views.xml',
         'views/ecf_log_views.xml',
         'views/ecf_dashboard_views.xml',
@@ -42,22 +42,20 @@
     ],
     'assets': {
         'web.assets_backend': [
-            'ecf_connector/static/src/css/ecf_backend.css',
-            'ecf_connector/static/src/js/ecf_status_widget.js',
-            'ecf_connector/static/src/js/ecf_dashboard.js',
-            'ecf_connector/static/src/xml/ecf_dashboard.xml',
-            'ecf_connector/static/lib/chartjs/chart.umd.min.js',
+            'ecf_connector_v19/static/src/css/ecf_backend.css',
+            'ecf_connector_v19/static/src/js/ecf_status_widget.js',
+            'ecf_connector_v19/static/src/js/ecf_dashboard.js',
+            'ecf_connector_v19/static/src/xml/ecf_dashboard.xml',
+            'ecf_connector_v19/static/lib/chartjs/chart.umd.min.js',
         ],
         'web.report_assets_common': [
-            'ecf_connector/static/src/css/ecf_report.css',
+            'ecf_connector_v19/static/src/css/ecf_report.css',
         ],
         'point_of_sale._assets_pos': [
-            'ecf_connector/static/src/js/ecf_pos.js',
-            'ecf_connector/static/src/js/ecf_type_button.js',
-            'ecf_connector/static/src/js/EcfSelectionDialog.js',
-            'ecf_connector/static/src/xml/ecf_pos_templates.xml',
-            'ecf_connector/static/src/xml/ecf_pos_receipt.xml',
-            'ecf_connector/static/src/xml/EcfSelectionDialog.xml',
+            'ecf_connector_v19/static/src/js/ecf_pos.js',
+            'ecf_connector_v19/static/src/js/ecf_type_button.js',
+            'ecf_connector_v19/static/src/xml/ecf_pos_templates.xml',
+            'ecf_connector_v19/static/src/xml/ecf_pos_receipt.xml',
         ],
     },
     'images': [

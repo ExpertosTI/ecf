@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="ecf_connector_v19.EcfTypeButton" owl="1">
+        <div class="ecf-pos-controls-wrapper w-100 px-2 mt-1">
+            <button class="control-button btn btn-light w-100 rounded-pill shadow-sm d-flex align-items-center justify-content-between px-3 py-2 border" 
+                    t-on-click="onClick"
+                    style="transition: all 0.2s ease; background: #fff; border-color: #dee2e6; min-height: 40px;">
+                
+                <div class="d-flex align-items-center">
+                    <span class="fw-bold" style="font-size: 0.85rem; color: #334155;">
+                        <t t-esc="currentTypeName"/>
+                    </span>
+                </div>
+
+                <div class="d-flex align-items-center">
+                    <i class="oi oi-chevron-down text-muted" style="font-size: 0.6rem;"></i>
+                </div>
+            </button>
+        </div>
+    </t>
+
+    <t t-inherit="point_of_sale.ProductScreen" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('leftpane')]" position="inside">
+            <EcfTypeButton />
+        </xpath>
+    </t>
+</templates>

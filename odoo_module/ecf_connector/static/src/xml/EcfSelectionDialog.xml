@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="ecf_connector.EcfSelectionDialog" owl="1">
+        <Dialog title="props.title || 'Tipo de Comprobante'">
+            <div class="ecf-selection-list list-group list-group-flush mt-2">
+                <t t-foreach="props.types" t-as="type" t-key="type.id">
+                    <button type="button" 
+                            class="list-group-item list-group-item-action d-flex align-items-center justify-content-between py-3 border-0 rounded-3 mb-1" 
+                            t-on-click="() => this.select(type)"
+                            style="transition: background 0.2s; background: #f8fafc;">
+                        <div class="d-flex flex-column align-items-start">
+                            <span class="fw-bold text-dark" style="font-size: 1rem;">
+                                <t t-esc="type.nombre"/>
+                            </span>
+                            <small class="text-muted text-uppercase fw-semibold" style="font-size: 0.7rem; letter-spacing: 0.5px;">
+                                Prefijo: <t t-esc="type.prefijo"/> | Código: <t t-esc="type.codigo"/>
+                            </small>
+                        </div>
+                        <i class="oi oi-chevron-right text-primary opacity-50"></i>
+                    </button>
+                </t>
+            </div>
+            <t t-set-slot="footer">
+                <button class="btn btn-secondary rounded-pill px-4" t-on-click="cancel">Cancelar</button>
+            </t>
+        </Dialog>
+    </t>
+</templates>

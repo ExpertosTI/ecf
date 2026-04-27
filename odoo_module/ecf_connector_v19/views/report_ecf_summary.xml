@@ -4,8 +4,8 @@
         <field name="name">Reporte Consolidado e-CF</field>
         <field name="model">account.move</field>
         <field name="report_type">qweb-pdf</field>
-        <field name="report_name">ecf_connector.report_ecf_summary_template</field>
-        <field name="report_file">ecf_connector.report_ecf_summary_template</field>
+        <field name="report_name">ecf_connector_v19.report_ecf_summary_template</field>
+        <field name="report_file">ecf_connector_v19.report_ecf_summary_template</field>
         <field name="print_report_name">'Reporte_eCF'</field>
     </record>
 

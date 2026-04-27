@@ -24,7 +24,7 @@
                             ecf_pendiente_conciliacion or
                             ecf_modo == 'excento'
                         "
-                        groups="ecf_connector.group_ecf_user"/>
+                        groups="ecf_connector_v19.group_ecf_user"/>
 
                 <!-- Emitir e-CF: pago conciliado, listo -->
                 <button name="action_emitir_ecf"
@@ -32,7 +32,7 @@
                         type="object"
                         class="btn-primary"
                         invisible="not ecf_listo_para_emitir"
-                        groups="ecf_connector.group_ecf_user"/>
+                        groups="ecf_connector_v19.group_ecf_user"/>
 
                 <!-- Consultar estado DGII -->
                 <button name="action_consultar_estado_ecf"
@@ -40,7 +40,7 @@
                         type="object"
                         class="btn-secondary"
                         invisible="not ecf_ncf"
-                        groups="ecf_connector.group_ecf_user"/>
+                        groups="ecf_connector_v19.group_ecf_user"/>
 
                 <!-- Anular e-CF -->
                 <button name="action_anular_ecf"
@@ -48,47 +48,34 @@
                         type="object"
                         class="btn-secondary"
                         invisible="ecf_estado not in ('aprobado', 'condicionado')"
-                        groups="ecf_connector.group_ecf_user"/>
+                        groups="ecf_connector_v19.group_ecf_user"/>
             </xpath>
 
             <!-- Badge de estado después del campo state -->
             <xpath expr="//field[@name='state']" position="after">
                 <field name="ecf_estado"
-                       widget="ecf_status"
-                       invisible="not ecf_estado"/>
+                       invisible="not ecf_estado"
+                       widget="badge"
+                       decoration-success="ecf_estado == 'aprobado'"
+                       decoration-danger="ecf_estado == 'rechazado'"
+                       decoration-warning="ecf_estado in ('condicionado', 'pendiente')"/>
+            </xpath>
+
+            <!-- Ribbons Premium de Estado -->
+            <xpath expr="//sheet" position="inside">
+                <widget name="web_ribbon" title="e-CF Aprobado" bg_color="bg-success" invisible="ecf_estado != 'aprobado'"/>
+                <widget name="web_ribbon" title="e-CF Rechazado" bg_color="bg-danger" invisible="ecf_estado != 'rechazado'"/>
+                <widget name="web_ribbon" title="e-CF Condicionado" bg_color="bg-warning" invisible="ecf_estado != 'condicionado'"/>
             </xpath>
 
             <!-- Banner informativo de e-CF bajo la barra de botones -->
             <xpath expr="//sheet" position="before">
-                <!-- NCF aprobado: mostrar badge verde con NCF -->
-                <div class="alert alert-success d-flex align-items-center gap-2"
-                     role="alert"
-                     invisible="ecf_estado != 'aprobado'"
-                     style="margin: 0; border-radius: 0; border-left: none; border-right: none;">
+                <div class="alert alert-success d-flex align-items-center gap-2" role="alert" invisible="ecf_estado != 'aprobado'" style="margin: 0; border-radius: 0;">
                     <strong>✅ e-CF Aprobado DGII</strong>
-                    <span>·</span>
-                    <span>NCF: <field name="ecf_ncf" readonly="1" nolabel="1" style="display:inline; font-weight:700;"/></span>
+                    <span>· NCF: <field name="ecf_ncf" readonly="1" nolabel="1" class="fw-bold"/></span>
                 </div>
-                <!-- Rechazado: banner rojo -->
-                <div class="alert alert-danger"
-                     role="alert"
-                     invisible="ecf_estado != 'rechazado'"
-                     style="margin: 0; border-radius: 0; border-left: none; border-right: none;">
-                    <strong>❌ e-CF Rechazado por la DGII</strong> — Revisa la pestaña "e-CF DGII" para ver el motivo y corregir.
-                </div>
-                <!-- Condicionado: advertencia amarilla -->
-                <div class="alert alert-warning"
-                     role="alert"
-                     invisible="ecf_estado != 'condicionado'"
-                     style="margin: 0; border-radius: 0; border-left: none; border-right: none;">
-                    <strong>⚠️ e-CF Condicionado</strong> — Aprobado con observaciones. NCF: <field name="ecf_ncf" readonly="1" nolabel="1" style="display:inline; font-weight:700;"/>
-                </div>
-                <!-- Sin tipo e-CF definido en factura confirmada -->
-                <div class="alert alert-warning"
-                     role="alert"
-                     invisible="state != 'posted' or ecf_tipo_id or move_type not in ('out_invoice','out_refund')"
-                     style="margin: 0; border-radius: 0; border-left: none; border-right: none;">
-                    <strong>⚠️ Sin tipo e-CF.</strong> Ve a la pestaña <em>"e-CF DGII"</em> y selecciona el tipo de comprobante para poder emitir.
+                <div class="alert alert-danger" role="alert" invisible="ecf_estado != 'rechazado'" style="margin: 0; border-radius: 0;">
+                    <strong>❌ e-CF Rechazado</strong> — Revise la pestaña e-CF DGII para ver el error.
                 </div>
             </xpath>
 
@@ -188,33 +175,15 @@
         <field name="name">account.move.search.ecf</field>
         <field name="model">account.move</field>
         <field name="inherit_id" ref="account.view_account_invoice_filter"/>
+        <field name="priority">99</field>
         <field name="arch" type="xml">
-            <xpath expr="//search/group" position="before">
+            <xpath expr="//search" position="inside">
+                <field name="ecf_ncf"/>
+                <field name="ecf_estado"/>
                 <separator/>
-                <filter string="✅ e-CF Aprobados"
-                        name="ecf_aprobados"
-                        domain="[('ecf_estado','=','aprobado')]"/>
-                <filter string="⚡ Sin emitir"
-                        name="ecf_sin_emitir"
-                        domain="[('ecf_tipo_id','!=',False),('ecf_estado','in',[False,''])]"/>
-                <filter string="⏳ Listos para emitir"
-                        name="ecf_listos"
-                        domain="[('ecf_listo_para_emitir','=',True)]"/>
-                <filter string="❌ Rechazados"
-                        name="ecf_rechazados"
-                        domain="[('ecf_estado','=','rechazado')]"/>
-                <filter string="⚠️ Condicionados"
-                        name="ecf_condicionados"
-                        domain="[('ecf_estado','=','condicionado')]"/>
-                <separator/>
-                <filter string="🔍 Sin tipo e-CF"
-                        name="ecf_sin_tipo"
-                        domain="[('move_type','in',['out_invoice','out_refund']),('state','=','posted'),('ecf_tipo_id','=',False)]"/>
-                <group expand="0" string="Agrupar por e-CF">
-                    <filter string="Estado e-CF"
-                            name="group_ecf_estado"
-                            context="{'group_by': 'ecf_estado'}"/>
-                </group>
+                <filter string="e-CF Aprobados" name="ecf_aprobados" domain="[('ecf_estado','=','aprobado')]"/>
+                <filter string="Rechazados" name="ecf_rechazados" domain="[('ecf_estado','=','rechazado')]"/>
+                <filter string="Listos para emitir" name="ecf_listos" domain="[('ecf_listo_para_emitir','=',True)]"/>
             </xpath>
         </field>
     </record>

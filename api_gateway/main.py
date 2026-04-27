@@ -32,6 +32,8 @@ from api_gateway.reportes import (
     _606_to_txt, _607_to_txt, _608_to_txt,
     _build_response,
 )
+from ecf_core.ecf_recibidas_service import ECFRecibidasService
+from ecf_core.cert_vault import CertVaultRepository
 
 logger = logging.getLogger(__name__)
 
@@ -809,6 +811,99 @@ async def anular_ecf(
     )
 
     return {"ncf": payload.ncf, "estado": "anulacion_pendiente", "mensaje": "Anulación encolada, pendiente confirmación DGII"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# e-CF Recibidas (Compras)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/v1/compras/sincronizar")
+async def sincronizar_compras(
+    tenant: dict = Depends(get_tenant),
+    db:     asyncpg.Pool = Depends(get_db),
+):
+    """
+    Dispara la sincronización manual de e-CF recibidas desde la DGII.
+    """
+    repo = CertVaultRepository(db)
+    service = ECFRecibidasService(db, repo)
+    
+    # Ejecutar en segundo plano para no bloquear el request
+    asyncio.create_task(service.sincronizar_tenant(tenant))
+    
+    return {"status": "accepted", "message": "Sincronización iniciada en segundo plano"}
+
+
+@app.get("/v1/ecf/received")
+async def get_received_ecf(
+    rnc: Optional[str] = None,
+    tenant: dict = Depends(get_tenant),
+    db:     asyncpg.Pool = Depends(get_db),
+):
+    """
+    Retorna la lista de e-CF recibidas (compras) para el tenant.
+    """
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        rows = await conn.fetch(f"""
+            SELECT ncf, rnc_proveedor, nombre_proveedor, tipo_ecf, cufe,
+                   fecha_comprobante, total_monto, itbis_facturado,
+                   monto_servicios, monto_bienes, ambiente, estado_odoo,
+                   odoo_bill_id, created_at
+            FROM {schema}.compras
+            ORDER BY fecha_comprobante DESC, created_at DESC
+            LIMIT 100
+        """)
+    return {"received": [dict(r) for r in rows]}
+
+
+@app.patch("/v1/compras/{ncf}/estado-odoo")
+async def update_compra_estado_odoo(
+    ncf: str,
+    estado_odoo: str,
+    odoo_bill_id: Optional[str] = None,
+    tenant: dict = Depends(get_tenant),
+    db:     asyncpg.Pool = Depends(get_db),
+):
+    """
+    Actualiza el estado de procesamiento en Odoo de una compra recibida.
+    """
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        result = await conn.execute(f"""
+            UPDATE {schema}.compras 
+            SET estado_odoo = $1, odoo_bill_id = $2, updated_at = NOW()
+            WHERE ncf = $3
+        """, estado_odoo, odoo_bill_id, ncf)
+        
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+    
+    return {"status": "ok"}
+
+
+@app.patch("/v1/compras/{ncf}/pagar")
+async def update_compra_pago(
+    ncf: str,
+    fecha_pago: date,
+    tenant: dict = Depends(get_tenant),
+    db:     asyncpg.Pool = Depends(get_db),
+):
+    """
+    Registra la fecha de pago de una compra recibida (necesario para reporte 606).
+    """
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        result = await conn.execute(f"""
+            UPDATE {schema}.compras 
+            SET fecha_pago = $1, updated_at = NOW()
+            WHERE ncf = $2
+        """, fecha_pago, ncf)
+        
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+    
+    return {"status": "ok"}
 
 
 # Consulta batch de estados

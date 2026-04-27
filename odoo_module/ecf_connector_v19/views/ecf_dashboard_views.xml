@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══════════════════════════════════════════════
+         DASHBOARD e-CF — Vista Kanban con KPIs
+         ══════════════════════════════════════════════ -->
+
+    <!-- Acción de Cliente (OWL Dashboard) -->
+    <record id="ecf_dashboard_client_action" model="ir.actions.client">
+        <field name="name">Dashboard e-CF</field>
+        <field name="tag">ecf_dashboard_client_action</field>
+    </record>
+
+    <!-- Vista Kanban: Estilo Premium con KPIs -->
+    <record id="ecf_log_kanban_view" model="ir.ui.view">
+        <field name="name">ecf.log.kanban</field>
+        <field name="model">ecf.log</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="estado" 
+                    class="o_kanban_small_column" 
+                    group_create="false" 
+                    sample="1">
+                <field name="ncf"/>
+                <field name="estado"/>
+                <field name="move_id"/>
+                <field name="tipo_ecf"/>
+                <field name="cufe"/>
+                <field name="approved_at"/>
+                <field name="ambiente"/>
+                <field name="create_date"/>
+                <field name="error_msg"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div t-attf-class="oe_kanban_card oe_kanban_global_click shadow-sm border-0 rounded-lg">
+                            <div class="oe_kanban_content p-2">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div class="d-flex flex-column">
+                                        <strong class="text-primary fs-5"><field name="ncf"/></strong>
+                                        <span class="badge text-bg-light border small w-auto">Tipo <field name="tipo_ecf"/></span>
+                                    </div>
+                                    <span t-if="record.estado.raw_value" 
+                                          t-attf-class="badge rounded-pill #{record.estado.raw_value == 'aprobado' and 'text-bg-success' or record.estado.raw_value == 'rechazado' and 'text-bg-danger' or 'text-bg-warning'}">
+                                        <t t-esc="record.estado.value"/>
+                                    </span>
+                                </div>
+                                
+                                <div class="o_kanban_record_body my-2">
+                                    <div class="text-muted small mb-1">Factura Odoo:</div>
+                                    <strong><field name="move_id"/></strong>
+                                </div>
+
+                                <div class="o_kanban_record_bottom border-top pt-2 mt-2 d-flex justify-content-between align-items-center">
+                                    <div class="oe_kanban_bottom_left text-muted x-small">
+                                        <i class="fa fa-calendar me-1"/> <field name="create_date" widget="date"/>
+                                    </div>
+                                    <div class="oe_kanban_bottom_right">
+                                        <span t-if="record.ambiente.raw_value"
+                                              t-attf-class="badge rounded-pill #{record.ambiente.raw_value == 'produccion' and 'text-bg-info' or 'text-bg-secondary'} px-2 py-1" 
+                                              style="font-size: 0.65rem; text-transform: uppercase;">
+                                            <t t-esc="record.ambiente.raw_value"/>
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div t-if="record.error_msg.raw_value" class="mt-2">
+                                    <div class="alert alert-danger p-2 mb-0 x-small" style="line-height: 1.2;">
+                                        <i class="fa fa-exclamation-triangle me-1"/> <field name="error_msg"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Vista Gráfico: barras por estado del mes -->
+    <record id="ecf_log_graph_view" model="ir.ui.view">
+        <field name="name">ecf.log.graph</field>
+        <field name="model">ecf.log</field>
+        <field name="arch" type="xml">
+            <graph string="e-CF por Estado" type="bar">
+                <field name="estado" type="row"/>
+                <field name="create_date" interval="month" type="col"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Vista de búsqueda con filtros predefinidos -->
+    <record id="ecf_log_search_view" model="ir.ui.view">
+        <field name="name">ecf.log.search</field>
+        <field name="model">ecf.log</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="ncf"/>
+                <field name="move_id"/>
+                <field name="estado"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- Menú Dashboard -->
+    <menuitem id="ecf_menu_dashboard"
+              name="Dashboard e-CF"
+              parent="ecf_connector_v19.ecf_menu_root"
+              action="ecf_dashboard_client_action"
+              sequence="1"/>
+
+    <!-- Acciones para los botones del Dashboard (Reportes) -->
+    <record id="ecf_compras_action" model="ir.actions.act_window">
+        <field name="name">Reporte 606 — Compras</field>
+        <field name="res_model">account.move</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('move_type', '=', 'in_invoice')]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Generar reporte 606 de compras y gastos.
+            </p>
+        </field>
+    </record>
+
+    <record id="ecf_ventas_action" model="ir.actions.act_window">
+        <field name="name">Reporte 607 — Ventas</field>
+        <field name="res_model">account.move</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('move_type', '=', 'out_invoice')]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Generar reporte 607 de ventas y bienes.
+            </p>
+        </field>
+    </record>
+
+</odoo>
+

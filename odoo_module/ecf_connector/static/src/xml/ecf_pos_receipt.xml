@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="point_of_sale.OrderReceipt" t-inherit-mode="extension">
+        <!-- Encabezado DGII para recibos térmicos (v18) -->
+        <!-- Usamos un selector genérico para evitar errores si el contacto no existe -->
+        <xpath expr="//div[hasclass('pos-receipt')]/*[1]" position="before">
+            <t t-if="props.data.ecf_ncf">
+                <div class="pos-receipt-ecf-dgii" style="text-align: center; border: 2px solid #000; padding: 4px; margin: 10px 0; font-family: 'Courier New', monospace; line-height: 1.1; color: #000;">
+                    <div style="font-weight: 900; font-size: 1.4em; border-bottom: 2px solid #000; margin-bottom: 4px; padding-bottom: 2px;">
+                        e-CF
+                    </div>
+                    <div style="font-size: 0.9em;">
+                        NCF: <span style="font-weight: 900; font-size: 1.3em;"><t t-esc="props.data.ecf_ncf"/></span>
+                    </div>
+                    <t t-if="props.data.ecf_cufe">
+                        <div style="font-size: 0.6em; margin-top: 4px; line-height: 1.0; word-break: break-all;">
+                            CUFE: <t t-esc="props.data.ecf_cufe.substring(0, 32)"/>...
+                        </div>
+                    </t>
+                    <div style="font-size: 0.65em; margin-top: 3px; font-weight: bold; border-top: 1px dashed #000; padding-top: 2px;">
+                        AMBIENTE: <t t-esc="(props.data.ecf_ambiente || 'certificacion').toUpperCase()"/>
+                    </div>
+                </div>
+            </t>
+            <t t-elif="props.data.ecf_tipo_id">
+                <div style="text-align: center; color: #444; font-size: 0.75em; margin: 8px 0; border: 1px dashed #666; padding: 4px; font-style: italic;">
+                    e-CF PENDIENTE DE FIRMA DGII
+                </div>
+            </t>
+        </xpath>
+
+        <!-- QR Code obligatorio en el pie del recibo -->
+        <xpath expr="//div[hasclass('pos-receipt')]" position="inside">
+            <t t-if="props.data.ecf_qr">
+                <div class="pos-receipt-ecf-qr" style="text-align: center; margin: 12px 0; padding-top: 8px; border-top: 1px solid #000;">
+                    <img t-attf-src="/report/barcode/?barcode_type=QR&amp;value={{props.data.ecf_qr}}&amp;width=130&amp;height=130" style="width: 130px; height: 130px;"/>
+                    <div style="font-size: 0.7em; margin-top: 4px; font-weight: bold;">VALIDACIÓN FISCAL DGII</div>
+                </div>
+            </t>
+            <t t-if="props.data.ecf_ncf">
+                <div style="font-size: 0.65em; text-align: center; margin-top: 10px; padding-top: 6px; border-top: 1px solid #000; line-height: 1.2;">
+                    Representación impresa de un comprobante electrónico.
+                    <br/>
+                    Consulte la validez en el portal DGII.
+                    <br/>
+                    <strong>RENACE.TECH - Dominican E-Invoicing</strong>
+                </div>
+            </t>
+        </xpath>
+    </t>
+</templates>

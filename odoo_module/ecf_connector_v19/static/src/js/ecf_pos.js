@@ -1,7 +1,7 @@
 import { PosOrder } from "@point_of_sale/app/models/pos_order";
 import { patch } from "@web/core/utils/patch";
 
-// Parchear la clase PosOrder para manejar el tipo de e-CF en Odoo 18
+// Parchear la clase PosOrder para manejar el tipo de e-CF en Odoo 19
 patch(PosOrder.prototype, {
     setup() {
         super.setup(...arguments);

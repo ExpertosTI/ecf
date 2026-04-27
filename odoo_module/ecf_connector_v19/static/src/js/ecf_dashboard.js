@@ -5,7 +5,7 @@ import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 
 export class EcfDashboard extends Component {
-    static template = "ecf_connector.EcfDashboard";
+    static template = "ecf_connector_v19.EcfDashboard";
 
     setup() {
         this.orm = useService("orm");
@@ -107,12 +107,8 @@ export class EcfDashboard extends Component {
 
     async checkSaasStatus() {
         try {
-            const configs = await this.orm.searchRead("res.company", [["id", "=", 1]], ["ecf_saas_url", "ecf_api_key"]);
-            if (configs.length && configs[0].ecf_saas_url) {
-                this.state.saas_status = 'online';
-            } else {
-                this.state.saas_status = 'offline';
-            }
+            const status = await this.orm.call("ecf.log", "get_saas_status", [[]]);
+            this.state.saas_status = status;
         } catch (err) {
             this.state.saas_status = 'offline';
         }
@@ -159,7 +155,7 @@ export class EcfDashboard extends Component {
         this.notification.add(_t(`Exportando Reporte ${reportType} (${format.toUpperCase()})...`), { type: "info" });
         if (format === 'excel') {
             this.notification.add(_t("Generando archivo Excel (XLSX)..."), { type: "success" });
-            this.actionService.doAction(reportType === '606' ? 'ecf_connector.ecf_compras_action' : 'ecf_connector.ecf_ventas_action');
+            this.actionService.doAction(reportType === '606' ? 'ecf_connector_v19.ecf_compras_action' : 'ecf_connector_v19.ecf_ventas_action');
         } else if (format === 'pdf') {
             this.notification.add(_t("Generando Reporte PDF profesional..."), { type: "success" });
             const move_ids = this.state.report_details.map(r => r.id);
@@ -169,7 +165,7 @@ export class EcfDashboard extends Component {
             }
             this.actionService.doAction({
                 type: 'ir.actions.report',
-                report_name: 'ecf_connector.report_ecf_summary_template',
+                report_name: 'ecf_connector_v19.report_ecf_summary_template',
                 report_type: 'qweb-pdf',
                 res_ids: move_ids,
                 datas: {
@@ -193,13 +189,13 @@ export class EcfDashboard extends Component {
     }
 
     printReport608() {
-        this.actionService.doAction("ecf_connector.ecf_log_action", {
+        this.actionService.doAction("ecf_connector_v19.ecf_log_action", {
             additional_context: { 'search_default_anulados': 1 }
         });
     }
 
     openHistory() {
-        this.actionService.doAction("ecf_connector.ecf_log_action");
+        this.actionService.doAction("ecf_connector_v19.ecf_log_action");
     }
 
     openMove(moveId) {

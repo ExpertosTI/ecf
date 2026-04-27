@@ -37,6 +37,49 @@ _API_KEY_RE = re.compile(r'^sk_(cert|prod)_[a-f0-9]{48}$')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  Contactos (res.partner) — Validación RNC para e-CF
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ResPartner(models.Model):
+    _inherit = 'res.partner'
+
+    ecf_valid_rnc = fields.Boolean(
+        string='RNC Válido para e-CF',
+        compute='_compute_ecf_valid_rnc',
+        help='Indica si el RNC/Cédula tiene el formato correcto (9 u 11 dígitos)',
+    )
+    ecf_count = fields.Integer(
+        string='e-CF Emitidos',
+        compute='_compute_ecf_count',
+    )
+
+    @api.depends('vat')
+    def _compute_ecf_valid_rnc(self):
+        for partner in self:
+            vat = partner.vat or ''
+            # Limpiar guiones y espacios
+            clean_vat = ''.join(filter(str.isdigit, vat))
+            partner.ecf_valid_rnc = len(clean_vat) in (9, 11)
+
+    def _compute_ecf_count(self):
+        for partner in self:
+            partner.ecf_count = self.env['ecf.log'].search_count([
+                ('move_id.partner_id', '=', partner.id)
+            ])
+
+    def action_view_ecf_logs(self):
+        self.ensure_one()
+        return {
+            'name': _('Historial e-CF — %s', self.name),
+            'type': 'ir.actions.act_window',
+            'res_model': 'ecf.log',
+            'view_mode': 'list,form',
+            'domain': [('move_id.partner_id', '=', self.id)],
+            'context': {'default_partner_id': self.id},
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  Configuración ECF por compañía (aislamiento multi-empresa)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -353,11 +396,12 @@ class ECFLog(models.Model):
         company = self.env.company
         issues = []
         
-        # 1. Verificar Configuración SaaS
         if not company.ecf_saas_url:
             issues.append({'type': 'error', 'msg': 'URL del SaaS no configurada'})
         if not company.ecf_api_key:
             issues.append({'type': 'error', 'msg': 'API Key ausente'})
+        if not company.ecf_webhook_secret:
+            issues.append({'type': 'warning', 'msg': 'Webhook Secret no configurado (Callbacks desactivados)'})
             
         # 2. Verificar Certificado (Simulado para la vista)
         # En producción esto consultaría al SaaS
@@ -372,8 +416,20 @@ class ECFLog(models.Model):
         return {
             'status': 'ready' if not any(i['type'] == 'error' for i in issues) else 'critical',
             'issues': issues,
-            'compliance_score': 100 if not any(i['type'] == 'error' for i in issues) else 0
+            'compliance_score': 100 if not any(i['type'] in ('error', 'warning') for i in issues) else (80 if not any(i['type'] == 'error' for i in issues) else 0)
         }
+
+    @api.model
+    def get_saas_status(self):
+        """
+        Retorna el estado de conexión al SaaS considerando webhooks
+        """
+        company = self.env.company
+        if not company.ecf_saas_url or not company.ecf_api_key:
+            return 'offline'
+        if not company.ecf_webhook_secret:
+            return 'warning'
+        return 'online'
 
     def action_export_excel(self, move_ids):
         """
@@ -813,16 +869,32 @@ class PosOrder(models.Model):
         string='Tipo e-CF',
         help='Tipo de comprobante seleccionado en el POS'
     )
-    ecf_ncf    = fields.Char(string='e-NCF', readonly=True, copy=False)
-    ecf_cufe   = fields.Char(string='CUFE', readonly=True, copy=False)
-    ecf_qr     = fields.Text(string='QR Code', readonly=True, copy=False)
+    ecf_ncf = fields.Char(
+        string='NCF',
+        related='account_move.ecf_ncf',
+        store=True,
+    )
+    ecf_cufe = fields.Char(
+        string='CUFE',
+        related='account_move.ecf_cufe',
+        store=True,
+    )
+    ecf_qr = fields.Text(
+        string='QR Code',
+        related='account_move.ecf_qr',
+        store=True,
+    )
+    ecf_estado = fields.Selection(
+        related='account_move.ecf_estado',
+        string='Estado e-CF',
+        store=True,
+    )
 
     def _prepare_invoice_vals(self):
         vals = super()._prepare_invoice_vals()
         if self.ecf_tipo_id:
             vals['ecf_tipo_id'] = self.ecf_tipo_id.id
             # Si el tipo es diferido (crédito/envío), forzar modo diferido
-            # Esto evita que se emita e-CF hasta que se concilie el pago
             if self.ecf_tipo_id.codigo == 31 or self.amount_total > self.amount_paid:
                 vals['ecf_modo'] = 'diferido'
             else:
@@ -832,7 +904,6 @@ class PosOrder(models.Model):
     def export_for_ui(self):
         result = super().export_for_ui()
         if self.account_move:
-            # Sincronizar datos del e-CF si la factura ya los tiene
             result['ecf_ncf'] = self.account_move.ecf_ncf
             result['ecf_cufe'] = self.account_move.ecf_cufe
             result['ecf_qr'] = self.account_move.ecf_qr
@@ -840,23 +911,13 @@ class PosOrder(models.Model):
         return result
 
     def action_pos_order_invoice(self):
-        """
-        Extensión para emitir e-CF inmediatamente tras facturar en el POS.
-        """
         res = super().action_pos_order_invoice()
         for order in self:
             if order.account_move and order.account_move.ecf_modo == 'inmediato':
                 try:
-                    # Intentar emitir inmediatamente
                     order.account_move._emitir_ecf()
-                    # Copiar datos a la orden para el recibo (Odoo 18 UI los requiere)
-                    order.write({
-                        'ecf_ncf':  order.account_move.ecf_ncf,
-                        'ecf_cufe': order.account_move.ecf_cufe,
-                        'ecf_qr':   order.account_move.ecf_qr,
-                    })
                 except Exception as e:
-                    _logger.error("Error emitiendo e-CF desde POS: %s", str(e))
+                    _logger.error("Error emitiendo e-CF v19 desde POS: %s", str(e))
         return res
 
 class PosSession(models.Model):

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_pos_pos_form_ecf" model="ir.ui.view">
+        <field name="name">pos.order.form.ecf</field>
+        <field name="model">pos.order</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_pos_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="e-CF DGII" name="page_ecf_pos">
+                    <group>
+                        <group string="Datos e-CF">
+                            <field name="ecf_tipo_id" readonly="1"/>
+                            <field name="ecf_ncf" readonly="1"/>
+                            <field name="ecf_estado" widget="badge" 
+                                   decoration-success="ecf_estado == 'aprobado'"
+                                   decoration-danger="ecf_estado == 'rechazado'"
+                                   decoration-warning="ecf_estado in ('condicionado', 'pendiente')"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

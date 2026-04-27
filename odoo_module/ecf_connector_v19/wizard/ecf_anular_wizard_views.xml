@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="ecf_anular_wizard_view_form" model="ir.ui.view">
+        <field name="name">ecf.anular.wizard.form</field>
+        <field name="model">ecf.anular.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Anular e-CF">
+                <group>
+                    <field name="move_id" readonly="1"/>
+                    <field name="ncf"/>
+                    <field name="motivo"/>
+                    <field name="nota" placeholder="Observaciones adicionales (opcional)"/>
+                </group>
+                <footer>
+                    <button name="action_anular" type="object"
+                            string="Anular e-CF" class="btn-primary"
+                            confirm="¿Está seguro de anular este e-CF? Esta acción no se puede revertir."/>
+                    <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

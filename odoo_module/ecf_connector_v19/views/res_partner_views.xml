@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_ecf" model="ir.ui.view">
+        <field name="name">res.partner.form.ecf</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <!-- Smart Button para historial de e-CF -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_ecf_logs" type="object" class="oe_stat_button" icon="fa-file-text-o">
+                    <field name="ecf_count" widget="statinfo" string="e-CF Emitidos"/>
+                </button>
+            </xpath>
+
+            <!-- Validación visual de RNC cerca del campo VAT -->
+            <xpath expr="//field[@name='vat']" position="after">
+                <span class="badge rounded-pill text-bg-success" invisible="not ecf_valid_rnc or not vat">RNC Válido para e-CF</span>
+                <span class="badge rounded-pill text-bg-danger" invisible="ecf_valid_rnc or not vat">RNC Inválido para e-CF</span>
+            </xpath>
+
+            <!-- Pestaña e-CF DGII -->
+            <xpath expr="//notebook" position="inside">
+                <page string="e-CF DGII" name="page_ecf_dgii">
+                    <group>
+                        <group string="Estado Fiscal">
+                            <field name="ecf_valid_rnc" readonly="1"/>
+                            <field name="vat" string="RNC/Cédula"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

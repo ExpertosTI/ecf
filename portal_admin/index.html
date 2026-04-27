@@ -607,6 +607,7 @@
                 <div class="tab active" data-tab="info">Información</div>
                 <div class="tab" data-tab="sequences">Secuencias NCF</div>
                 <div class="tab" data-tab="certs">Certificados</div>
+                <div class="tab" data-tab="compras">Compras Recibidas</div>
             </div>
             <!-- Info Tab -->
             <div id="tab-info">
@@ -615,7 +616,13 @@
                 <form id="editTenantForm">
                     <div class="form-row">
                         <div class="form-group"><label>Nombre Comercial</label><input type="text" id="editNombreComercial"></div>
-                        <div class="form-group"><label>Webhook URL (Odoo)</label><input type="url" id="editWebhookUrl"></div>
+                        <div class="form-group">
+                            <label>Webhook URL (Odoo)</label>
+                            <div style="display:flex; gap:8px;">
+                                <input type="url" id="editWebhookUrl" style="flex:1;">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="testWebhook()">📡 Probar</button>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label>Plan</label><select id="editPlan"><option value="">— sin cambio —</option><option value="basico">Básico</option><option value="profesional">Profesional</option><option value="enterprise">Enterprise</option></select></div>
@@ -1055,6 +1062,23 @@ async function loadCerts(id) {
     } catch (err) { /* ignore */ }
 }
 
+async function testWebhook() {
+    const url = document.getElementById('editWebhookUrl').value.trim();
+    if (!url) { toast('Configura una URL primero', 'error'); return; }
+    
+    toast('Enviando ping de prueba...');
+    try {
+        const res = await api(`/v1/admin/tenants/${currentTenantId}/test-webhook`, { method: 'POST' });
+        if (res.success) {
+            toast(`✅ Conexión exitosa (HTTP ${res.status_code})`);
+        } else {
+            toast(`❌ Error: ${res.error || 'Respuesta inválida'}`, 'error');
+        }
+    } catch (err) {
+        toast('Error de conexión: ' + err.message, 'error');
+    }
+}
+
 // Edit tenant
 document.getElementById('editTenantForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1229,28 +1253,23 @@ async function lookupRnc() {
     btn.disabled = true;
     btn.textContent = '...';
 
-    // Mock API simulation (simulating a DGII scraper)
-    setTimeout(() => {
+    try {
+        const data = await api(`/v1/admin/dgii/rnc/${rnc}`);
+        
+        document.getElementById('newRazonSocial').value = data.razon_social || '';
+        document.getElementById('newNombreComercial').value = data.nombre_comercial || '';
+        document.getElementById('newDireccion').value = data.direccion || '';
+        
+        toast('Datos identificados vía DGII/Caché');
+    } catch (err) {
+        console.error('RNC Lookup Error:', err);
+        toast('RNC no encontrado o error en DGII. Ingresa los datos manualmente.', 'warning');
+    } finally {
         btn.disabled = false;
         btn.innerHTML = '🔍 Buscar';
-
-        const db = {
-            '133109192': { razon: 'LA PERSONA BOUTIQUE SRL', comercial: 'La Persona Boutique', direccion: 'Calle Duarte #410, Santo Domingo' },
-            '101001001': { razon: 'BANCO POPULAR DOMINICANO SA', comercial: 'Banco Popular', direccion: 'Av. John F. Kennedy #20, Santo Domingo' },
-            '101010632': { razon: 'CERVECERIA NACIONAL DOMINICANA SA', comercial: 'CND', direccion: 'Av. Independencia #100, Santo Domingo' }
-        };
-
-        const found = db[rnc];
-        if (found) {
-            document.getElementById('newRazonSocial').value = found.razon;
-            document.getElementById('newNombreComercial').value = found.comercial;
-            document.getElementById('newDireccion').value = found.direccion;
-            toast('Datos identificados vía DGII');
-        } else {
-            toast('RNC no encontrado en caché DGII. Ingresa los datos manualmente.', 'warning');
-        }
-    }, 800);
+    }
 }
+
 
 // ═══════════════════════════════════════════
 // UTILITIES
@@ -1282,6 +1301,62 @@ function copyText(elId) {
     const text = document.getElementById(elId).textContent;
     navigator.clipboard.writeText(text).then(() => toast('Copiado al portapapeles'));
 }
+
+async function loadCompras(id) {
+    const el = document.getElementById('compraRows');
+    el.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;">Cargando compras...</td></tr>';
+    try {
+        const data = await api(`/v1/admin/tenants/${id}/compras`);
+        if (!data.received || !data.received.length) {
+            el.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-dim);">No se han recibido e-CF de proveedores.</td></tr>';
+            return;
+        }
+        el.innerHTML = data.received.map(c => `
+            <tr>
+                <td class="mono">${esc(c.ncf)}</td>
+                <td><div style="font-size:0.85rem;">${esc(c.nombre_proveedor)}</div><div style="font-size:0.7rem; color:var(--text-dim);">RNC: ${c.rnc_proveedor}</div></td>
+                <td>${fmtDate(c.fecha_comprobante)}</td>
+                <td class="mono">RD$ ${c.total_monto.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                <td><span class="badge ${c.estado_odoo === 'procesada' ? 'badge-activo' : 'badge-pendiente'}">${c.estado_odoo}</span></td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        el.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--danger);">Error: ${err.message}</td></tr>`;
+    }
+}
+
+async function syncCompras() {
+    toast('Solicitando sincronización con DGII...');
+    try {
+        await api(`/v1/admin/tenants/${currentTenantId}/sync-compras`, { method: 'POST' });
+        toast('Sincronización iniciada. Los resultados aparecerán en breve.');
+        setTimeout(() => loadCompras(currentTenantId), 5000);
+    } catch (err) {
+        toast('Error: ' + err.message, 'error');
+    }
+}
+
+// ═══════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════
+document.addEventListener('click', e => {
+    const tab = e.target.closest('.tab');
+    if (tab && tab.dataset.tab) {
+        const container = tab.closest('.page');
+        container.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        
+        const tabName = tab.dataset.tab;
+        ['info', 'sequences', 'certs', 'compras'].forEach(name => {
+            const el = document.getElementById(`tab-${name}`);
+            if (el) el.style.display = (name === tabName) ? 'block' : 'none';
+        });
+
+        if (tabName === 'sequences') loadSequences(currentTenantId);
+        if (tabName === 'certs') loadCerts(currentTenantId);
+        if (tabName === 'compras') loadCompras(currentTenantId);
+    }
+});
 
 // Close modals on backdrop click
 document.querySelectorAll('.modal-overlay').forEach(overlay => {

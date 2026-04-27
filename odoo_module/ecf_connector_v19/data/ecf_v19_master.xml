@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 1. Categoría y Privilegios (Odoo 19) -->
+    <record id="module_category_ecf" model="ir.module.category">
+        <field name="name">e-CF DGII</field>
+        <field name="sequence">50</field>
+    </record>
+
+    <record model="res.groups.privilege" id="res_groups_privilege_ecf">
+        <field name="name">Privilegio e-CF DGII</field>
+        <field name="category_id" ref="module_category_ecf"/>
+    </record>
+
+    <!-- 2. Grupos de Seguridad -->
+    <record id="group_ecf_user" model="res.groups">
+        <field name="name">Usuario e-CF</field>
+        <field name="privilege_id" ref="res_groups_privilege_ecf"/>
+        <field name="implied_ids" eval="[(4, ref('account.group_account_invoice'))]"/>
+    </record>
+
+    <record id="group_ecf_manager" model="res.groups">
+        <field name="name">Administrador e-CF</field>
+        <field name="privilege_id" ref="res_groups_privilege_ecf"/>
+        <field name="implied_ids" eval="[(4, ref('group_ecf_user'))]"/>
+    </record>
+
+    <!-- 3. Tipos de e-CF -->
+    <record id="ecf_tipo_31" model="ecf.tipo">
+        <field name="nombre">Factura de Crédito Fiscal Electrónica</field>
+        <field name="codigo">31</field>
+        <field name="prefijo">E31</field>
+    </record>
+    <record id="ecf_tipo_32" model="ecf.tipo">
+        <field name="nombre">Factura de Consumo Electrónica</field>
+        <field name="codigo">32</field>
+        <field name="prefijo">E32</field>
+        <field name="consumidor_final">True</field>
+    </record>
+    <record id="ecf_tipo_33" model="ecf.tipo">
+        <field name="nombre">Nota de Débito Electrónica</field>
+        <field name="codigo">33</field>
+        <field name="prefijo">E33</field>
+    </record>
+    <record id="ecf_tipo_34" model="ecf.tipo">
+        <field name="nombre">Nota de Crédito Electrónica</field>
+        <field name="codigo">34</field>
+        <field name="prefijo">E34</field>
+    </record>
+
+    <!-- 4. ACLs (Odoo 19 XML pattern) -->
+    <record id="access_ecf_tipo_manager_xml" model="ir.model.access">
+        <field name="name">ecf.tipo.manager.xml</field>
+        <field name="model_id" ref="model_ecf_tipo"/>
+        <field name="group_ids" eval="[(4, ref('group_ecf_manager'))]"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="1"/>
+    </record>
+
+    <record id="access_ecf_log_manager_xml" model="ir.model.access">
+        <field name="name">ecf.log.manager.xml</field>
+        <field name="model_id" ref="model_ecf_log"/>
+        <field name="group_ids" eval="[(4, ref('group_ecf_manager'))]"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+</odoo>

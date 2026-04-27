@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         EXTENSIÓN DGII-COMPLIANT v19: Factura e-CF
+         Hereda el reporte estándar de Odoo e inyecta la sección DGII
+         ══════════════════════════════════════════════════════════════ -->
+
+    <template id="report_invoice_document_inherit_ecf_v19" inherit_id="account.report_invoice_document">
+        <xpath expr="//div[hasclass('page')]" position="after">
+             <!-- Pie legal DGII (Al final de la página) -->
+            <div class="ecf-footer-legal mt-4" t-if="o.ecf_ncf">
+                <p>
+                    Este documento es una representación impresa de un Comprobante Fiscal Electrónico (e-CF) 
+                    emitido ante la Dirección General de Impuestos Internos (DGII).
+                    NCF: <strong><t t-esc="o.ecf_ncf"/></strong> | 
+                    CUFE: <span style="font-family: monospace; font-size: 8pt;"><t t-esc="o.ecf_cufe"/></span>
+                </p>
+                <p style="font-size: 7pt; color: #94a3b8;">
+                    Tecnología de Facturación Electrónica por <strong>Renace.tech</strong> (v19)
+                </p>
+            </div>
+        </xpath>
+
+        <xpath expr="//div[hasclass('page')]" position="inside">
+            <xpath expr="//h2" position="before">
+                <!-- ═══════════════════════════════════════════════════
+                     ENCABEZADO DGII — Inyectado al inicio del documento
+                     ═══════════════════════════════════════════════════ -->
+                <t t-if="o.ecf_ncf">
+                    <div class="ecf-dgii-header mb-4">
+                        <div class="ecf-badge-wrapper">
+                            <div class="ecf-badge">
+                                COMPROBANTE FISCAL ELECTRÓNICO
+                            </div>
+                            <div t-attf-class="ecf-ambiente #{o.company_id.ecf_ambiente == 'produccion' and 'ecf-produccion' or 'ecf-certificacion'}">
+                                <t t-esc="(o.company_id.ecf_ambiente or 'certificacion').upper()"/>
+                            </div>
+                        </div>
+
+                        <table class="ecf-data-table">
+                            <tr>
+                                <td class="ecf-label">e-NCF:</td>
+                                <td class="ecf-value ecf-ncf-value">
+                                    <strong><t t-esc="o.ecf_ncf"/></strong>
+                                </td>
+                            </tr>
+                            <tr t-if="o.ecf_cufe">
+                                <td class="ecf-label">CUFE:</td>
+                                <td class="ecf-value ecf-cufe-value">
+                                    <t t-esc="o.ecf_cufe"/>
+                                </td>
+                            </tr>
+                            <tr t-if="o.ecf_log_ids">
+                                <t t-set="last_log" t-value="o.ecf_log_ids.filtered(lambda l: l.estado == 'aprobado')[:1]"/>
+                                <t t-if="last_log">
+                                    <td class="ecf-label">Aprobación DGII:</td>
+                                    <td class="ecf-value">
+                                        <t t-esc="last_log.approved_at and last_log.approved_at.strftime('%d/%m/%Y %H:%M:%S') or 'N/D'"/>
+                                    </td>
+                                </t>
+                            </tr>
+                        </table>
+
+                        <!-- QR Code: obligatorio -->
+                        <t t-if="o.ecf_qr or o.ecf_cufe">
+                            <div class="ecf-qr-section">
+                                <t t-set="qr_data" t-value="o.ecf_qr or o.ecf_cufe"/>
+                                <img t-attf-src="/report/barcode/?barcode_type=QR&amp;value=#{qr_data}&amp;width=100&amp;height=100"
+                                     class="ecf-qr-img"
+                                     alt="QR DGII"/>
+                                <div class="ecf-qr-label">VALIDACIÓN DGII</div>
+                            </div>
+                        </t>
+
+                        <div class="ecf-separator"/>
+                    </div>
+                </t>
+
+                <!-- Aviso si aún no tiene e-CF aprobado -->
+                <t t-if="not o.ecf_ncf and o.move_type in ('out_invoice', 'out_refund')">
+                    <div class="ecf-pending-notice" t-if="o.state == 'posted'">
+                        ⚠️ Este documento está pendiente de asignación de Comprobante Fiscal Electrónico (e-CF).
+                    </div>
+                </t>
+            </xpath>
+        </xpath>
+    </template>
+
+</odoo>

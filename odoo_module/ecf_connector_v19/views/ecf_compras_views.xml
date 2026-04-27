@@ -89,20 +89,12 @@
         <field name="name">ecf.compra.recibida.search</field>
         <field name="model">ecf.compra.recibida</field>
         <field name="arch" type="xml">
-            <search string="Buscar e-CF Recibidas">
+            <search>
                 <field name="ncf"/>
                 <field name="rnc_proveedor"/>
                 <field name="nombre_proveedor"/>
                 <filter string="Nuevas" name="new" domain="[('estado_odoo', '=', 'nueva')]"/>
                 <filter string="Procesadas" name="processed" domain="[('estado_odoo', '=', 'procesada')]"/>
-                <filter string="Con Error" name="error" domain="[('estado_odoo', '=', 'error')]"/>
-                <separator/>
-                <filter string="Fecha Comprobante" name="date" date="fecha_comprobante"/>
-                <group expand="0" string="Agrupar Por">
-                    <filter string="Proveedor" name="group_partner" context="{'group_by': 'partner_id'}"/>
-                    <filter string="Estado" name="group_state" context="{'group_by': 'estado_odoo'}"/>
-                    <filter string="Fecha" name="group_date" context="{'group_by': 'fecha_comprobante'}"/>
-                </group>
             </search>
         </field>
     </record>
