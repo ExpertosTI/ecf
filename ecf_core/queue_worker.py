@@ -142,17 +142,32 @@ class ECFQueueWorker:
             )
 
             # Enviar a DGII con autenticación por semilla
-            # MOCK MODE: Si es ambiente de prueba, auto-aprobar localmente (El SaaS fuge como DGII)
-            if tenant["ambiente"] in ("TesteCF", "CerteCF", "certificacion", "pruebas", "pruebas_saas"):
-                logger.info("Modo Prueba Detectado: Auto-aprobando localmente para tenant %s", tenant["rnc"])
+            # MOCK MODE: Si es ambiente de simulacion, auto-aprobar localmente (El SaaS fuge como DGII)
+            if tenant["ambiente"] == "simulacion":
+                logger.info("Modo Simulación Detectado: Auto-aprobando localmente para tenant %s", tenant["rnc"])
                 from ecf_core.dgii_client import RespuestaDGII, EstadoDGII
+                # Lógica de prueba para desarrolladores en Odoo:
+                # Si el total de la factura termina en .99 -> Rechazado
+                # Si el total termina en .98 -> Condicionado
+                # Si no -> Aceptado
+                estado_mock = EstadoDGII.ACEPTADO
+                mensaje_mock = "Aceptado Local (Modo Simulación SaaS)"
+                
+                total_str = f"{factura.total:.2f}"
+                if total_str.endswith(".99"):
+                    estado_mock = EstadoDGII.RECHAZADO
+                    mensaje_mock = "Rechazado (Simulación por monto terminado en .99)"
+                elif total_str.endswith(".98"):
+                    estado_mock = EstadoDGII.CONDICIONADO
+                    mensaje_mock = "Aceptado Condicional (Simulación por monto terminado en .98)"
+
                 respuesta = RespuestaDGII(
-                    estado=EstadoDGII.ACEPTADO,
+                    estado=estado_mock,
                     track_id=f"MOCK-{uuid.uuid4().hex[:8].upper()}",
-                    mensaje="Aceptado Local (Modo Prueba SaaS)",
+                    mensaje=mensaje_mock,
                     cufe=resultado["cufe"],
                     qr_code=None,  # Se genera localmente abajo
-                    detalles=[],
+                    detalles=[{"codigo": "MOCK01", "mensaje": mensaje_mock}],
                     raw={"mock": True, "ambiente": tenant["ambiente"]}
                 )
             else:

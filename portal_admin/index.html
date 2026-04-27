@@ -152,8 +152,9 @@
         .nav-item:hover { background: rgba(255,255,255,0.03); color: var(--text-primary); }
         .nav-item.active {
             color: var(--accent);
-            background: var(--accent-glow);
+            background: linear-gradient(90deg, var(--accent-glow) 0%, transparent 100%);
             border-left-color: var(--accent);
+            text-shadow: 0 0 10px rgba(0, 229, 160, 0.3);
         }
         .nav-item .icon { font-size: 1.1rem; width: 22px; text-align: center; }
         .main {
@@ -167,15 +168,35 @@
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-bottom: 32px;
+            gap: 20px;
+            margin-bottom: 36px;
         }
         .stat-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
+            background: rgba(17, 24, 40, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
             border-radius: var(--radius);
-            padding: 20px 24px;
+            padding: 24px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
         }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4), 0 0 24px rgba(0, 229, 160, 0.08);
+            border-color: rgba(0, 229, 160, 0.2);
+            background: rgba(17, 24, 40, 0.8);
+        }
+        .stat-card:hover::before { opacity: 1; }
         .stat-label {
             font-size: 0.75rem;
             color: var(--text-dim);
@@ -248,10 +269,13 @@
 
         /* ── Table ── */
         .table-wrap {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
+            background: rgba(17, 24, 40, 0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
             border-radius: var(--radius);
             overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
         }
         table {
             width: 100%;
@@ -260,21 +284,31 @@
         }
         thead th {
             text-align: left;
-            padding: 14px 18px;
-            font-size: 0.7rem;
+            padding: 16px 20px;
+            font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 0.08em;
             color: var(--text-dim);
-            background: rgba(255,255,255,0.02);
-            border-bottom: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             font-weight: 600;
         }
         tbody td {
-            padding: 14px 18px;
+            padding: 16px 20px;
             border-bottom: 1px solid rgba(255,255,255,0.03);
             color: var(--text-muted);
+            transition: all 0.2s ease;
         }
-        tbody tr:hover { background: rgba(255,255,255,0.02); }
+        tbody tr {
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+        tbody tr:hover { 
+            background: rgba(0, 229, 160, 0.03); 
+            transform: scale(1.002);
+        }
+        tbody tr:hover td {
+            color: var(--text-primary);
+        }
         tbody tr:last-child td { border-bottom: none; }
         .mono { font-family: var(--font-mono); font-size: 0.8rem; }
 
@@ -722,7 +756,8 @@
                     <div class="form-group">
                         <label>Ambiente</label>
                         <select id="newAmbiente">
-                            <option value="certificacion">Certificación (pruebas DGII)</option>
+                            <option value="simulacion">Simulación (Mock DGII local)</option>
+                            <option value="certificacion">Certificación (DGII TesteCF/CerteCF)</option>
                             <option value="produccion">Producción</option>
                         </select>
                     </div>

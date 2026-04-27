@@ -29,7 +29,7 @@ def main():
     parser.add_argument("--razon-social", required=True, help="Razón social de la empresa")
     parser.add_argument("--email", required=True, help="Email del administrador")
     parser.add_argument("--plan", default="basico", choices=["basico", "profesional", "enterprise"])
-    parser.add_argument("--ambiente", default="certificacion", choices=["certificacion", "produccion"])
+    parser.add_argument("--ambiente", default="certificacion", choices=["certificacion", "produccion", "simulacion"])
     parser.add_argument("--webhook-url", default=None, help="URL webhook de Odoo")
     parser.add_argument("--max-ecf", type=int, default=1000, help="Máximo e-CF por mes")
     parser.add_argument("--api-url", default=None, help="URL del API Gateway")

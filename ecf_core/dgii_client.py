@@ -74,6 +74,7 @@ class DGIIClient:
         "certificacion": "https://ecf.dgii.gov.do/CerteCF",
         "produccion":    "https://ecf.dgii.gov.do/eCF",
         "pruebas":       "https://ecf.dgii.gov.do/TesteCF",
+        "simulacion":    "http://127.0.0.1:9999/mock_dgii", # Mock server local
     }
 
     # Endpoints de la API DGII
