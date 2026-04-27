@@ -686,45 +686,36 @@ async def lookup_rnc_dgii(
     if not (len(rnc) == 9 or len(rnc) == 11):
         raise HTTPException(status_code=422, detail="RNC debe tener 9 u 11 dígitos")
 
-    # 1. Try public API (mobile/dev DGII endpoint often used by apps)
-    import httpx
-    
-    # Common public lookup sources (fallbacks)
-    # The certificate for *.digital.gob.do is often expired, so we use verify=False
-    sources = [
-        f"https://api.digital.gob.do/v1/dgii/rnc/{rnc}",
-    ]
-    
-    # Internal Mock for demo stability if external is blocked
+    # 1. Búsqueda en Base de Datos local (tabla dgii_rnc)
+    db = await get_db()
+    try:
+        async with db.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT rnc, razon_social, estado 
+                FROM public.dgii_rnc 
+                WHERE rnc = $1
+            """, rnc)
+            
+            if row:
+                logger.info(f"RNC {rnc} found in local PostgreSQL DB")
+                return {
+                    "rnc": row["rnc"],
+                    "razon_social": row["razon_social"],
+                    "nombre_comercial": row["razon_social"],
+                    "direccion": "Consultar en DGII",
+                    "estado": row["estado"],
+                    "source": "local_db"
+                }
+    except Exception as e:
+        logger.error(f"Error querying local RNC DB: {e}")
+
+    # 2. Fallback to Mock DB (Expertos TI and others)
     mock_db = {
         "133109192": {"razon": "LA PERSONA BOUTIQUE SRL", "comercial": "La Persona Boutique", "direccion": "Calle Duarte #410, Santo Domingo"},
         "101001001": {"razon": "BANCO POPULAR DOMINICANO SA", "comercial": "Banco Popular", "direccion": "Av. John F. Kennedy #20, Santo Domingo"},
         "101010632": {"razon": "CERVECERIA NACIONAL DOMINICANA SA", "comercial": "CND", "direccion": "Av. Independencia #100, Santo Domingo"},
         "132842316": {"razon": "EXPERTOS TI, SRL", "comercial": "Expertos TI", "direccion": "Av. Winston Churchill, Santo Domingo"} 
     }
-
-    try:
-        # We use verify=False because government certs in DR are notoriously unreliable/expired
-        async with httpx.AsyncClient(timeout=8.0, verify=False) as client:
-            resp = await client.get(sources[0])
-            if resp.status_code == 200:
-                data = resp.json()
-                # If it's a list or nested, extract the first one
-                if isinstance(data, list) and len(data) > 0:
-                    data = data[0]
-                elif isinstance(data, dict) and "data" in data:
-                    data = data["data"]
-                
-                return {
-                    "rnc": rnc,
-                    "razon_social": data.get("nombre") or data.get("razon_social") or data.get("name"),
-                    "nombre_comercial": data.get("nombreComercial") or data.get("comercial") or data.get("commercialName"),
-                    "direccion": data.get("direccion") or "Santo Domingo, RD",
-                    "estado": data.get("estado", "ACTIVO"),
-                    "source": "dgii_public_api"
-                }
-    except Exception as e:
-        logger.warning(f"Error fetching RNC {rnc} from DGII API (SSL issue likely): {e}")
 
     # 2. Fallback to Mock DB
     found = mock_db.get(rnc)
