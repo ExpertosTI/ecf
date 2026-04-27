@@ -196,8 +196,8 @@ async def create_tenant(
                     payload.direccion,
                     payload.telefono,
                     payload.email,
-                    api_key_hash,
-                    api_key_hash,  # api_key_hash column (same as api_key for now)
+                    api_key_hash,      # api_key column stores the SHA-256 hash
+                    api_key_hash,      # api_key_hash column (bcrypt would be better, same for now)
                     payload.plan,
                     schema_name,
                     payload.ambiente,
@@ -232,6 +232,11 @@ async def create_tenant(
         if "rnc" in detail:
             raise HTTPException(status_code=409, detail=f"RNC {payload.rnc} ya está registrado")
         raise HTTPException(status_code=409, detail="Tenant ya existe")
+    except asyncpg.CheckViolationError as e:
+        raise HTTPException(status_code=422, detail=f"Valor no permitido por la base de datos: {e}")
+    except Exception as e:
+        logger.error("Error creando tenant %s: %s", payload.rnc, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error interno al crear empresa: {type(e).__name__}: {e}")
 
     return {
         "tenant_id": tenant_id,

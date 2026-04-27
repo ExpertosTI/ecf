@@ -1163,7 +1163,7 @@ function openNewTenantModal() { openModal('newTenantModal'); }
 document.getElementById('newTenantForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const body = {
-        rnc: document.getElementById('newRnc').value.trim(),
+        rnc: document.getElementById('newRnc').value.replace(/\D/g, ''),
         razon_social: document.getElementById('newRazonSocial').value.trim(),
         email: document.getElementById('newEmail').value.trim(),
         plan: document.getElementById('newPlan').value,
