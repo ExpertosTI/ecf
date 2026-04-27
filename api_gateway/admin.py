@@ -61,15 +61,16 @@ class TenantCreate(BaseModel):
     @field_validator("plan")
     @classmethod
     def validate_plan(cls, v):
-        if v not in ("basico", "profesional", "enterprise"):
-            raise ValueError("Plan inválido")
+        valid_plans = ("basico", "profesional", "enterprise", "pyme", "standard", "empresarial")
+        if v not in valid_plans:
+            raise ValueError(f"Plan inválido. Opciones: {', '.join(valid_plans)}")
         return v
 
     @field_validator("ambiente")
     @classmethod
     def validate_ambiente(cls, v):
-        if v not in ("certificacion", "produccion"):
-            raise ValueError("Ambiente inválido")
+        if v not in ("simulacion", "certificacion", "produccion"):
+            raise ValueError("Ambiente inválido. Opciones: simulacion, certificacion, produccion")
         return v
 
 
@@ -88,7 +89,8 @@ class TenantUpdate(BaseModel):
     @field_validator("plan")
     @classmethod
     def validate_plan(cls, v):
-        if v is not None and v not in ("basico", "profesional", "enterprise"):
+        valid_plans = ("basico", "profesional", "enterprise", "pyme", "standard", "empresarial")
+        if v is not None and v not in valid_plans:
             raise ValueError("Plan inválido")
         return v
 
@@ -687,7 +689,7 @@ async def lookup_rnc_dgii(
         raise HTTPException(status_code=422, detail="RNC debe tener 9 u 11 dígitos")
 
     # 1. Búsqueda en Base de Datos local (tabla dgii_rnc)
-    db = await get_db()
+    db = _get_pool()
     # Limpiamos el RNC de entrada de guiones o espacios
     rnc_clean = "".join(filter(str.isdigit, rnc))
     

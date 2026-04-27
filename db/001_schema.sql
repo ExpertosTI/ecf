@@ -19,7 +19,7 @@ CREATE TABLE public.tenants (
     email               VARCHAR(255) NOT NULL,
     api_key             VARCHAR(64) NOT NULL UNIQUE,          -- SHA-256 hex
     api_key_hash        VARCHAR(128) NOT NULL,                -- bcrypt del api_key
-    plan                VARCHAR(30) NOT NULL DEFAULT 'basico' CHECK (plan IN ('basico','profesional','enterprise')),
+    plan                VARCHAR(30) NOT NULL DEFAULT 'basico' CHECK (plan IN ('basico','profesional','enterprise','pyme','standard','empresarial')),
     estado              VARCHAR(20) NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','activo','suspendido','cancelado')),
     schema_name         VARCHAR(63) NOT NULL UNIQUE,          -- schema PostgreSQL del tenant
     ambiente            VARCHAR(20) NOT NULL DEFAULT 'certificacion' CHECK (ambiente IN ('certificacion','produccion','simulacion')),
