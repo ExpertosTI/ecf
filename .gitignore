@@ -74,6 +74,8 @@ logs/
 # Datos persistentes
 pgdata/
 redisdata/
+*.csv
+data/
 
 # Node (portal admin)
 node_modules/
