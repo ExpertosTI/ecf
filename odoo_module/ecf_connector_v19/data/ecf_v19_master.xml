@@ -51,7 +51,7 @@
     <record id="access_ecf_tipo_manager_xml" model="ir.model.access">
         <field name="name">ecf.tipo.manager.xml</field>
         <field name="model_id" ref="model_ecf_tipo"/>
-        <field name="group_ids" eval="[(4, ref('group_ecf_manager'))]"/>
+        <field name="group_id" ref="group_ecf_manager"/>
         <field name="perm_read" eval="1"/>
         <field name="perm_write" eval="1"/>
         <field name="perm_create" eval="1"/>
@@ -61,7 +61,7 @@
     <record id="access_ecf_log_manager_xml" model="ir.model.access">
         <field name="name">ecf.log.manager.xml</field>
         <field name="model_id" ref="model_ecf_log"/>
-        <field name="group_ids" eval="[(4, ref('group_ecf_manager'))]"/>
+        <field name="group_id" ref="group_ecf_manager"/>
         <field name="perm_read" eval="1"/>
         <field name="perm_write" eval="1"/>
         <field name="perm_create" eval="1"/>
