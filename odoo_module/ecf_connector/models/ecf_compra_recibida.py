@@ -268,26 +268,28 @@ class ECFCompraRecibida(models.Model):
             }
 
         try:
-            # Consulta al SaaS por e-CFs recibidos (Simulación en ambiente de pruebas)
-            url = f"{company.ecf_saas_url}/v1/ecf/received?rnc={company.vat}"
+            today = fields.Date.context_today(self)
+            # Consulta al SaaS por compras (e-CF recibidos) del mes actual
+            url = f"{company.ecf_saas_url}/v1/compras?anio={today.year}&mes={today.month}"
             response = requests.get(url, headers={'X-API-Key': company.ecf_api_key}, timeout=15)
             response.raise_for_status()
             data = response.json()
 
             created_count = 0
-            for ecf in data.get('received', []):
-                # Evitar duplicados por NCF/CUFE
+            for ecf in data.get('registros', []):
+                # Evitar duplicados por NCF
                 if not self.search([('ncf', '=', ecf.get('ncf')), ('company_id', '=', company.id)]):
                     self.create({
                         'ncf': ecf.get('ncf'),
                         'cufe': ecf.get('cufe'),
+                        'tipo_ecf': ecf.get('tipo_ecf'),
                         'rnc_proveedor': ecf.get('rnc_proveedor'),
                         'nombre_proveedor': ecf.get('nombre_proveedor'),
                         'fecha_comprobante': ecf.get('fecha_comprobante'),
-                        'total_monto': float(ecf.get('total_monto', 0)),
-                        'itbis_facturado': float(ecf.get('itbis_facturado', 0)),
-                        'ambiente': company.ecf_ambiente or 'certificacion',
-                        'estado_odoo': 'nueva',
+                        'total_monto': float(ecf.get('total_monto') or 0.0),
+                        'itbis_facturado': float(ecf.get('itbis_facturado') or 0.0),
+                        'ambiente': ecf.get('ambiente') or company.ecf_ambiente or 'certificacion',
+                        'estado_odoo': ecf.get('estado_odoo') or 'nueva',
                         'company_id': company.id,
                     })
                     created_count += 1

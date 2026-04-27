@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="ecf_connector.EcfDashboard" owl="1">
-        <div class="ecf-dashboard-container p-4 bg-light h-100 overflow-auto" style="font-family: 'Inter', sans-serif;">
+        <div class="ecf-dashboard-container p-4 h-100 overflow-auto ecf-dashboard-bg" style="font-family: 'Inter', sans-serif;">
+            <div class="ecf-dashboard-content">
             <!-- Header Premium -->
             <div class="d-flex justify-content-between align-items-center mb-5">
                 <div>
@@ -36,28 +37,28 @@
             <div class="row g-4 mb-5">
                 <!-- KPIs Principal -->
                 <div class="col-md-3">
-                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 20px; background: linear-gradient(135deg, #0087ff 0%, #0056a3 100%); color: white;">
+                    <div class="ecf-glass-card-primary p-4 h-100">
                         <div class="small fw-bold text-uppercase opacity-75 mb-2">Total Facturado</div>
                         <div class="h2 fw-bold mb-0 text-truncate">RD$ <t t-esc="state.stats.total_amount?.toLocaleString() || '0'"/></div>
                         <div class="mt-2 small opacity-75">En el periodo seleccionado</div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 20px;">
+                    <div class="ecf-glass-card p-4 h-100">
                         <div class="text-muted small fw-bold text-uppercase mb-2">Comprobantes</div>
                         <div class="h2 fw-bold mb-0" style="color: #0f172a;"><t t-esc="state.stats.total_count || '0'"/></div>
                         <div class="mt-2 small text-success fw-bold"><i class="oi oi-arrow-up me-1"></i>En tiempo real</div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 20px;">
+                    <div class="ecf-glass-card p-4 h-100">
                         <div class="text-success small fw-bold text-uppercase mb-2">Aprobados</div>
                         <div class="h2 fw-bold mb-0 text-success"><t t-esc="state.stats.stats_estado?.aprobado || '0'"/></div>
                         <div class="mt-2 small text-muted">Aceptados por DGII</div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 20px;">
+                    <div class="ecf-glass-card p-4 h-100">
                         <div class="text-danger small fw-bold text-uppercase mb-2">Rechazados</div>
                         <div class="h2 fw-bold mb-0 text-danger"><t t-esc="state.stats.stats_estado?.rechazado || '0'"/></div>
                         <div class="mt-2 small text-muted">Requieren atención</div>
@@ -68,7 +69,7 @@
             <!-- Inteligencia Fiscal DGII -->
             <div class="row g-4 mb-5">
                 <div class="col-12">
-                    <div class="card border-0 shadow-sm p-4" style="border-radius: 24px; background-color: #f8fafc;">
+                    <div class="ecf-glass-card p-4">
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h5 class="fw-bold mb-0" style="color: #0f172a;">Reportes Fiscales e Inteligencia</h5>
                             <span class="text-muted small">Mostrando datos filtrados por fecha</span>
@@ -200,7 +201,7 @@
             <!-- Gráficas Row -->
             <div class="row g-4 mb-5">
                 <div class="col-md-7">
-                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 24px;">
+                    <div class="ecf-glass-card p-4 h-100">
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h5 class="fw-bold mb-0">Volumen de Emisión</h5>
                             <span class="badge bg-primary bg-opacity-10 text-primary px-3 rounded-pill">Histórico</span>
@@ -211,7 +212,7 @@
                     </div>
                 </div>
                 <div class="col-md-5">
-                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 24px;">
+                    <div class="ecf-glass-card p-4 h-100">
                         <h5 class="fw-bold mb-4">Estado de Envío</h5>
                         <div style="height: 350px;">
                             <canvas t-ref="chartStatus"></canvas>
@@ -223,7 +224,7 @@
             <!-- Actividad y Salud -->
             <div class="row g-4">
                 <div class="col-md-8">
-                    <div class="card border-0 shadow-sm p-4 h-100" style="border-radius: 24px;">
+                    <div class="ecf-glass-card p-4 h-100">
                         <h5 class="fw-bold mb-4">Actividad Reciente</h5>
                         <div class="table-responsive">
                             <table class="table table-hover align-middle border-top">
@@ -257,21 +258,22 @@
                 </div>
                 <div class="col-md-4">
                     <!-- Widget de Homologación -->
-                    <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 24px; background: #0f172a; color: white;">
+                    <div class="ecf-glass-card-primary p-4 mb-4">
                         <h5 class="fw-bold mb-3">Salud Técnica DGII</h5>
                         <div class="d-flex align-items-center mb-4">
-                            <div class="h1 fw-bold mb-0 text-primary me-3"><t t-esc="state.compliance.compliance_score || 0"/>%</div>
+                            <div class="h1 fw-bold mb-0 text-white me-3"><t t-esc="state.compliance.compliance_score || 0"/>%</div>
                         </div>
                         <div class="progress mb-4" style="height: 8px; background: rgba(255,255,255,0.1);">
-                            <div class="progress-bar bg-primary" role="progressbar" t-attf-style="width: #{state.compliance.compliance_score || 0}%"></div>
+                            <div class="progress-bar bg-white" role="progressbar" t-attf-style="width: #{state.compliance.compliance_score || 0}%"></div>
                         </div>
                         <div class="small opacity-75">
                             <t t-foreach="state.compliance.issues || []" t-as="issue" t-key="issue.msg">
-                                <div class="mb-2"><i class="oi oi-check-circle me-1 text-primary"></i> <t t-esc="issue.msg"/></div>
+                                <div class="mb-2"><i class="oi oi-check-circle me-1 text-white"></i> <t t-esc="issue.msg"/></div>
                             </t>
                         </div>
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     </t>
