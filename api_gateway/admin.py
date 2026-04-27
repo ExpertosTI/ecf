@@ -688,13 +688,17 @@ async def lookup_rnc_dgii(
 
     # 1. Búsqueda en Base de Datos local (tabla dgii_rnc)
     db = await get_db()
+    # Limpiamos el RNC de entrada de guiones o espacios
+    rnc_clean = "".join(filter(str.isdigit, rnc))
+    
     try:
         async with db.acquire() as conn:
+            # Buscamos limpiando también lo que haya en la base de datos (por si acaso)
             row = await conn.fetchrow("""
                 SELECT rnc, razon_social, estado 
                 FROM public.dgii_rnc 
-                WHERE rnc = $1
-            """, rnc)
+                WHERE regexp_replace(rnc, '[^0-9]', '', 'g') = $1
+            """, rnc_clean)
             
             if row:
                 logger.info(f"RNC {rnc} found in local PostgreSQL DB")

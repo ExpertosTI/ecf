@@ -106,6 +106,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    volumes:
+      - ./RNC_Contribuyentes_Actualizado_25_Abr_2026.csv:/app/data/rnc_db.csv:ro
 
   # Queue Worker (procesa e-CF en background)
   worker:

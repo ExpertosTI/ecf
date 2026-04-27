@@ -28,8 +28,8 @@ COPY portal_admin/ ./portal_admin/
 COPY landing/ ./landing/
 COPY scripts/ ./scripts/
 
-# XSD schemas (directorio opcional — crear si no existe)
-RUN mkdir -p /app/xsd
+# Directorios de datos y XSD (asegurar que existan y tengan permisos)
+RUN mkdir -p /app/xsd /app/data
 COPY xsd/ ./xsd/
 
 # Permisos

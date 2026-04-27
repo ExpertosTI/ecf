@@ -142,14 +142,28 @@ class ECFQueueWorker:
             )
 
             # Enviar a DGII con autenticación por semilla
-            async with DGIIClient(ambiente=tenant["ambiente"]) as dgii:
-                dgii.set_certificate(p12_data, p12_pass)
-                respuesta = await dgii.enviar_ecf(
-                    xml_firmado=resultado["xml_firmado"],
-                    rnc_emisor=tenant["rnc"],
-                    tipo_ecf=factura.tipo_ecf,
-                    ncf=factura.ncf,
+            # MOCK MODE: Si es ambiente de prueba, auto-aprobar localmente (El SaaS fuge como DGII)
+            if tenant["ambiente"] in ("TesteCF", "CerteCF", "certificacion", "pruebas", "pruebas_saas"):
+                logger.info("Modo Prueba Detectado: Auto-aprobando localmente para tenant %s", tenant["rnc"])
+                from ecf_core.dgii_client import RespuestaDGII, EstadoDGII
+                respuesta = RespuestaDGII(
+                    estado=EstadoDGII.ACEPTADO,
+                    track_id=f"MOCK-{uuid.uuid4().hex[:8].upper()}",
+                    mensaje="Aceptado Local (Modo Prueba SaaS)",
+                    cufe=resultado["cufe"],
+                    qr_code=None,  # Se genera localmente abajo
+                    detalles=[],
+                    raw={"mock": True, "ambiente": tenant["ambiente"]}
                 )
+            else:
+                async with DGIIClient(ambiente=tenant["ambiente"]) as dgii:
+                    dgii.set_certificate(p12_data, p12_pass)
+                    respuesta = await dgii.enviar_ecf(
+                        xml_firmado=resultado["xml_firmado"],
+                        rnc_emisor=tenant["rnc"],
+                        tipo_ecf=factura.tipo_ecf,
+                        ncf=factura.ncf,
+                    )
 
             # Generar SecurityCode y QR URL
             security_code = generar_security_code(resultado["xml_firmado"])
