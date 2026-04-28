@@ -1,20 +1,29 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'ECF Connector — DGII e-CF República Dominicana',
-    'version': '18.0.3.5',
+    'name': 'Renace e-CF — Facturación Electrónica DGII',
+    'version': '18.0.4.0',
     'category': 'Accounting/Localizations',
-    'summary': 'Facturación Electrónica e-CF DGII — SaaS Renace.tech (Premium Dashboard)',
+    'summary': 'Renace e-CF · Facturación Electrónica DGII RD (e-CF, ITBIS, retenciones, 606/607/608, IT-1)',
     'description': """
-        Módulo oficial de Renace.tech para emisión de comprobantes fiscales
-        electrónicos (e-CF) ante la DGII de la República Dominicana.
+Renace e-CF — Conector oficial Odoo ↔ Renace e-CF Gateway
 
-        Funcionalidades Premium:
-        - Dashboard Interactivo (OWL + Chart.js): KPIs de facturación y estados DGII
-        - Integración POS Premium: Selección de e-CF (E32/E31) con Health Check dinámico
-        - Emisión manual de e-CF (trigger NUNCA automático por defecto)
-        - Flujo POS diferido: facturas de envíos/créditos quedan pendientes de conciliación
-        - Impresión DGII-compliant: NCF, CUFE, QR, timestamp de aprobación, ambiente
-    """,
+Capacidades fiscales DGII República Dominicana:
+- Emisión de los 10 tipos de e-CF (E31..E47) con XAdES-BES, validación XSD, NCF atómico.
+- Anulación e-CF conforme a ANECF.xsd (rangos firmados).
+- Aceptación / Rechazo Comercial (ACECF / ARECF).
+- Recepción automática de e-CF desde la DGII (compras 606).
+- Reportes 606 (Compras), 607 (Ventas), 608 (Anulaciones), IT-1 (ITBIS mensual), IR-17 (Retenciones).
+- Detección de saltos y agotamiento de secuencias NCF.
+- Asientos contables con marcado analítico ECF para conciliación.
+
+POS premium:
+- Selección de tipo e-CF (E32/E31) con Health Check Renace e-CF.
+- Modo diferido para créditos: emisión manual tras conciliación de pago.
+
+Seguridad:
+- Multi-empresa, HMAC-SHA256 con anti-replay, rate limit, TLS+mTLS hacia DGII.
+- Trigger ``ecf_emision_automatica`` apagado por defecto (también en POS).
+""",
     'author': 'Renace.tech',
     'website': 'https://renace.tech',
     'license': 'LGPL-3',

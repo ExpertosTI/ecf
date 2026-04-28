@@ -1,20 +1,15 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'ECF Connector v19 — DGII e-CF República Dominicana',
-    'version': '19.0.1.0',
+    'name': 'Renace e-CF — Facturación Electrónica DGII (Odoo 19)',
+    'version': '19.0.2.0',
     'category': 'Accounting/Localizations',
-    'summary': 'Facturación Electrónica e-CF DGII — SaaS Renace.tech (Premium Dashboard)',
+    'summary': 'Renace e-CF · Facturación Electrónica DGII RD (e-CF, ITBIS, retenciones, 606/607/608, IT-1)',
     'description': """
-        Módulo oficial de Renace.tech para emisión de comprobantes fiscales
-        electrónicos (e-CF) ante la DGII de la República Dominicana.
+Renace e-CF — Conector oficial Odoo 19 ↔ Renace e-CF Gateway
 
-        Funcionalidades Premium:
-        - Dashboard Interactivo (OWL + Chart.js): KPIs de facturación y estados DGII
-        - Integración POS Premium: Selección de e-CF (E32/E31) con Health Check dinámico
-        - Emisión manual de e-CF (trigger NUNCA automático por defecto)
-        - Flujo POS diferido: facturas de envíos/créditos quedan pendientes de conciliación
-        - Impresión DGII-compliant: NCF, CUFE, QR, timestamp de aprobación, ambiente
-    """,
+Mismas capacidades que la versión 18.x, adaptado a Odoo 19.
+Ver odoo_module/ecf_connector/__manifest__.py para el detalle.
+""",
     'author': 'Renace.tech',
     'website': 'https://renace.tech',
     'license': 'LGPL-3',

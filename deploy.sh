@@ -147,14 +147,14 @@ mkdir -p "$BACKUP_DIR"
 
 if $DC "${COMPOSE_ARGS[@]}" ps postgres 2>/dev/null | grep -q "running"; then
     log "PostgreSQL activo. Realizando backup..."
-    BACKUP_FILE="${BACKUP_DIR}/saas_ecf_${TIMESTAMP}.sql.gz"
+    BACKUP_FILE="${BACKUP_DIR}/renace_ecf_${TIMESTAMP}.sql.gz"
     $DC "${COMPOSE_ARGS[@]}" exec -T postgres \
-        pg_dump -U saas_ecf saas_ecf | gzip > "$BACKUP_FILE"
+        pg_dump -U renace_ecf renace_ecf | gzip > "$BACKUP_FILE"
     BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
     log "Backup creado: ${BACKUP_FILE} (${BACKUP_SIZE})"
 
     # Retener solo los ultimos 30 backups
-    find "${BACKUP_DIR}" -maxdepth 1 -name 'saas_ecf_*.sql.gz' -type f | sort -r | tail -n +31 | xargs -r rm --
+    find "${BACKUP_DIR}" -maxdepth 1 -name 'renace_ecf_*.sql.gz' -type f | sort -r | tail -n +31 | xargs -r rm --
     info "Backups antiguos limpiados (retencion: 30)"
 else
     info "PostgreSQL no activo. Omitiendo backup (primer deploy)."
@@ -216,7 +216,7 @@ for migration in "${SCRIPT_DIR}"/db/0[0-9][0-9]_*.sql; do
         fi
         log "Aplicando migracion: ${MIGRATION_NAME}"
         $DC "${COMPOSE_ARGS[@]}" exec -T postgres \
-            psql -U saas_ecf -d saas_ecf -f "/docker-entrypoint-initdb.d/${MIGRATION_NAME}" 2>&1 || \
+            psql -U renace_ecf -d renace_ecf -f "/docker-entrypoint-initdb.d/${MIGRATION_NAME}" 2>&1 || \
             warn "Migracion ${MIGRATION_NAME} falló (puede ya estar aplicada)"
     fi
 done
@@ -288,7 +288,7 @@ echo ""
 info "Comandos utiles:"
 info "  Ver logs:       $DC logs -f"
 info "  Ver estado:     $DC ps"
-info "  Backup manual:  $DC exec postgres pg_dump -U saas_ecf saas_ecf > backup.sql"
+info "  Backup manual:  $DC exec postgres pg_dump -U renace_ecf renace_ecf > backup.sql"
 info "  Rollback:       $DC down && $DC up -d"
 echo ""
 
@@ -325,7 +325,7 @@ check_dgii "Health checks en PostgreSQL" "OK"
 check_dgii "Health checks en Redis" "OK"
 
 # Backup
-if [ -d "$BACKUP_DIR" ] && ls "${BACKUP_DIR}"/saas_ecf_*.sql.gz &>/dev/null; then
+if [ -d "$BACKUP_DIR" ] && ls "${BACKUP_DIR}"/renace_ecf_*.sql.gz &>/dev/null; then
     check_dgii "Backup de base de datos" "OK"
 else
     check_dgii "Backup de base de datos" "Primer deploy - programar backups"

@@ -291,7 +291,7 @@ def _to_pdf(rows: list[dict], headers: list[str], keys: list[str],
             self.set_y(-15)
             self.set_font("Helvetica", "I", 7)
             self.set_text_color(150, 150, 150)
-            self.cell(0, 10, f"Generado por Renace ECF - {datetime.now().strftime('%d/%m/%Y %H:%M')}  |  Pag {self.page_no()}/{{nb}}",
+            self.cell(0, 10, f"Generado por Renace e-CF - {datetime.now().strftime('%d/%m/%Y %H:%M')}  |  Pag {self.page_no()}/{{nb}}",
                       align="C")
 
     pdf = ReportPDF(orientation="L", unit="mm", format="A4")

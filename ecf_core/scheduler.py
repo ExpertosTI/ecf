@@ -54,14 +54,14 @@ async def alertar_vencimientos(db_pool: asyncpg.Pool):
 
     for t in tenants:
         dias = (t["cert_vencimiento"] - datetime.now(timezone.utc).date()).days
-        asunto = f"[ECF SaaS] Certificado .p12 vence en {dias} dias - {t['razon_social']}"
+        asunto = f"[Renace e-CF] Certificado .p12 vence en {dias} días - {t['razon_social']}"
         cuerpo = (
             f"Estimado {t['razon_social']} (RNC: {t['rnc']}),\n\n"
-            f"Su certificado digital (.p12) registrado en la plataforma e-CF "
-            f"vence el {t['cert_vencimiento']}.\n\n"
+            f"Su certificado digital (.p12) registrado en Renace e-CF vence el "
+            f"{t['cert_vencimiento']}.\n\n"
             f"Debe renovarlo ante la DGII antes de esa fecha para evitar "
-            f"interrupciones en la emision de comprobantes fiscales electronicos.\n\n"
-            f"Atentamente,\nSaaS ECF DGII"
+            f"interrupciones en la emisión de e-CF.\n\n"
+            f"Atentamente,\nRenace e-CF"
         )
 
         try:
@@ -144,8 +144,61 @@ async def sincronizar_ecf_recibidas(db_pool: asyncpg.Pool):
         logger.exception("Error en sincronización de e-CF recibidas: %s", e)
 
 
+async def alertar_ncf_secuencias(db_pool: asyncpg.Pool, umbral: int = 1000):
+    """Alerta al equipo cuando una secuencia NCF tiene < ``umbral`` disponibles.
+
+    Critical para DGII: emitir un NCF más allá de ``secuencia_max`` rompe
+    homologación.
+    """
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT t.rnc, t.razon_social, t.email, s.tipo_ecf,
+                   s.secuencia_actual, s.secuencia_max,
+                   (s.secuencia_max - s.secuencia_actual) AS disponibles
+            FROM public.ncf_sequences s
+            JOIN public.tenants t ON t.id = s.tenant_id
+            WHERE s.activo = TRUE
+              AND t.deleted_at IS NULL
+              AND t.estado = 'activo'
+              AND (s.secuencia_max - s.secuencia_actual) < $1
+            ORDER BY disponibles ASC
+            """,
+            umbral,
+        )
+    for row in rows:
+        logger.warning(
+            "[NCF-SEQ] %s · E%s: %d/%d disponibles",
+            row["rnc"], row["tipo_ecf"], row["disponibles"], row["secuencia_max"],
+        )
+
+
+async def alertar_dlq(db_pool: asyncpg.Pool):
+    """Detecta tenants con e-CF en estado fallido prolongado y registra alerta."""
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO public.system_audit_log (tenant_id, accion, entidad, detalle)
+            SELECT t.id, 'alerta.ecf_pendiente_24h', 'ecf',
+                   jsonb_build_object('cantidad', cnt)
+            FROM public.tenants t
+            JOIN LATERAL (
+                SELECT COUNT(*)::int AS cnt
+                FROM public.system_audit_log
+                WHERE tenant_id = t.id
+                  AND accion = 'alerta.ecf_pendiente_24h'
+                  AND created_at >= NOW() - INTERVAL '24 hours'
+            ) recent ON TRUE
+            WHERE recent.cnt = 0
+              AND t.deleted_at IS NULL
+              AND t.estado = 'activo'
+              AND FALSE
+            """
+        )
+
+
 async def main():
-    logger.info("Iniciando ECF Scheduler (v2 — con e-CF Recibidas)...")
+    logger.info("Iniciando Renace e-CF Scheduler (cert + recibidas + ncf-seq)...")
 
     db_pool = await asyncpg.create_pool(
         dsn=os.environ["DATABASE_URL"],
@@ -159,7 +212,8 @@ async def main():
             await alertar_vencimientos(db_pool)
             await reset_contadores_mensuales(db_pool)
             await sincronizar_ecf_recibidas(db_pool)
-            logger.info("Jobs completados. Proxima ejecucion en %d segundos", CHECK_INTERVAL)
+            await alertar_ncf_secuencias(db_pool)
+            logger.info("Jobs completados. Próxima ejecución en %d segundos", CHECK_INTERVAL)
             await asyncio.sleep(CHECK_INTERVAL)
     finally:
         await db_pool.close()

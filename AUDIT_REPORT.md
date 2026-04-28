@@ -1,4 +1,4 @@
-# AUDITORÍA FINAL — SaaS ECF DGII
+# AUDITORÍA FINAL — RENACE ECF DGII
 
 **Fecha:** Auditoría pre-producción  
 **Alcance:** Todos los archivos del workspace  

@@ -1,34 +1,29 @@
 # -*- coding: utf-8 -*-
-"""
-ECF Connector — Modelos principales
-Renace.tech — Facturación Electrónica DGII República Dominicana
+"""Renace e-CF — Modelos principales del conector Odoo.
 
 Arquitectura de campos en account.move:
   - ecf_tipo_id      → tipo de comprobante (E31-E47)
   - ecf_modo         → 'inmediato' | 'diferido' | 'excento'
   - ecf_ncf          → NCF asignado por el SaaS (readonly)
   - ecf_estado       → estado ante DGII
+  - ecf_codigo_seguridad → 6 alfanuméricos del SignatureValue (DGII)
+  - ecf_track_id     → trackId asignado por la DGII al recibir
   - ecf_pendiente_conciliacion → True mientras la factura POS no esté pagada
   - ecf_listo_para_emitir     → True cuando el pago fue conciliado
 
-Regla de oro: ecf_emision_automatica = False por defecto.
-El trigger NUNCA se dispara solo — solo acción manual del usuario.
+Regla de oro: ``ecf_emision_automatica = False`` por defecto. El trigger NUNCA
+se dispara solo — sólo acción manual o, si la empresa lo activa
+explícitamente, al confirmar la factura. La regla aplica también al POS.
 """
 
 import logging
+import re
+from datetime import date, datetime, timedelta
+
 import requests
-from datetime import datetime, date, timedelta
 
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
-
-import hashlib
-import hmac
-import json
-import logging
-import re
-import requests
-from datetime import date
 
 _logger = logging.getLogger(__name__)
 
@@ -44,20 +39,20 @@ class ResCompany(models.Model):
     _inherit = 'res.company'
 
     ecf_saas_url = fields.Char(
-        string='URL del SaaS ECF',
+        string='URL de Renace e-CF',
         default='https://ecf.renace.tech',
         help='URL base del API Gateway del SaaS de facturación electrónica',
     )
     ecf_api_key = fields.Char(
         string='API Key del Tenant',
-        help='API Key asignada a esta empresa en el SaaS ECF (formato: sk_cert_... o sk_prod_...)',
+        help='API Key asignada a esta empresa en Renace e-CF (formato: sk_cert_... o sk_prod_...)',
     )
     ecf_webhook_secret = fields.Char(
         string='Webhook Secret',
-        help='Secret para verificar los callbacks del SaaS ECF (HMAC-SHA256)',
+        help='Secret para verificar los callbacks de Renace e-CF (HMAC-SHA256)',
     )
     ecf_ambiente = fields.Selection(
-        selection=[('simulacion', 'Simulación (Mock Local)'), ('certificacion', 'Certificación'), ('produccion', 'Producción')],
+        selection=[('simulacion', 'Simulación (Mock Interno)'), ('certificacion', 'Certificación'), ('produccion', 'Producción')],
         string='Ambiente DGII',
         default='certificacion',
     )
@@ -347,44 +342,59 @@ class ECFLog(models.Model):
 
     @api.model
     def check_dgii_compliance(self):
-        """
-        Verifica el estado de salud del sistema para la homologación
-        """
+        """Estado real del SaaS Renace e-CF para la homologación DGII."""
         company = self.env.company
         issues = []
-        
-        # 1. Verificar Configuración SaaS
-        if not company.ecf_saas_url:
-            issues.append({'type': 'error', 'msg': 'URL del SaaS no configurada'})
-        if not company.ecf_api_key:
-            issues.append({'type': 'error', 'msg': 'API Key ausente'})
-            
-        # 2. Verificar Certificado (Simulado para la vista)
-        # En producción esto consultaría al SaaS
-        issues.append({'type': 'info', 'msg': 'Certificado Digital: Activo (Expira en 180 días)'})
-        
-        # 3. Verificar Secuencias
-        # Chequeo rápido de si hay saltos o errores en logs recientes
-        failed_logs = self.search_count([('estado', '=', 'rechazado'), ('create_date', '>=', fields.Datetime.now() - timedelta(days=7))])
-        if failed_logs > 0:
-            issues.append({'type': 'warning', 'msg': f'Se detectaron {failed_logs} rechazos en los últimos 7 días. Revise el historial.'})
-            
-        return {
-            'status': 'ready' if not any(i['type'] == 'error' for i in issues) else 'critical',
-            'issues': issues,
-            'compliance_score': 100 if not any(i['type'] == 'error' for i in issues) else 0
-        }
 
-    def action_export_excel(self, move_ids):
-        """
-        Genera una acción para descargar un Excel real (XLSX)
-        """
-        # En una implementación real usaríamos un controller que devuelva el stream de xlsxwriter
-        # Por ahora devolvemos una acción que el JS pueda manejar para la demo premium
+        if not company.ecf_saas_url:
+            issues.append({'type': 'error', 'msg': 'URL de Renace e-CF no configurada'})
+        if not company.ecf_api_key:
+            issues.append({'type': 'error', 'msg': 'API Key Renace e-CF ausente'})
+
+        if company.ecf_saas_url and company.ecf_api_key:
+            try:
+                resp = requests.get(
+                    f"{company.ecf_saas_url}/v1/health",
+                    headers={'X-API-Key': company.ecf_api_key},
+                    timeout=5,
+                )
+                if resp.ok:
+                    data = resp.json()
+                    dias = data.get('cert_dias_restantes')
+                    if dias is None:
+                        issues.append({'type': 'warning', 'msg': 'Certificado .p12 no cargado en Renace e-CF'})
+                    elif dias <= 0:
+                        issues.append({'type': 'error', 'msg': f'Certificado VENCIDO hace {-dias} días — emisión bloqueada'})
+                    elif dias <= 30:
+                        issues.append({'type': 'warning', 'msg': f'Certificado vence en {dias} días — renovar urgentemente'})
+                    else:
+                        issues.append({'type': 'info', 'msg': f'Certificado activo (vence en {dias} días)'})
+                    emitidos = data.get('ecf_emitidos_mes', 0)
+                    maximo = data.get('max_ecf_mensual', 0) or 1
+                    consumo = int(100 * emitidos / maximo)
+                    if consumo >= 90:
+                        issues.append({'type': 'warning', 'msg': f'Plan al {consumo}% — considere ampliar antes de fin de mes'})
+                else:
+                    issues.append({'type': 'error', 'msg': f'Renace e-CF respondió HTTP {resp.status_code}'})
+            except requests.RequestException as e:
+                issues.append({'type': 'error', 'msg': f'No se puede contactar Renace e-CF: {e}'})
+
+        failed_logs = self.search_count([
+            ('estado', '=', 'rechazado'),
+            ('create_date', '>=', fields.Datetime.now() - timedelta(days=7)),
+            ('company_id', '=', company.id),
+        ])
+        if failed_logs > 0:
+            issues.append({
+                'type': 'warning',
+                'msg': f'{failed_logs} e-CF rechazados en los últimos 7 días. Revise el historial.',
+            })
+
+        has_error = any(i['type'] == 'error' for i in issues)
         return {
-            'type': 'ir.actions.act_url',
-            'url': '/web/content/?model=account.move&id=%s&field=datas&download=true&filename=Reporte_eCF.xlsx' % move_ids[0],
-            'target': 'new',
+            'status': 'critical' if has_error else 'ready',
+            'issues': issues,
+            'compliance_score': 0 if has_error else 100,
         }
 
 
@@ -429,10 +439,30 @@ class AccountMove(models.Model):
         ('anulado',             'Anulado'),
         ('anulacion_fallida',   'Anulación Fallida'),
     ], string='Estado e-CF', readonly=True, copy=False, index=True)
-    ecf_cufe   = fields.Char(string='CUFE', readonly=True, copy=False,
-                              help='Código Único de Factura Electrónica (SHA-384)')
+    ecf_cufe   = fields.Char(
+        string='Código Seguridad',
+        readonly=True, copy=False,
+        help='Código de Seguridad e-CF (6 alfanuméricos del SignatureValue, DGII RD). '
+             'Antes denominado CUFE — el campo conserva su nombre técnico para no romper integraciones.',
+    )
+    ecf_codigo_seguridad = fields.Char(
+        string='Código Seguridad e-CF',
+        compute='_compute_codigo_seguridad', inverse='_inverse_codigo_seguridad',
+        store=False,
+        help='Alias legible de ecf_cufe — Código de Seguridad publicado por la DGII.',
+    )
+    ecf_track_id = fields.Char(string='TrackId DGII', readonly=True, copy=False)
     ecf_qr     = fields.Text(string='QR Code', readonly=True, copy=False)
     ecf_log_ids = fields.One2many('ecf.log', 'move_id', string='Historial e-CF')
+
+    @api.depends('ecf_cufe')
+    def _compute_codigo_seguridad(self):
+        for r in self:
+            r.ecf_codigo_seguridad = r.ecf_cufe or False
+
+    def _inverse_codigo_seguridad(self):
+        for r in self:
+            r.ecf_cufe = r.ecf_codigo_seguridad or False
 
     # ── Flujo POS diferido ──
     ecf_pendiente_conciliacion = fields.Boolean(
@@ -542,7 +572,7 @@ class AccountMove(models.Model):
         # Configuración del SaaS
         company = self.company_id
         if not company.ecf_saas_url or not company.ecf_api_key:
-            raise UserError(_('Configure la URL y API Key del SaaS ECF en Ajustes → e-CF DGII'))
+            raise UserError(_('Configure la URL y API Key de Renace e-CF en Ajustes → e-CF DGII'))
 
     # ─────────────────────────────────────────────────────────────────────────
     #  Emisión del e-CF
@@ -558,7 +588,7 @@ class AccountMove(models.Model):
             'tag': 'display_notification',
             'params': {
                 'title': _('e-CF Enviado'),
-                'message': _('El e-CF fue enviado al SaaS. Espere el callback de la DGII.'),
+                'message': _('El e-CF fue enviado a Renace e-CF. Espere el callback de la DGII.'),
                 'type': 'info',
                 'sticky': False,
             },
@@ -678,7 +708,7 @@ class AccountMove(models.Model):
             })
 
             self.message_post(
-                body=_('📤 e-CF enviado al SaaS. NCF asignado: <strong>%s</strong>', data['ncf']),
+                body=_('📤 e-CF enviado a Renace e-CF. NCF asignado: <strong>%s</strong>', data['ncf']),
                 message_type='comment',
             )
             _logger.info('e-CF emitido para %s. NCF=%s', self.name, data['ncf'])
@@ -840,23 +870,25 @@ class PosOrder(models.Model):
         return result
 
     def action_pos_order_invoice(self):
-        """
-        Extensión para emitir e-CF inmediatamente tras facturar en el POS.
-        """
+        """Emite e-CF tras facturar en POS, respetando ``ecf_emision_automatica``."""
         res = super().action_pos_order_invoice()
         for order in self:
-            if order.account_move and order.account_move.ecf_modo == 'inmediato':
-                try:
-                    # Intentar emitir inmediatamente
-                    order.account_move._emitir_ecf()
-                    # Copiar datos a la orden para el recibo (Odoo 18 UI los requiere)
-                    order.write({
-                        'ecf_ncf':  order.account_move.ecf_ncf,
-                        'ecf_cufe': order.account_move.ecf_cufe,
-                        'ecf_qr':   order.account_move.ecf_qr,
-                    })
-                except Exception as e:
-                    _logger.error("Error emitiendo e-CF desde POS: %s", str(e))
+            move = order.account_move
+            if not (move and move.ecf_modo == 'inmediato' and move.ecf_tipo_id):
+                continue
+            if not move.company_id.ecf_emision_automatica:
+                # Política: el e-CF se emite manualmente (botón en la factura).
+                # El POS no fuerza la emisión salvo que la compañía lo permita.
+                continue
+            try:
+                move._emitir_ecf()
+                order.write({
+                    'ecf_ncf':  move.ecf_ncf,
+                    'ecf_cufe': move.ecf_cufe,
+                    'ecf_qr':   move.ecf_qr,
+                })
+            except Exception as e:
+                _logger.error("Error emitiendo e-CF desde POS: %s", e)
         return res
 
 class PosSession(models.Model):

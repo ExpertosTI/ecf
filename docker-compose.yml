@@ -70,7 +70,7 @@ services:
       dockerfile: Dockerfile.api
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://saas_ecf:${DB_PASSWORD}@postgres:5432/saas_ecf
+      DATABASE_URL: postgresql://renace_ecf:${DB_PASSWORD}@postgres:5432/renace_ecf
       REDIS_URL: redis://redis:6379/0
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       PSFE_CERT_B64: ${PSFE_CERT_B64}
@@ -117,7 +117,7 @@ services:
     command: python -m ecf_core.worker_main
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://saas_ecf:${DB_PASSWORD}@postgres:5432/saas_ecf
+      DATABASE_URL: postgresql://renace_ecf:${DB_PASSWORD}@postgres:5432/renace_ecf
       REDIS_URL: redis://redis:6379/0
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       PSFE_CERT_B64: ${PSFE_CERT_B64}
@@ -148,7 +148,7 @@ services:
     command: python -m ecf_core.scheduler
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://saas_ecf:${DB_PASSWORD}@postgres:5432/saas_ecf
+      DATABASE_URL: postgresql://renace_ecf:${DB_PASSWORD}@postgres:5432/renace_ecf
       REDIS_URL: redis://redis:6379/0
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       VAULT_MASTER_KEY: ${VAULT_MASTER_KEY}
@@ -192,8 +192,8 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: saas_ecf
-      POSTGRES_USER: saas_ecf
+      POSTGRES_DB: renace_ecf
+      POSTGRES_USER: renace_ecf
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -201,7 +201,7 @@ services:
     networks:
       - ecf_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U saas_ecf"]
+      test: ["CMD-SHELL", "pg_isready -U renace_ecf"]
       interval: 10s
       timeout: 5s
       retries: 5

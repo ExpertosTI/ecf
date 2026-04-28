@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Renace ECF — Panel Admin</title>
+    <title>Renace e-CF — Panel Admin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -534,7 +534,7 @@
             <div class="form-group" style="text-align:left;">
                 <label>URL del API</label>
                 <input type="url" id="apiUrl" value="https://ecf.renace.tech" required>
-                <div class="hint">Ej: https://ecf.tu-dominio.do</div>
+                <div class="hint">Ej: https://ecf.renace.tech</div>
             </div>
             <div class="form-group" style="text-align:left;">
                 <label>Admin API Key</label>
@@ -554,7 +554,7 @@
     <aside class="sidebar">
         <div class="sidebar-brand">
             <img src="renacelogo.svg" alt="RENACE Tech" style="height: 32px; width: auto; object-fit: contain; margin-right: 8px;"></span>
-            <span>admin</span>
+            <span>Renace e-CF</span>
         </div>
         <div class="sidebar-section">Panel</div>
         <div class="nav-item active" data-page="dashboard">
@@ -566,6 +566,10 @@
         </div>
         <div class="nav-item" data-page="dlq">
             <span class="icon">⚠️</span> Cola de Errores
+        </div>
+        <div class="sidebar-section">Portales</div>
+        <div class="nav-item" onclick="window.open('supplier_portal.html', '_blank')">
+            <span class="icon">🤝</span> Portal Proveedores
         </div>
         <div class="sidebar-footer">
             <div class="nav-item" id="logoutBtn" style="border:none; padding-left:0;">
@@ -589,6 +593,40 @@
                 <div class="stat-card"><div class="stat-label">Cola Pendiente</div><div class="stat-value neutral" id="statPending">—</div></div>
                 <div class="stat-card"><div class="stat-label">Reintentos</div><div class="stat-value warning" id="statRetry">—</div></div>
                 <div class="stat-card"><div class="stat-label">Errores (DLQ)</div><div class="stat-value warning" id="statDlq">—</div></div>
+            </div>
+
+            <!-- Certification Flow Tracker (Inyectado) -->
+            <div class="glass p-6 rounded-2xl mb-8 border-emerald-500/20">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold flex items-center gap-2">
+                        <i data-lucide="award" class="text-emerald-400"></i>
+                        Progreso de Certificación DGII
+                    </h2>
+                    <span class="badge badge-certificacion">1 / 15 Completado</span>
+                </div>
+                <div class="flex flex-wrap gap-4">
+                    <div class="flex items-center gap-2 text-sm text-emerald-400 font-bold">
+                        <div class="w-6 h-6 rounded-full bg-emerald-500 text-bg-deep flex items-center justify-center text-xs">1</div>
+                        Registrado
+                    </div>
+                    <div class="w-8 h-px bg-zinc-800 self-center"></div>
+                    <div class="flex items-center gap-2 text-sm text-zinc-500">
+                        <div class="w-6 h-6 rounded-full border border-zinc-700 flex items-center justify-center text-xs">2</div>
+                        Pruebas Datos
+                    </div>
+                    <div class="w-8 h-px bg-zinc-800 self-center"></div>
+                    <div class="flex items-center gap-2 text-sm text-zinc-500">
+                        <div class="w-6 h-6 rounded-full border border-zinc-700 flex items-center justify-center text-xs">3</div>
+                        Aprobación Com.
+                    </div>
+                    <div class="w-8 h-px bg-zinc-800 self-center"></div>
+                    <div class="flex items-center gap-2 text-sm text-zinc-500">
+                        <div class="w-6 h-6 rounded-full border border-zinc-700 flex items-center justify-center text-xs">4</div>
+                        Simulación e-CF
+                    </div>
+                    <div class="w-8 h-px bg-zinc-800 self-center"></div>
+                    <div class="text-zinc-600 text-xs self-center italic">... 11 pasos más</div>
+                </div>
             </div>
             <div class="page-header" style="margin-top:8px;">
                 <h2 style="font-size:1.15rem;">Empresas Recientes</h2>
@@ -802,7 +840,7 @@
                 <strong>Próximos pasos:</strong><br>
                 1. Comparte el API Key y Webhook Secret con el contador/desarrollador<br>
                 2. Sube el certificado .p12 del contribuyente<br>
-                3. Verifica la conexión emitiendo un e-CF de prueba
+                El sistema las descarga automáticamente de Renace e-CF y te permite crear la factura de proveedor en un clic.
             </div>
         </div>
         <div class="modal-footer">

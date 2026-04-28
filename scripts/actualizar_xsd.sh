@@ -9,7 +9,7 @@ DEST="${1:-$(dirname "$0")/../xsd}"
 mkdir -p "$DEST"
 
 BASE="https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin%20sobre%20eCF/Documentaci%C3%B3n%20T%C3%A9cnica%20(XSD)"
-UA="Mozilla/5.0 (compatible; saas_ecf/1.0)"
+UA="Mozilla/5.0 (compatible; renace_ecf/1.0)"
 
 echo "=== Descargando XSD oficiales DGII → $DEST ==="
 

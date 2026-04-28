@@ -11,6 +11,7 @@
                 <field name="nombre_proveedor"/>
                 <field name="total_monto" sum="Total"/>
                 <field name="itbis_facturado" sum="Total ITBIS"/>
+                <field name="estado_comercial" widget="badge" decoration-success="estado_comercial == 'aprobado'" decoration-danger="estado_comercial == 'rechazado'" decoration-info="estado_comercial == 'pendiente'"/>
                 <field name="estado_odoo" widget="badge" decoration-info="estado_odoo == 'nueva'" decoration-success="estado_odoo == 'procesada'" decoration-danger="estado_odoo == 'error'"/>
                 <field name="move_id" widget="many2one_clickable"/>
                 <field name="ambiente" optional="hide"/>
@@ -28,8 +29,11 @@
             <form string="e-CF Recibida">
                 <header>
                     <button name="action_crear_factura" string="Crear Factura" type="object" class="oe_highlight" invisible="estado_odoo == 'procesada'"/>
+                    <button name="action_aprobar_comercial" string="Aprobación Comercial" type="object" class="btn-success" invisible="estado_comercial != 'pendiente'"/>
+                    <button name="action_rechazar_comercial" string="Rechazo Comercial" type="object" class="btn-danger" invisible="estado_comercial != 'pendiente'"/>
                     <button name="action_registrar_pago" string="Notificar Pago" type="object" invisible="not move_id or not fecha_pago"/>
                     <button name="action_sincronizar_dgii" string="Sincronizar DGII" type="object"/>
+                    <field name="estado_comercial" widget="statusbar" statusbar_visible="pendiente,aprobado,rechazado"/>
                     <field name="estado_odoo" widget="statusbar" statusbar_visible="nueva,procesada,error"/>
                 </header>
                 <sheet>
@@ -57,6 +61,7 @@
                             <field name="rnc_proveedor" readonly="1"/>
                             <field name="nombre_proveedor" readonly="1"/>
                             <field name="partner_id" widget="res_partner_many2one" context="{'res_partner_search_mode': 'supplier'}"/>
+                            <field name="motivo_rechazo" invisible="estado_comercial != 'rechazado'" readonly="estado_comercial == 'rechazado'"/>
                         </group>
                     </group>
                     <group string="Totales">

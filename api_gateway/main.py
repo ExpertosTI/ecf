@@ -4,9 +4,8 @@ import hmac
 import json
 import logging
 import os
-import uuid
 import pathlib
-import re
+import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -18,6 +17,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, Response, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
+from lxml import etree
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from api_gateway.admin import (
@@ -32,28 +32,13 @@ from api_gateway.reportes import (
     _build_response,
 )
 from ecf_core.ecf_recibidas_service import ECFRecibidasService
-from ecf_core.cert_vault import CertVaultRepository
+from ecf_core.ecf_interchange_service import ECFInterchangeService
+from ecf_core.cert_vault import CertVault, CertVaultRepository
+from ecf_core.dgii_client import DGIIClient
+from ecf_core.ecf_core_service import ECFSigner
+from ecf_core.utils import safe_schema as _safe_schema
 
 logger = logging.getLogger(__name__)
-
-# Schema name sanitization (prevent SQL injection)
-
-import re
-
-_SAFE_SCHEMA_RE = re.compile(r"^[a-z][a-z0-9_]{2,62}$")
-_SCHEMA_BLACKLIST = frozenset({
-    "public", "pg_catalog", "pg_toast", "information_schema",
-    "pg_temp", "pg_toast_temp",
-})
-
-
-def _safe_schema(name: str) -> str:
-    """Validate and return schema name. Raises ValueError if unsafe."""
-    if not _SAFE_SCHEMA_RE.match(name):
-        raise ValueError(f"Invalid schema name: {name!r}")
-    if name in _SCHEMA_BLACKLIST:
-        raise ValueError(f"Reserved schema name: {name!r}")
-    return name
 
 
 def _validar_periodo(anio: int, mes: int):
@@ -96,8 +81,8 @@ if not ALLOWED_ORIGINS:
     logger.warning("ALLOWED_ORIGINS no configurado — CORS deshabilitado")
 
 app = FastAPI(
-    title="SaaS ECF DGII",
-    version="1.0.0",
+    title="Renace e-CF — DGII Gateway",
+    version="2.5.0",
     docs_url=None,          # Deshabilitar Swagger en producción
     redoc_url=None,
     lifespan=lifespan,
@@ -224,12 +209,21 @@ async def get_tenant(
 @app.get("/v1/health")
 async def health_tenant(tenant: dict = Depends(get_tenant)):
     """Endpoint de monitoreo y validación de conexión para los clientes."""
+    cert_vencimiento = tenant.get("cert_vencimiento")
+    dias_para_vencer = None
+    if cert_vencimiento:
+        dias_para_vencer = (cert_vencimiento - date.today()).days
     return {
-        "status": "online",
-        "version": "2.4.0",
-        "ambiente": tenant["ambiente"],
-        "rnc": tenant["rnc"],
-        "timestamp": datetime.now().isoformat()
+        "status":             "online",
+        "service":            "Renace e-CF",
+        "version":             app.version,
+        "ambiente":           tenant["ambiente"],
+        "rnc":                tenant["rnc"],
+        "cert_vencimiento":   cert_vencimiento.isoformat() if cert_vencimiento else None,
+        "cert_dias_restantes": dias_para_vencer,
+        "ecf_emitidos_mes":   tenant.get("ecf_emitidos_mes", 0),
+        "max_ecf_mensual":    tenant.get("max_ecf_mensual", 0),
+        "timestamp":          datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -264,8 +258,11 @@ class FacturaPayload(BaseModel):
     codigo_modificacion: str = Field(default="1", pattern=r"^[1234]$")
     moneda:             str = Field(default="DOP", min_length=3, max_length=3)
     tipo_cambio:        Decimal = Field(default=Decimal("1"), gt=0)
-    tipo_pago:          str = Field(default="1", pattern=r"^[123]$")
-    tipo_ingresos:      str = Field(default="01", pattern=r"^0[1-5]$")
+    # DGII: TipoPago acepta 1..9 (1=Contado, 2=Crédito, 3=Gratuito, 4=Permuta,
+    # 5=Pagos por Cuenta de Terceros, 6=Otra Forma de Pago, 7=Pagos al Exterior, ...).
+    tipo_pago:          str = Field(default="1", pattern=r"^[1-9]$")
+    # DGII: TipoIngresos acepta 01..06 (incluye 06 = Otros Ingresos).
+    tipo_ingresos:      str = Field(default="01", pattern=r"^0[1-6]$")
     indicador_envio_diferido: int = Field(default=0, ge=0, le=1)
     direccion_comprador: Optional[str] = Field(None, max_length=255)
     odoo_move_id:       Optional[str] = Field(None, max_length=64)
@@ -568,6 +565,178 @@ async def reporte_608(
     )
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Reportes contables ampliados — IT-1, IR-17, NCF status, conciliación 606
+# ──────────────────────────────────────────────────────────────────────────────
+
+@app.get("/v1/reportes/it1")
+async def reporte_it1(
+    anio: int, mes: int,
+    tenant: dict = Depends(get_tenant),
+    db: asyncpg.Pool = Depends(get_db),
+):
+    """Borrador IT-1 (Declaración Mensual de ITBIS).
+
+    Consolida:
+      - ITBIS facturado en ventas (607) — débito fiscal.
+      - ITBIS adelantado en compras (606) — crédito fiscal.
+      - ITBIS retenido por agentes a este contribuyente.
+      - ITBIS retenido por este contribuyente a terceros.
+      - Saldo a pagar (>0) o crédito a favor (<0).
+    """
+    _validar_periodo(anio, mes)
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        ventas = await conn.fetchrow(f"""
+            SELECT COALESCE(SUM(subtotal), 0) AS base,
+                   COALESCE(SUM(itbis), 0) AS itbis,
+                   COUNT(*) AS cantidad
+            FROM {schema}.ecf
+            WHERE estado IN ('aprobado','condicionado')
+              AND EXTRACT(YEAR FROM fecha_emision) = $1
+              AND EXTRACT(MONTH FROM fecha_emision) = $2
+        """, anio, mes)
+        compras = await conn.fetchrow(f"""
+            SELECT COALESCE(SUM(monto_servicios + monto_bienes), 0) AS base,
+                   COALESCE(SUM(itbis_facturado), 0) AS itbis_adelantado,
+                   COALESCE(SUM(itbis_retenido), 0) AS itbis_retenido_a_terceros,
+                   COUNT(*) AS cantidad
+            FROM {schema}.compras
+            WHERE EXTRACT(YEAR FROM fecha_comprobante) = $1
+              AND EXTRACT(MONTH FROM fecha_comprobante) = $2
+        """, anio, mes)
+
+    debito_fiscal       = Decimal(str(ventas["itbis"]))
+    credito_fiscal      = Decimal(str(compras["itbis_adelantado"]))
+    retenido_a_terceros = Decimal(str(compras["itbis_retenido_a_terceros"]))
+    saldo               = debito_fiscal - credito_fiscal + retenido_a_terceros
+
+    return {
+        "periodo":   f"{anio}-{mes:02d}",
+        "rnc":       tenant["rnc"],
+        "ventas": {
+            "cantidad":      ventas["cantidad"],
+            "base_imponible": str(ventas["base"]),
+            "debito_fiscal":  str(debito_fiscal),
+        },
+        "compras": {
+            "cantidad":               compras["cantidad"],
+            "base_imponible":          str(compras["base"]),
+            "credito_fiscal":          str(credito_fiscal),
+            "itbis_retenido_a_terceros": str(retenido_a_terceros),
+        },
+        "saldo_a_pagar":         str(saldo) if saldo >= 0 else "0.00",
+        "credito_a_favor":       str(-saldo) if saldo < 0 else "0.00",
+        "moneda":                "DOP",
+        "fecha_calculo":         datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/v1/reportes/ir17")
+async def reporte_ir17(
+    anio: int, mes: int,
+    tenant: dict = Depends(get_tenant),
+    db: asyncpg.Pool = Depends(get_db),
+):
+    """Reporte IR-17 (Retenciones a Terceros) del período.
+
+    Lee de ``{schema}.retenciones`` que llena el módulo Odoo al validar pagos.
+    """
+    _validar_periodo(anio, mes)
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        rows = await conn.fetch(f"""
+            SELECT ncf, rnc_retenido, cedula_retenido, nombre_retenido,
+                   fecha, monto_pagado, isr_retenido
+            FROM {schema}.retenciones
+            WHERE EXTRACT(YEAR FROM fecha) = $1
+              AND EXTRACT(MONTH FROM fecha) = $2
+            ORDER BY fecha, ncf
+        """, anio, mes)
+    registros = [dict(r) for r in rows]
+    total_pagado = sum(Decimal(str(r["monto_pagado"])) for r in registros)
+    total_retenido = sum(Decimal(str(r["isr_retenido"])) for r in registros)
+    return {
+        "periodo":         f"{anio}-{mes:02d}",
+        "rnc":             tenant["rnc"],
+        "total_registros": len(registros),
+        "total_pagado":    str(total_pagado),
+        "total_retenido":  str(total_retenido),
+        "retenciones":     [
+            {**r, "fecha": r["fecha"].isoformat() if r.get("fecha") else None,
+             "monto_pagado": str(r["monto_pagado"]),
+             "isr_retenido": str(r["isr_retenido"])}
+            for r in registros
+        ],
+    }
+
+
+@app.get("/v1/ncf/secuencias")
+async def listar_secuencias_ncf(
+    tenant: dict = Depends(get_tenant),
+    db: asyncpg.Pool = Depends(get_db),
+):
+    """Estado de las secuencias NCF activas del tenant — alerta cuando faltan < 1000."""
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT tipo_ecf, prefijo, secuencia_actual, secuencia_max, activo
+               FROM public.ncf_sequences
+               WHERE tenant_id = $1
+               ORDER BY tipo_ecf""",
+            tenant["id"],
+        )
+    secuencias = []
+    for r in rows:
+        disponibles = r["secuencia_max"] - r["secuencia_actual"]
+        consumo = int(100 * r["secuencia_actual"] / r["secuencia_max"]) if r["secuencia_max"] else 0
+        nivel = "ok"
+        if disponibles == 0:
+            nivel = "agotada"
+        elif disponibles < 1000:
+            nivel = "critico"
+        elif disponibles < 10000:
+            nivel = "alerta"
+        secuencias.append({
+            "tipo_ecf":         r["tipo_ecf"],
+            "prefijo":          r["prefijo"],
+            "secuencia_actual": r["secuencia_actual"],
+            "secuencia_max":    r["secuencia_max"],
+            "disponibles":      disponibles,
+            "consumo_pct":      consumo,
+            "activo":           r["activo"],
+            "nivel_alerta":     nivel,
+        })
+    return {"rnc": tenant["rnc"], "secuencias": secuencias}
+
+
+@app.get("/v1/ecf/limbo")
+async def listar_ecf_en_limbo(
+    horas: int = 24,
+    tenant: dict = Depends(get_tenant),
+    db: asyncpg.Pool = Depends(get_db),
+):
+    """Lista e-CF en estado pendiente/enviado por más de N horas — alerta operativa."""
+    if horas < 1 or horas > 720:
+        raise HTTPException(status_code=422, detail="horas fuera de rango (1..720)")
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        rows = await conn.fetch(f"""
+            SELECT ncf, tipo_ecf, estado, intentos_envio, ultimo_error,
+                   created_at, sent_at, total
+            FROM {schema}.ecf
+            WHERE estado IN ('pendiente','enviado','anulacion_pendiente')
+              AND created_at < NOW() - ($1::int * INTERVAL '1 hour')
+            ORDER BY created_at
+            LIMIT 500
+        """, horas)
+    return {
+        "rnc":      tenant["rnc"],
+        "umbral_horas": horas,
+        "total":    len(rows),
+        "registros": [dict(r) for r in rows],
+    }
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # e-CF COMPRAS RECIBIDAS — endpoints
 # ─────────────────────────────────────────────────────────────────────────────
@@ -623,8 +792,7 @@ async def sincronizar_compras(
     db:     asyncpg.Pool = Depends(get_db),
 ):
     """Dispara manualmente la sincronización de e-CF recibidas con la DGII (202 Accepted)."""
-    vault     = CertVault()
-    cert_repo = CertVaultRepository(db, vault)
+    cert_repo = CertVaultRepository(db, CertVault())
     servicio  = ECFRecibidasService(db, cert_repo)
     asyncio.create_task(servicio.sincronizar_tenant(dict(tenant)))
     await _audit_log(db, str(tenant["id"]), "compras.sincronizar")
@@ -684,6 +852,168 @@ async def actualizar_estado_odoo(
     if result == "UPDATE 0":
         raise HTTPException(status_code=404, detail="NCF no encontrado")
     return {"ncf": ncf, "estado_odoo": estado_odoo, "odoo_bill_id": odoo_bill_id}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# INTERCAMBIO COMERCIAL — endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/v1/compras/{ncf}/aprobar")
+async def aprobar_compra_comercial(
+    ncf: str,
+    tenant: dict = Depends(get_tenant),
+    db:     asyncpg.Pool = Depends(get_db),
+):
+    """Genera y envía la Aprobación Comercial (ACECF) para una compra."""
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        compra = await conn.fetchrow(
+            f"SELECT rnc_proveedor FROM {schema}.compras WHERE ncf = $1", ncf
+        )
+    if not compra:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+
+    # Obtener certificado del tenant
+    cert_repo = CertVaultRepository(db, CertVault())
+    cert = await cert_repo.obtener_certificado(str(tenant["id"]))
+
+    interchange = ECFInterchangeService(ECFSigner())
+    cert_password_bytes = (cert["cert_password"] or "").encode()
+
+    xml_firmado = await interchange.procesar_evento(
+        "ACECF", ncf, compra["rnc_proveedor"], tenant,
+        cert["cert_data"], cert_password_bytes,
+    )
+
+    # Enviar a DGII (Aceptación Comercial)
+    async with DGIIClient(tenant["ambiente"]) as client:
+        client.set_certificate(cert["cert_data"], cert_password_bytes)
+        await client._authenticate()
+        resp = await client._client.post(
+            "/fe/aprobacioncomercial/api/ecf",
+            content=xml_firmado,
+            headers=client._auth_headers(),
+        )
+        if resp.status_code not in (200, 202):
+            raise HTTPException(status_code=502, detail=f"Error DGII: {resp.text}")
+
+    async with db.acquire() as conn:
+        await conn.execute(
+            f"UPDATE {schema}.compras SET estado_comercial='aprobado', updated_at=NOW() WHERE ncf=$1",
+            ncf,
+        )
+
+    await _audit_log(db, str(tenant["id"]), "compras.aprobar", entidad="compras", entidad_id=ncf)
+    return {"status": "aprobado", "ncf": ncf}
+
+
+@app.post("/v1/compras/{ncf}/rechazar")
+async def rechazar_compra_comercial(
+    ncf: str,
+    motivo: str,
+    tenant: dict = Depends(get_tenant),
+    db:     asyncpg.Pool = Depends(get_db),
+):
+    """Genera y envía el Rechazo Comercial (ARECF) para una compra."""
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        compra = await conn.fetchrow(
+            f"SELECT rnc_proveedor FROM {schema}.compras WHERE ncf = $1", ncf,
+        )
+    if not compra:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+
+    cert_repo = CertVaultRepository(db, CertVault())
+    cert = await cert_repo.obtener_certificado(str(tenant["id"]))
+
+    interchange = ECFInterchangeService(ECFSigner())
+    cert_password_bytes = (cert["cert_password"] or "").encode()
+
+    xml_firmado = await interchange.procesar_evento(
+        "ARECF", ncf, compra["rnc_proveedor"], tenant,
+        cert["cert_data"], cert_password_bytes, motivo=motivo,
+    )
+
+    async with DGIIClient(tenant["ambiente"]) as client:
+        client.set_certificate(cert["cert_data"], cert_password_bytes)
+        await client._authenticate()
+        resp = await client._client.post(
+            "/fe/aprobacioncomercial/api/ecf",
+            content=xml_firmado,
+            headers=client._auth_headers(),
+        )
+        if resp.status_code not in (200, 202):
+            raise HTTPException(status_code=502, detail=f"Error DGII: {resp.text}")
+
+    async with db.acquire() as conn:
+        await conn.execute(
+            f"UPDATE {schema}.compras "
+            f"SET estado_comercial='rechazado', motivo_rechazo=$1, updated_at=NOW() "
+            f"WHERE ncf=$2",
+            motivo, ncf,
+        )
+
+    await _audit_log(db, str(tenant["id"]), "compras.rechazar",
+                     entidad="compras", entidad_id=ncf, detalle={"motivo": motivo})
+    return {"status": "rechazado", "ncf": ncf}
+
+
+@app.post("/fe/recepcion/api/ecf", include_in_schema=False)
+async def recibir_ecf_externo(request: Request, db: asyncpg.Pool = Depends(get_db)):
+    """Endpoint público para recibir e-CF de otros contribuyentes.
+
+    Este es el URL que se registra en la DGII como 'URL de Recepción'.
+    """
+    xml_bytes = await request.body()
+    if not xml_bytes:
+        return Response(status_code=400, content="Body vacío")
+
+    # 1. Parsear identificadores del e-CF
+    try:
+        root = etree.fromstring(xml_bytes)
+        rnc_receptor_node = root.find(".//{*}RNCComprador") \
+            or root.find(".//{*}RNCReceptor")
+        ncf_node = root.find(".//{*}eNCF") or root.find(".//{*}NCF")
+        rnc_emisor_node = root.find(".//{*}RNCEmisor")
+        if rnc_receptor_node is None or ncf_node is None or rnc_emisor_node is None:
+            return Response(status_code=400, content="XML inválido (faltan campos obligatorios)")
+        rnc_receptor = (rnc_receptor_node.text or "").strip()
+        ncf = (ncf_node.text or "").strip()
+        rnc_emisor = (rnc_emisor_node.text or "").strip()
+    except etree.XMLSyntaxError:
+        return Response(status_code=400, content="XML mal formado")
+    except Exception as exc:
+        logger.warning("Error parseando e-CF entrante: %s", exc)
+        return Response(status_code=400, content="XML inválido")
+
+    # 2. Identificar tenant receptor
+    async with db.acquire() as conn:
+        tenant = await conn.fetchrow(
+            "SELECT id, schema_name, rnc FROM public.tenants "
+            "WHERE rnc = $1 AND estado = 'activo' AND deleted_at IS NULL",
+            rnc_receptor,
+        )
+    if not tenant:
+        return Response(status_code=404, content="Receptor no registrado")
+
+    # 3. Persistir como compra 'nueva' (idempotente)
+    try:
+        schema = _safe_schema(tenant["schema_name"])
+    except ValueError:
+        logger.error("Schema inválido para tenant %s", tenant["id"])
+        return Response(status_code=500, content="Configuración inválida")
+
+    async with db.acquire() as conn:
+        await conn.execute(
+            f"""INSERT INTO {schema}.compras (ncf, rnc_proveedor, xml_original, estado_odoo,
+                                              fecha_comprobante, total_monto)
+                VALUES ($1, $2, $3, 'nueva', CURRENT_DATE, 0)
+                ON CONFLICT (ncf) DO NOTHING""",
+            ncf, rnc_emisor, xml_bytes,
+        )
+
+    logger.info("e-CF recibido: NCF=%s emisor=%s receptor=%s", ncf, rnc_emisor, rnc_receptor)
+    return Response(status_code=202, content="e-CF recibido correctamente")
 
 
 @app.get("/health")

@@ -1,0 +1,141 @@
+# docker-compose.pruecf.yml
+# Instancia de Staging/Simulador Interno (pruecf.renace.tech)
+# Utiliza la red y el Traefik de la instancia principal (ecf)
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://renace_ecf:${DB_PASSWORD}@postgres:5432/renace_ecf
+      REDIS_URL: redis://redis:6379/0
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      PSFE_CERT_B64: ${PSFE_CERT_B64}
+      PSFE_KEY_B64: ${PSFE_KEY_B64}
+      DGII_CA_B64: ${DGII_CA_B64}
+      VAULT_MASTER_KEY: ${VAULT_MASTER_KEY}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+      METRICS_API_KEY: ${METRICS_API_KEY:-}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-60}
+      RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-60}
+      TZ: America/Santo_Domingo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ecf_net
+    labels:
+      - "traefik.enable=true"
+      # Enrutamiento para pruecf
+      - "traefik.http.routers.pruecf_api.rule=Host(`${ECF_DOMAIN:-pruecf.renace.tech}`) && PathPrefix(`/v1`, `/fe`)"
+      - "traefik.http.routers.pruecf_api.entrypoints=websecure"
+      - "traefik.http.routers.pruecf_api.tls=true"
+      - "traefik.http.routers.pruecf_api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.pruecf_api.middlewares=security-headers@docker,rate-limit@docker"
+      - "traefik.http.services.pruecf_api.loadbalancer.server.port=8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - ./RNC_Contribuyentes_Actualizado_25_Abr_2026.csv:/app/data/rnc_db.csv:ro
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: python -m ecf_core.worker_main
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://renace_ecf:${DB_PASSWORD}@postgres:5432/renace_ecf
+      REDIS_URL: redis://redis:6379/0
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      PSFE_CERT_B64: ${PSFE_CERT_B64}
+      PSFE_KEY_B64: ${PSFE_KEY_B64}
+      DGII_CA_B64: ${DGII_CA_B64}
+      VAULT_MASTER_KEY: ${VAULT_MASTER_KEY}
+      TZ: America/Santo_Domingo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ecf_net
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import redis,os; r=redis.from_url(\"redis://redis:6379/0\", password=os.environ.get(\"REDIS_PASSWORD\",\"\")); r.ping()' 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=false"
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: python -m ecf_core.scheduler
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://renace_ecf:${DB_PASSWORD}@postgres:5432/renace_ecf
+      REDIS_URL: redis://redis:6379/0
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      VAULT_MASTER_KEY: ${VAULT_MASTER_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ecf_net
+    labels:
+      - "traefik.enable=false"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: renace_ecf
+      POSTGRES_USER: renace_ecf
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pruecf_pgdata:/var/lib/postgresql/data
+      - ./db:/docker-entrypoint-initdb.d
+    networks:
+      - ecf_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U renace_ecf"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=false"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD}"
+    volumes:
+      - pruecf_redisdata:/data
+    networks:
+      - ecf_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=false"
+
+networks:
+  ecf_net:
+    external: true
+    name: ecf_network
+
+volumes:
+  pruecf_pgdata:
+  pruecf_redisdata:

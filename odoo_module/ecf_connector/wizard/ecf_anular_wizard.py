@@ -1,11 +1,32 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models, _
-from odoo.exceptions import UserError
+"""Asistente de anulación e-CF (Renace e-CF).
+
+El XML ANECF que viaja a DGII sólo contiene el rango de NCFs anulados; el motivo
+y la nota se conservan en Odoo (chatter + log) para trazabilidad interna y
+control fiscal.
+"""
 
 import logging
+
 import requests
 
+from odoo import fields, models, _
+from odoo.exceptions import UserError
+
 _logger = logging.getLogger(__name__)
+
+
+# Motivos válidos para e-CF (DGII):
+#   01 = Deterioro de comprobante
+#   02 = Errores en información del comprobante
+#   03 = Devolución de mercancía / servicios
+#   04 = Otra modificación
+ECF_MOTIVOS = [
+    ('01', 'Deterioro del comprobante'),
+    ('02', 'Errores en la información del e-CF'),
+    ('03', 'Devolución de mercancía o servicios'),
+    ('04', 'Otra modificación (especificar en nota)'),
+]
 
 
 class ECFAnularWizard(models.TransientModel):
@@ -14,17 +35,13 @@ class ECFAnularWizard(models.TransientModel):
 
     move_id = fields.Many2one('account.move', string='Factura', required=True)
     ncf = fields.Char(related='move_id.ecf_ncf', string='NCF', readonly=True)
-    motivo = fields.Selection([
-        ('01', 'Deterioro de factura pre-impresa'),
-        ('02', 'Errores de impresión (factura pre-impresa)'),
-        ('03', 'Impresión defectuosa'),
-        ('04', 'Duplicidad de factura'),
-        ('05', 'Corrección de la información'),
-        ('06', 'Cambio de productos'),
-        ('07', 'Devolución de productos'),
-        ('08', 'Omisión de productos'),
-        ('09', 'Errores en secuencia de NCF'),
-    ], string='Motivo de anulación', required=True, default='05')
+    motivo = fields.Selection(
+        ECF_MOTIVOS,
+        string='Motivo (registro interno)',
+        required=True, default='02',
+        help='Trazabilidad interna. La DGII no recibe el motivo en el XML ANECF; '
+             'se conserva en el log fiscal del e-CF.',
+    )
     nota = fields.Text(string='Observaciones')
 
     def action_anular(self):

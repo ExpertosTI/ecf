@@ -1,4 +1,4 @@
-# SaaS ECF DGII — .gitignore
+# Renace e-CF — .gitignore
 
 # Environment & secrets
 .env
@@ -74,8 +74,15 @@ logs/
 # Datos persistentes
 pgdata/
 redisdata/
-*.csv
 data/
+
+# Datasets DGII (descargar con scripts/importar_rnc.py)
+RNC_Contribuyentes*.csv
+RNC_*.csv
+*.csv
+
+# Scratch / WIP
+scratch/
 
 # Node (portal admin)
 node_modules/

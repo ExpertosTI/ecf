@@ -408,25 +408,69 @@ class DGIIClient:
     # Anulación
     # -------------------------------------------------------
 
-    async def anular_ecf(self, rnc_emisor: str, ncf_desde: str, ncf_hasta: str) -> RespuestaDGII:
-        """Solicita la anulación de un rango de e-CF."""
+    async def anular_ecf(
+        self,
+        rnc_emisor: str,
+        ncf_desde: str,
+        ncf_hasta: str,
+        tipo_ecf: int = 31,
+    ) -> RespuestaDGII:
+        """Solicita la anulación de un rango de e-CF.
+
+        Genera y firma el XML ANECF conforme a ``xsd/ANECF.xsd`` con el
+        certificado .p12 cargado en este cliente.
+        """
         await self._authenticate()
 
-        payload_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<AnulacionRango xmlns="http://www.dgii.gov.do/ecf">
-    <RNCEmisor>{rnc_emisor}</RNCEmisor>
-    <CantidadDesde>{ncf_desde}</CantidadDesde>
-    <CantidadHasta>{ncf_hasta}</CantidadHasta>
-</AnulacionRango>"""
+        if not (self._p12_data and self._p12_password):
+            raise DGIIClientError("Certificado no configurado para firmar el ANECF")
+
+        # Importación tardía para evitar ciclo (anulacion_service usa ECFSigner)
+        from ecf_core.ecf_anulacion_service import ECFAnulacionService, RangoNCF
+
+        cantidad = self._calcular_cantidad_rango(ncf_desde, ncf_hasta)
+        servicio = ECFAnulacionService()
+        xml_firmado = servicio.generar_y_firmar(
+            rnc_emisor=rnc_emisor,
+            rangos=[RangoNCF(
+                tipo_ecf=tipo_ecf,
+                desde=ncf_desde,
+                hasta=ncf_hasta,
+                cantidad=cantidad,
+            )],
+            p12_data=self._p12_data,
+            p12_password=self._p12_password,
+        )
 
         resp = await self._client.post(
             self.EP_ANULACION_RANGO,
-            content=payload_xml.encode("utf-8"),
-            headers=self._auth_headers(),
+            content=xml_firmado,
+            headers={**self._auth_headers(), "Content-Type": "application/xml"},
         )
         if resp.status_code not in (200, 201, 202):
             raise DGIIClientError(f"Error en anulación: HTTP {resp.status_code} — {resp.text}")
-        return self._parsear_respuesta(resp.json())
+        try:
+            return self._parsear_respuesta(resp.json())
+        except ValueError:
+            return RespuestaDGII(
+                estado=EstadoDGII.RECIBIDO,
+                track_id=None,
+                mensaje=resp.text[:500],
+                cufe=None,
+                qr_code=None,
+                detalles=[],
+                raw={"raw_text": resp.text[:2000]},
+            )
+
+    @staticmethod
+    def _calcular_cantidad_rango(desde: str, hasta: str) -> int:
+        """Cuenta NCFs entre desde/hasta inclusive (asume mismo prefijo)."""
+        try:
+            n_desde = int(desde[3:])
+            n_hasta = int(hasta[3:])
+            return max(1, n_hasta - n_desde + 1)
+        except (ValueError, IndexError):
+            return 1
 
     # -------------------------------------------------------
     # Parser de respuestas

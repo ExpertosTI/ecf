@@ -172,6 +172,24 @@ class CertVaultRepository:
             bytes(row["tag"]),
         )
 
+    async def obtener_certificado(self, tenant_id: str) -> dict:
+        """Devuelve el .p12 desencriptado y la contraseña en claro.
+
+        Forma esperada por los servicios de Aceptación Comercial y
+        ``ECFRecibidasService``::
+
+            {"cert_data": <bytes>, "cert_password": <str>}
+        """
+        cert_bytes = await self.obtener(tenant_id)
+        async with self.db.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT cert_password FROM public.tenants WHERE id = $1",
+                uuid.UUID(tenant_id),
+            )
+        enc_password = (row["cert_password"] if row else "") or ""
+        password = self.vault.descifrar_campo(enc_password) if enc_password else ""
+        return {"cert_data": cert_bytes, "cert_password": password}
+
     async def verificar_vencimientos(self, db_pool: asyncpg.Pool) -> list[dict]:
         """
         Retorna lista de tenants con cert a punto de vencer (< 30 días).

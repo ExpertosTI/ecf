@@ -1,4 +1,4 @@
-# SaaS ECF DGII — Dependencias Python
+# Renace e-CF — Dependencias Python
 # Probado con Python 3.11+
 
 # API Framework
@@ -15,19 +15,20 @@ redis[asyncio]==5.0.4
 # HTTP cliente (mTLS)
 httpx==0.27.0
 
-# Criptografía
+# Criptografía y XML
 cryptography==42.0.7
 lxml==5.2.2
-
-# Seguridad
-bcrypt==4.1.3
-python-jose[cryptography]==3.3.0
 
 # Utilidades
 python-dotenv==1.0.1
 requests==2.32.3
 
-# Reportes
+# Representación impresa (PDF) y QR
+qrcode[pil]==7.4.2
+weasyprint==62.3
+jinja2==3.1.4
+
+# Reportes 606/607/608 / IT-1 / IR-17
 openpyxl==3.1.5
 fpdf2==2.8.1
 

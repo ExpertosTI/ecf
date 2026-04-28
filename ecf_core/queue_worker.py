@@ -24,26 +24,9 @@ from ecf_core.dgii_client import (
     DGIIClient, EstadoDGII, DGIIClientError,
     generar_security_code, generar_qr_url,
 )
-
-import re
+from ecf_core.utils import safe_schema as _safe_schema
 
 logger = logging.getLogger(__name__)
-
-# Schema name validation (prevent SQL injection)
-_SAFE_SCHEMA_RE = re.compile(r"^[a-z][a-z0-9_]{2,62}$")
-_SCHEMA_BLACKLIST = frozenset({
-    "public", "pg_catalog", "pg_toast", "information_schema",
-    "pg_temp", "pg_toast_temp",
-})
-
-
-def _safe_schema(name: str) -> str:
-    """Validate and return schema name. Raises ValueError if unsafe."""
-    if not _SAFE_SCHEMA_RE.match(name):
-        raise ValueError(f"Invalid schema name: {name!r}")
-    if name in _SCHEMA_BLACKLIST:
-        raise ValueError(f"Reserved schema name: {name!r}")
-    return name
 
 QUEUE_ECF_PENDING = "ecf:pending"       # Cola principal
 QUEUE_ECF_RETRY   = "ecf:retry"         # Cola de reintentos
@@ -199,6 +182,7 @@ class ECFQueueWorker:
                 ecf_id     = ecf_id,
                 estado     = self._estado_dgii_a_local(respuesta.estado),
                 cufe       = respuesta.cufe,
+                xml_original = resultado.get("xml_original"),
                 xml_firmado= resultado["xml_firmado"],
                 respuesta  = respuesta.raw,
                 intento    = intento,
@@ -255,12 +239,19 @@ class ECFQueueWorker:
             p12_data = await self.cert_repo.obtener(tenant_id)
             p12_pass = self.vault.descifrar_campo(tenant.get("cert_password") or "").encode()
 
+            # Tipo e-CF: deducir del NCF (E31xxxxxxxxxx → 31)
+            try:
+                tipo_ecf = int(ncf[1:3])
+            except (ValueError, IndexError):
+                tipo_ecf = 31
+
             async with DGIIClient(ambiente=tenant["ambiente"]) as dgii:
                 dgii.set_certificate(p12_data, p12_pass)
                 respuesta = await dgii.anular_ecf(
                     rnc_emisor=tenant["rnc"],
                     ncf_desde=ncf,
                     ncf_hasta=ncf,
+                    tipo_ecf=tipo_ecf,
                 )
 
             # Marcar como anulado SOLO si DGII aceptó; revertir si rechazó
@@ -436,24 +427,26 @@ class ECFQueueWorker:
         return dict(row) if row else {}
 
     async def _actualizar_ecf(self, schema, ecf_id, estado, cufe, xml_firmado, respuesta, intento,
-                              track_id=None, security_code=None, qr_url=None):
+                              track_id=None, security_code=None, qr_url=None,
+                              xml_original=None):
         s = _safe_schema(schema)
         async with self.db.acquire() as conn:
             await conn.execute(f"""
                 UPDATE {s}.ecf SET
                     estado          = $1,
                     cufe            = COALESCE($2, cufe),
-                    xml_firmado     = COALESCE($3, xml_firmado),
-                    respuesta_dgii  = $4,
-                    intentos_envio  = $5,
-                    track_id        = COALESCE($6, track_id),
-                    security_code   = COALESCE($7, security_code),
-                    qr_url          = COALESCE($8, qr_url),
+                    xml_original    = COALESCE($3, xml_original),
+                    xml_firmado     = COALESCE($4, xml_firmado),
+                    respuesta_dgii  = $5,
+                    intentos_envio  = $6,
+                    track_id        = COALESCE($7, track_id),
+                    security_code   = COALESCE($8, security_code),
+                    qr_url          = COALESCE($9, qr_url),
                     sent_at         = CASE WHEN sent_at IS NULL THEN NOW() ELSE sent_at END,
-                    approved_at     = CASE WHEN $1 = 'aprobado' THEN NOW() ELSE approved_at END,
+                    approved_at     = CASE WHEN $1 = 'aprobado' AND approved_at IS NULL THEN NOW() ELSE approved_at END,
                     updated_at      = NOW()
-                WHERE id = $9
-            """, estado, cufe, xml_firmado, json.dumps(respuesta), intento,
+                WHERE id = $10
+            """, estado, cufe, xml_original, xml_firmado, json.dumps(respuesta), intento,
                 track_id, security_code, qr_url, uuid.UUID(ecf_id))
 
     async def _marcar_error(self, schema, ecf_id, error):

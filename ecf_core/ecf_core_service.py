@@ -1,9 +1,10 @@
-# ECF Core: Generación de XML, Firma y envio a la DGII
+# Renace e-CF · Núcleo de generación de XML, firma XAdES-BES y validación XSD.
 
 from __future__ import annotations
 
 import base64
 import hashlib
+import io
 import logging
 import os
 import uuid
@@ -13,7 +14,6 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import List, Optional
 
-from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.serialization import pkcs12
@@ -292,6 +292,10 @@ class ECFXMLGenerator:
         return detalles
 
     def _build_paginacion(self, f: FacturaECF) -> _Element:
+        # Página 1 — la DGII permite e-CF en página única siempre que TotalPaginas
+        # refleje el split físico. Para impresión multi-página el cliente que
+        # genere la representación impresa pagina los detalles, pero el XML
+        # transmitido a DGII viaja consolidado.
         pag = etree.Element(f"{{{NAMESPACE_ECF}}}Paginacion")
         self._e(pag, "PaginaActual", "1")
         self._e(pag, "TotalPaginas", str(f.total_paginas))
@@ -310,9 +314,15 @@ class ECFXMLGenerator:
         self._e(resumen, "ITBIS2",              str(f.total_itbis2))
         self._e(resumen, "TotalITBIS",           str(f.total_itbis))
         self._e(resumen, "MontoTotal",           str(f.total))
+
+        if f.moneda != "DOP":
+            self._e(resumen, "MontoTotalTransaccionado",
+                    str((f.total * f.tipo_cambio).quantize(Decimal("0.01"), ROUND_HALF_UP)))
+
         self._e(resumen, "TotalPagos",           str(f.total))
-        self._e(resumen, "FechaHoraFirma",
-                datetime.now(timezone.utc).strftime("%d-%m-%Y %H:%M:%S"))
+        # FechaHoraFirma: placeholder. Se sustituye con la hora real de firma
+        # en ECFSigner.firmar() para mantener consistencia con xades:SigningTime.
+        self._e(resumen, "FechaHoraFirma", "PENDING_SIGN")
 
         return resumen
 
@@ -328,159 +338,197 @@ class ECFXMLGenerator:
 
 # Firma Digital XML (XAdES-BES compatible con DGII)
 
+XADES_NS = "http://uri.etsi.org/01903/v1.3.2#"
+
+
 class ECFSigner:
-    """
-    Firma el XML del e-CF con RSA-SHA256 usando el certificado .p12 del tenant.
-    Implementa la firma enveloped según los requisitos de la DGII.
+    """Firma el XML del e-CF con RSA-SHA256 usando XAdES-BES (requisito DGII).
+
+    Diferencias clave vs versiones previas:
+
+    1. ``xades:QualifyingProperties`` se inserta **antes** de calcular su digest.
+       La canonicalización c14n exclusiva incluye los namespaces heredados del
+       contexto del nodo, así que el digest debe calcularse sobre el árbol ya
+       inserto, no sobre el fragmento aislado.
+    2. El placeholder ``PENDING_SIGN`` que `_build_resumen` deja en
+       ``FechaHoraFirma`` se sustituye por el ``signing_time`` real, garantizando
+       coherencia con ``xades:SigningTime``.
     """
 
-    def firmar(
-        self,
-        xml_bytes: bytes,
-        p12_data: bytes,
-        p12_password: bytes
-    ) -> bytes:
-        # Cargar el .p12
-        private_key, certificate, chain = pkcs12.load_key_and_certificates(
-            p12_data, p12_password
-        )
+    def firmar(self, xml_bytes: bytes, p12_data: bytes, p12_password: bytes) -> bytes:
+        # 1. Cargar el .p12
+        private_key, certificate, _ = pkcs12.load_key_and_certificates(p12_data, p12_password)
 
-        # Parsear el XML
+        # 2. Parsear el XML original (sin pretty-print ni blanks colgantes)
         parser = etree.XMLParser(remove_blank_text=True)
         root = etree.fromstring(xml_bytes, parser)
 
-        # Canonicalizar el documento (C14N exclusivo)
-        xml_c14n = self._canonicalizar(root)
+        # 3. Sincronizar FechaHoraFirma del Resumen con el SigningTime XAdES
+        signing_time = datetime.now(timezone.utc)
+        signing_time_iso = signing_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        signing_time_dgii = signing_time.strftime("%d-%m-%Y %H:%M:%S")
+        for elem in root.iter():
+            tag_local = etree.QName(elem.tag).localname
+            if tag_local == "FechaHoraFirma" and (elem.text or "").strip() in {"", "PENDING_SIGN"}:
+                elem.text = signing_time_dgii
 
-        # Calcular digest del documento
-        digest = self._sha256_b64(xml_c14n)
-
-        # Construir el bloque SignedInfo
-        signed_info_xml = self._build_signed_info(digest)
-        signed_info_c14n = self._canonicalizar_string(signed_info_xml)
-
-        # Firmar el SignedInfo
-        firma_bytes = private_key.sign(
-            signed_info_c14n,
-            padding.PKCS1v15(),
-            hashes.SHA256()
-        )
-        firma_b64 = base64.b64encode(firma_bytes).decode()
-
-        # Serializar el certificado
+        # 4. Metadatos del certificado
+        cert_digest = base64.b64encode(certificate.fingerprint(hashes.SHA256())).decode()
+        cert_serial = str(certificate.serial_number)
+        cert_issuer = certificate.issuer.rfc4514_string()
         cert_b64 = base64.b64encode(
             certificate.public_bytes(serialization.Encoding.DER)
         ).decode()
 
-        # Construir el bloque <ds:Signature> completo
-        signature_node = self._build_signature_node(
-            signed_info_xml, firma_b64, cert_b64, digest, certificate
+        signature_id    = f"Signature-{uuid.uuid4()}"
+        signed_props_id = f"SignedProperties-{uuid.uuid4()}"
+
+        # 5. Construir <ds:Signature> envelope SIN SignedInfo aún
+        sig_node = etree.SubElement(root, f"{{{NAMESPACE_DS}}}Signature",
+                                    nsmap={"ds": NAMESPACE_DS})
+        sig_node.set("Id", signature_id)
+
+        # 6. <ds:Object> con <xades:QualifyingProperties>
+        obj_node = etree.SubElement(sig_node, f"{{{NAMESPACE_DS}}}Object")
+        qprops = etree.SubElement(
+            obj_node, f"{{{XADES_NS}}}QualifyingProperties",
+            nsmap={"xades": XADES_NS},
         )
+        qprops.set("Target", f"#{signature_id}")
 
-        # Insertar la firma en el XML
-        root.append(signature_node)
+        signed_props = etree.SubElement(qprops, f"{{{XADES_NS}}}SignedProperties")
+        signed_props.set("Id", signed_props_id)
 
-        return etree.tostring(
-            root,
-            xml_declaration=True,
-            encoding="UTF-8",
-            pretty_print=True
+        ssp = etree.SubElement(signed_props, f"{{{XADES_NS}}}SignedSignatureProperties")
+        etree.SubElement(ssp, f"{{{XADES_NS}}}SigningTime").text = signing_time_iso
+
+        sc = etree.SubElement(ssp, f"{{{XADES_NS}}}SigningCertificate")
+        cert_el = etree.SubElement(sc, f"{{{XADES_NS}}}Cert")
+
+        cert_digest_el = etree.SubElement(cert_el, f"{{{XADES_NS}}}CertDigest")
+        dm = etree.SubElement(cert_digest_el, f"{{{NAMESPACE_DS}}}DigestMethod")
+        dm.set("Algorithm", "http://www.w3.org/2001/04/xmlenc#sha256")
+        etree.SubElement(cert_digest_el, f"{{{NAMESPACE_DS}}}DigestValue").text = cert_digest
+
+        issuer_serial = etree.SubElement(cert_el, f"{{{XADES_NS}}}IssuerSerial")
+        etree.SubElement(issuer_serial, f"{{{NAMESPACE_DS}}}X509IssuerName").text = cert_issuer
+        etree.SubElement(issuer_serial, f"{{{NAMESPACE_DS}}}X509SerialNumber").text = cert_serial
+
+        # 7. Calcular el digest de SignedProperties con el árbol ya construido
+        signed_props_digest = self._sha256_b64(self._c14n_node(signed_props))
+
+        # 8. Calcular el digest del documento (transform enveloped + c14n)
+        # Para "enveloped-signature": tomamos el árbol root sin <ds:Signature>
+        # y lo canonicalizamos. Como ds:Signature ya está adjunto, hacemos una
+        # copia y removemos la firma para canonicalizar.
+        from copy import deepcopy
+        root_copy = deepcopy(root)
+        for sig in root_copy.findall(f"{{{NAMESPACE_DS}}}Signature"):
+            root_copy.remove(sig)
+        doc_digest = self._sha256_b64(self._c14n_node(root_copy))
+
+        # 9. Construir <ds:SignedInfo>
+        signed_info = etree.Element(
+            f"{{{NAMESPACE_DS}}}SignedInfo", nsmap={"ds": NAMESPACE_DS},
         )
+        cm = etree.SubElement(signed_info, f"{{{NAMESPACE_DS}}}CanonicalizationMethod")
+        cm.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
+        sm = etree.SubElement(signed_info, f"{{{NAMESPACE_DS}}}SignatureMethod")
+        sm.set("Algorithm", "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256")
 
-    def _canonicalizar(self, element: _Element) -> bytes:
-        import io
-        output = io.BytesIO()
-        element.getroottree().write_c14n(output, exclusive=True)
-        return output.getvalue()
+        ref_doc = etree.SubElement(signed_info, f"{{{NAMESPACE_DS}}}Reference")
+        ref_doc.set("URI", "")
+        transforms = etree.SubElement(ref_doc, f"{{{NAMESPACE_DS}}}Transforms")
+        t1 = etree.SubElement(transforms, f"{{{NAMESPACE_DS}}}Transform")
+        t1.set("Algorithm", "http://www.w3.org/2000/09/xmldsig#enveloped-signature")
+        t2 = etree.SubElement(transforms, f"{{{NAMESPACE_DS}}}Transform")
+        t2.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
+        dm_doc = etree.SubElement(ref_doc, f"{{{NAMESPACE_DS}}}DigestMethod")
+        dm_doc.set("Algorithm", "http://www.w3.org/2001/04/xmlenc#sha256")
+        etree.SubElement(ref_doc, f"{{{NAMESPACE_DS}}}DigestValue").text = doc_digest
 
-    def _canonicalizar_string(self, xml_str: str) -> bytes:
-        parser = etree.XMLParser(remove_blank_text=True)
-        el = etree.fromstring(xml_str.encode(), parser)
-        return self._canonicalizar(el)
+        ref_props = etree.SubElement(signed_info, f"{{{NAMESPACE_DS}}}Reference")
+        ref_props.set("Type", "http://uri.etsi.org/01903#SignedProperties")
+        ref_props.set("URI", f"#{signed_props_id}")
+        dm_p = etree.SubElement(ref_props, f"{{{NAMESPACE_DS}}}DigestMethod")
+        dm_p.set("Algorithm", "http://www.w3.org/2001/04/xmlenc#sha256")
+        etree.SubElement(ref_props, f"{{{NAMESPACE_DS}}}DigestValue").text = signed_props_digest
 
-    def _sha256_b64(self, data: bytes) -> str:
-        digest = hashlib.sha256(data).digest()
-        return base64.b64encode(digest).decode()
-
-    def _build_signed_info(self, digest_value: str) -> str:
-        return f"""<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
-  <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
-  <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
-  <ds:Reference URI="">
-    <ds:Transforms>
-      <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
-      <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
-    </ds:Transforms>
-    <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
-    <ds:DigestValue>{digest_value}</ds:DigestValue>
-  </ds:Reference>
-</ds:SignedInfo>"""
-
-    def _build_signature_node(
-        self,
-        signed_info_xml: str,
-        firma_b64: str,
-        cert_b64: str,
-        digest_value: str,
-        certificate: x509.Certificate
-    ) -> _Element:
-        # Extraer datos del certificado para KeyInfo
-        serial = str(certificate.serial_number)
-        issuer = certificate.issuer.rfc4514_string()
-        cert_digest = base64.b64encode(
-            certificate.fingerprint(hashes.SHA256())
+        # 10. Insertar SignedInfo al inicio de Signature y firmar
+        sig_node.insert(0, signed_info)
+        signed_info_c14n = self._c14n_node(signed_info)
+        signature_value = base64.b64encode(
+            private_key.sign(signed_info_c14n, padding.PKCS1v15(), hashes.SHA256()),
         ).decode()
 
-        sig_xml = f"""<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="xmldsig-{uuid.uuid4()}">
-  {signed_info_xml}
-  <ds:SignatureValue>{firma_b64}</ds:SignatureValue>
-  <ds:KeyInfo>
-    <ds:X509Data>
-      <ds:X509Certificate>{cert_b64}</ds:X509Certificate>
-      <ds:X509IssuerSerial>
-        <ds:X509IssuerName>{issuer}</ds:X509IssuerName>
-        <ds:X509SerialNumber>{serial}</ds:X509SerialNumber>
-      </ds:X509IssuerSerial>
-    </ds:X509Data>
-  </ds:KeyInfo>
-</ds:Signature>"""
+        sig_value_el = etree.Element(f"{{{NAMESPACE_DS}}}SignatureValue")
+        sig_value_el.text = signature_value
+        # SignatureValue después de SignedInfo, antes de KeyInfo
+        sig_node.insert(1, sig_value_el)
 
-        parser = etree.XMLParser(remove_blank_text=True)
-        return etree.fromstring(sig_xml.encode(), parser)
+        # 11. KeyInfo (entre SignatureValue y Object)
+        key_info = etree.Element(f"{{{NAMESPACE_DS}}}KeyInfo")
+        x509_data = etree.SubElement(key_info, f"{{{NAMESPACE_DS}}}X509Data")
+        etree.SubElement(x509_data, f"{{{NAMESPACE_DS}}}X509Certificate").text = cert_b64
+        sig_node.insert(2, key_info)
+        # obj_node ya está al final de sig_node — el orden final es:
+        #   SignedInfo, SignatureValue, KeyInfo, Object  ✅
+
+        return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=False)
+
+    def _c14n_node(self, node: _Element) -> bytes:
+        """Canonicalización exclusiva (xml-exc-c14n#) de un nodo del árbol."""
+        return etree.tostring(node, method="c14n", exclusive=True, with_comments=False)
+
+    def _sha256_b64(self, data: bytes) -> str:
+        return base64.b64encode(hashlib.sha256(data).digest()).decode()
 
 
 # Validador XSD
 
-# SKIP_XSD_VALIDATION=true solo para entornos TesteCF/CerteCF durante pruebas.
-# En producción (eCF) siempre se valida independientemente de esta variable.
+# SKIP_XSD_VALIDATION=true sólo se honra en ambientes de prueba (TesteCF/CerteCF/
+# simulación). En el ambiente de producción (eCF) se ignora siempre.
 _SKIP_XSD_VALIDATION = os.environ.get("SKIP_XSD_VALIDATION", "false").lower() == "true"
+_PROD_AMBIENTE = os.environ.get("ECF_AMBIENTE", "").lower() in {"ecf", "produccion"}
 
 
 class ECFValidator:
-    """
-    Valida el XML del e-CF contra los esquemas XSD oficiales de la DGII.
-    Los XSD se descargan con: bash scripts/actualizar_xsd.sh
+    """Valida XML contra esquemas XSD oficiales de la DGII (e-CF y eventos).
 
-    Modos:
-    - Producción (eCF):       Siempre valida. Falla si XSD no disponible.
-    - Certificación/Test:     Si SKIP_XSD_VALIDATION=true, emite WARNING y continúa.
-                              Útil durante el proceso de homologación DGII.
+    En producción la validación es **obligatoria**: ``SKIP_XSD_VALIDATION``
+    se ignora cuando ``ECF_AMBIENTE=eCF`` o ``produccion``.
     """
 
-    _schemas: dict[int, etree.XMLSchema] = {}
+    _schemas: dict[str, etree.XMLSchema] = {}
 
+    # API alta: valida e-CF por tipo numérico.
     def validar(self, xml_bytes: bytes, tipo_ecf: int) -> tuple[bool, list[str]]:
-        schema = self._get_schema(tipo_ecf)
+        schema_name = f"ECF-{tipo_ecf}"
+        return self._validar_por_nombre(xml_bytes, schema_name, fallback="ECF")
+
+    # API alta: valida un evento (ANECF / ACECF / ARECF / Semilla / RFCE-32).
+    def validar_evento(self, xml_bytes: bytes, evento: str) -> tuple[bool, list[str]]:
+        return self._validar_por_nombre(xml_bytes, evento)
+
+    def _validar_por_nombre(
+        self,
+        xml_bytes: bytes,
+        schema_name: str,
+        fallback: Optional[str] = None,
+    ) -> tuple[bool, list[str]]:
+        schema = self._get_schema(schema_name) or (
+            self._get_schema(fallback) if fallback else None
+        )
         if schema is None:
-            if _SKIP_XSD_VALIDATION:
+            if _SKIP_XSD_VALIDATION and not _PROD_AMBIENTE:
                 logger.warning(
-                    "XSD no disponible para tipo e-CF %s — validación omitida "
-                    "(SKIP_XSD_VALIDATION=true). NO usar en producción.",
-                    tipo_ecf,
+                    "XSD no disponible para %s — validación omitida (modo prueba). "
+                    "Esto NO debe ocurrir en producción.",
+                    schema_name,
                 )
                 return True, []
             raise ValueError(
-                f"XSD obligatorio no disponible para tipo e-CF {tipo_ecf}. "
+                f"XSD obligatorio no disponible para {schema_name}. "
                 f"Ejecuta: bash scripts/actualizar_xsd.sh"
             )
 
@@ -489,118 +537,63 @@ class ECFValidator:
         errores = [str(e) for e in schema.error_log]
         return valido, errores
 
-    def _get_schema(self, tipo_ecf: int) -> Optional[etree.XMLSchema]:
-        if tipo_ecf in self._schemas:
-            return self._schemas[tipo_ecf]
-
-        xsd_path = XSD_DIR / f"ECF-{tipo_ecf}.xsd"
+    def _get_schema(self, name: Optional[str]) -> Optional[etree.XMLSchema]:
+        if not name:
+            return None
+        if name in self._schemas:
+            return self._schemas[name]
+        xsd_path = XSD_DIR / f"{name}.xsd"
         if not xsd_path.exists():
-            xsd_path = XSD_DIR / "ECF.xsd"
-            if not xsd_path.exists():
-                return None
-
+            return None
         schema_doc = etree.parse(str(xsd_path))
         schema = etree.XMLSchema(schema_doc)
-        self._schemas[tipo_ecf] = schema
+        self._schemas[name] = schema
         return schema
-
-
-# Generador de CUFE
-
-class CUFEGenerator:
-    """
-    Genera el Código Único de Factura Electrónica (CUFE).
-    Algoritmo: SHA-384 sobre la concatenación de campos según la DGII.
-    """
-
-    def generar(
-        self,
-        ncf: str,
-        rnc_emisor: str,
-        fecha_emision: date,
-        monto_total: Decimal,
-        itbis: Decimal,
-        rnc_comprador: str,
-        tipo_ecf: int,
-        clave_secreta: str,        # Clave secreta del emisor registrada en DGII
-    ) -> str:
-        # Concatenación según especificación DGII
-        cadena = (
-            f"{ncf}"
-            f"{rnc_emisor}"
-            f"{fecha_emision.strftime('%Y%m%d')}"
-            f"{monto_total:.2f}"
-            f"{itbis:.2f}"
-            f"{rnc_comprador or ''}"
-            f"{tipo_ecf:02d}"
-            f"{clave_secreta}"
-        )
-
-        cufe = hashlib.sha384(cadena.encode("utf-8")).hexdigest()
-        return cufe
 
 
 # Servicio principal: orquesta todo el flujo
 
 class ECFCoreService:
-    """
-    Orquestador principal del procesamiento de e-CF.
-    Coordina: generación XML → validación XSD → firma → CUFE
+    """Orquestador del procesamiento de un e-CF.
+
+    Flujo: generar XML → validar XSD → firmar XAdES.
+
+    En la DGII RD el identificador único de un e-CF es el ``CodigoSeguridad``
+    (6 alfanuméricos del ``SignatureValue``) + ``TrackId`` retornado por la DGII
+    al recibir el envío. NO se usa CUFE — esa convención es de Colombia.
+    El ``CodigoSeguridad`` se calcula post-firma en
+    ``ecf_core.dgii_client.generar_security_code``.
     """
 
     def __init__(self):
-        self.generator  = ECFXMLGenerator()
-        self.signer     = ECFSigner()
-        self.validator  = ECFValidator()
-        self.cufe_gen   = CUFEGenerator()
+        self.generator = ECFXMLGenerator()
+        self.signer    = ECFSigner()
+        self.validator = ECFValidator()
 
     def procesar(
         self,
         factura: FacturaECF,
         p12_data: bytes,
         p12_password: bytes,
-        clave_secreta_cufe: str,
+        clave_secreta_cufe: str = "",  # mantenido por compatibilidad — no usado
     ) -> dict:
-        """
-        Flujo completo:
-        1. Generar XML
-        2. Validar contra XSD
-        3. Firmar digitalmente
-        4. Calcular CUFE
-        Retorna dict con xml_firmado, cufe, y metadatos.
-        """
-
-        # 1. Generar XML
+        # 1. XML
         logger.info("Generando XML para NCF %s", factura.ncf)
         xml_original = self.generator.generar(factura)
 
-        # 2. Validar XSD
+        # 2. XSD
         logger.info("Validando XSD para tipo %s", factura.tipo_ecf)
         valido, errores = self.validator.validar(xml_original, factura.tipo_ecf)
         if not valido:
             raise ValueError(f"XML no válido contra XSD DGII: {'; '.join(errores)}")
 
-        # 3. Firmar
+        # 3. Firma XAdES-BES
         logger.info("Firmando XML con certificado del tenant")
         xml_firmado = self.signer.firmar(xml_original, p12_data, p12_password)
 
-        # 4. CUFE
-        cufe = self.cufe_gen.generar(
-            ncf            = factura.ncf,
-            rnc_emisor     = factura.rnc_emisor,
-            fecha_emision  = factura.fecha_emision,
-            monto_total    = factura.total,
-            itbis          = factura.total_itbis,
-            rnc_comprador  = factura.rnc_comprador,
-            tipo_ecf       = factura.tipo_ecf,
-            clave_secreta  = clave_secreta_cufe,
-        )
-
-        logger.info("e-CF procesado correctamente. NCF=%s CUFE=%s...", factura.ncf, cufe[:16])
-
         return {
             "ncf":          factura.ncf,
-            "cufe":         cufe,
+            "cufe":         None,  # deprecated — ver docstring
             "xml_original": xml_original,
             "xml_firmado":  xml_firmado,
             "tipo_ecf":     factura.tipo_ecf,
