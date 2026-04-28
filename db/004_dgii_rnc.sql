@@ -12,5 +12,5 @@ CREATE TABLE IF NOT EXISTS public.dgii_rnc (
     created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_dgii_rnc_clean ON public.dgii_rnc (regexp_replace(rnc, '[^0-9]', '', 'g'));
-CREATE INDEX idx_dgii_rnc_razon ON public.dgii_rnc USING gin (to_tsvector('spanish', razon_social));
+CREATE INDEX IF NOT EXISTS idx_dgii_rnc_clean ON public.dgii_rnc (regexp_replace(rnc, '[^0-9]', '', 'g'));
+CREATE INDEX IF NOT EXISTS idx_dgii_rnc_razon ON public.dgii_rnc USING gin (to_tsvector('spanish', razon_social));
