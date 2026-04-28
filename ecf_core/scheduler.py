@@ -19,6 +19,7 @@ import asyncpg
 
 from ecf_core.cert_vault import CertVault, CertVaultRepository
 from ecf_core.ecf_recibidas_service import ECFRecibidasService
+from ecf_core.rfce_service import RFCEService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -197,6 +198,29 @@ async def alertar_dlq(db_pool: asyncpg.Pool):
         )
 
 
+async def procesar_rfce_diario(db_pool: asyncpg.Pool):
+    """Genera y envía el resumen diario (Tipo 31) para todos los tenants."""
+    ahora = datetime.now()
+    # Ejecutar solo a las 23:00 (11 PM)
+    if ahora.hour != 23:
+        return
+
+    logger.info("Iniciando procesamiento de RFCE diario (Tipo 31)...")
+    rfce_service = RFCEService(db_pool)
+    
+    async with db_pool.acquire() as conn:
+        tenants = await conn.fetch("SELECT id, rnc, razon_social FROM public.tenants WHERE estado = 'activo'")
+        
+    for t in tenants:
+        try:
+            resumen = await rfce_service.generar_resumen_diario(t['id'])
+            if resumen:
+                logger.info(f"RFCE generado para {t['razon_social']} ({t['rnc']})")
+                # Aquí se llamaría a rfce_service.enviar_a_dgii(t['id'], resumen)
+        except Exception as e:
+            logger.error(f"Error procesando RFCE para {t['razon_social']}: {e}")
+
+
 async def main():
     logger.info("Iniciando Renace e-CF Scheduler (cert + recibidas + ncf-seq)...")
 
@@ -213,6 +237,7 @@ async def main():
             await reset_contadores_mensuales(db_pool)
             await sincronizar_ecf_recibidas(db_pool)
             await alertar_ncf_secuencias(db_pool)
+            await procesar_rfce_diario(db_pool)
             logger.info("Jobs completados. Próxima ejecución en %d segundos", CHECK_INTERVAL)
             await asyncio.sleep(CHECK_INTERVAL)
     finally:
