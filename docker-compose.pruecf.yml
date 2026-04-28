@@ -38,6 +38,8 @@ services:
       - "traefik.http.routers.pruecf_api.tls.certresolver=letsencrypt"
       - "traefik.http.routers.pruecf_api.middlewares=security-headers@docker,rate-limit@docker"
       - "traefik.http.services.pruecf_api.loadbalancer.server.port=8000"
+    ports:
+      - "59318:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
