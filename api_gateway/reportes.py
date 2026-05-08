@@ -7,11 +7,8 @@ import io
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
 
-import asyncpg
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response
 
 # ── Constantes DGII ──
 
@@ -41,7 +38,7 @@ TIPO_ANULACION = {
 }
 
 
-class ExportFormat(str, Enum):
+class ExportFormat(str, Enum):  # noqa: UP042 — preserva compat. de orden de bases para JSON
     json = "json"
     txt = "txt"
     xlsx = "xlsx"
@@ -301,7 +298,6 @@ def _to_pdf(rows: list[dict], headers: list[str], keys: list[str],
 
     # ── Calculate column widths ──
     avail_w = pdf.w - pdf.l_margin - pdf.r_margin
-    n_cols = len(headers)
     col_widths = []
 
     # Use header length as minimum, scale proportionally

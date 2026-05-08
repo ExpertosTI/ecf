@@ -1,0 +1,38 @@
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # bugbear
+    "S",   # bandit security
+    "C4",  # comprehensions
+]
+ignore = [
+    "S101",  # assert usage (used in tests)
+    "S105",  # possible hardcoded password (env var strings)
+    "S106",
+    "S608",  # interpolación SQL — usamos `safe_schema()` (regex + blacklist) para validar nombres
+    "B008",  # Depends() in FastAPI defaults
+    "B904",  # raise from — covered separately
+    "E501",  # line too long handled by formatter
+    "UP017", # datetime.UTC — requiere Py 3.11+ (ya target, pero compat dev local)
+    "UP045", # X | None — usamos Optional para FastAPI/Pydantic compat
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "B"]  # tests may use asserts freely
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]

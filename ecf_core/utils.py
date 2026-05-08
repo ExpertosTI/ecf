@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import os
 import re
 from decimal import Decimal
 
@@ -41,7 +43,7 @@ def validar_rnc_dgii(rnc: str) -> bool:
         return False
     cuerpo = rnc[:8]
     digito_check = int(rnc[8])
-    suma = sum(int(d) * w for d, w in zip(cuerpo, _RNC_WEIGHTS))
+    suma = sum(int(d) * w for d, w in zip(cuerpo, _RNC_WEIGHTS, strict=True))
     residuo = suma % 11
     if residuo == 0:
         esperado = 2
@@ -75,6 +77,41 @@ def validar_rnc_o_cedula(documento: str) -> bool:
     if len(documento) == 11:
         return validar_cedula_dgii(documento)
     return False
+
+
+# MFA secret encryption (AES-256-GCM) ----------------------------------------
+#
+# Usa VAULT_MASTER_KEY (32 bytes en base64) para cifrar el TOTP secret antes de
+# persistirlo en portal_users.mfa_secret_enc. El valor almacenado es base64url
+# del formato: nonce(12B) || ciphertext || tag(16B).
+
+
+def _get_vault_key() -> bytes:
+    raw = os.environ.get("VAULT_MASTER_KEY", "")
+    if not raw:
+        raise RuntimeError("VAULT_MASTER_KEY no configurada")
+    key = base64.b64decode(raw)
+    if len(key) != 32:
+        raise RuntimeError("VAULT_MASTER_KEY debe ser exactamente 32 bytes en base64")
+    return key
+
+
+def encrypt_mfa_secret(plaintext: str) -> str:
+    """Cifra un TOTP secret con AES-256-GCM. Devuelve base64url."""
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    key = _get_vault_key()
+    nonce = os.urandom(12)
+    ct = AESGCM(key).encrypt(nonce, plaintext.encode(), None)
+    return base64.urlsafe_b64encode(nonce + ct).decode()
+
+
+def decrypt_mfa_secret(token: str) -> str:
+    """Descifra un TOTP secret cifrado con ``encrypt_mfa_secret``."""
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    key = _get_vault_key()
+    raw = base64.urlsafe_b64decode(token)
+    nonce, ct = raw[:12], raw[12:]
+    return AESGCM(key).decrypt(nonce, ct, None).decode()
 
 
 # Decimal helpers ------------------------------------------------------------

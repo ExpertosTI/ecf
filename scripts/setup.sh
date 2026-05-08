@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup.sh — Configuración inicial de SaaS ECF DGII
+# setup.sh — Configuración inicial de Renace e-CF
 # Genera secretos, crea .env y descarga XSD en un solo comando.
 # Uso: bash setup.sh
 
@@ -16,7 +16,7 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 echo ""
 echo "======================================================="
-echo "  SAAS ECF DGII — Configuración Inicial"
+echo "  Renace e-CF — Configuración Inicial"
 echo "======================================================="
 echo ""
 
@@ -42,7 +42,7 @@ else
     METRICS_KEY=$(python3 -c "import secrets; print(secrets.token_hex(16))")
 
     cat > "$ENV_FILE" <<EOF
-# SaaS ECF DGII — Variables de entorno generadas por setup.sh
+# Renace e-CF — Variables de entorno generadas por setup.sh
 # COMPLETAR: ECF_DOMAIN, ACME_EMAIL, PSFE_CERT_B64, PSFE_KEY_B64, DGII_CA_B64
 
 # --- Dominio ---

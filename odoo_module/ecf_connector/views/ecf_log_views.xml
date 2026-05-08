@@ -16,7 +16,7 @@
                        decoration-warning="estado in ('condicionado', 'pendiente')"
                        decoration-muted="estado == 'anulado'"
                        widget="badge"/>
-                <field name="cufe"/>
+                <field name="codigo_seguridad"/>
                 <field name="error_msg"/>
             </list>
         </field>
@@ -42,7 +42,7 @@
                         </group>
                         <group string="Resultado DGII">
                             <field name="estado"/>
-                            <field name="cufe"/>
+                            <field name="codigo_seguridad"/>
                             <field name="approved_at"/>
                         </group>
                     </group>

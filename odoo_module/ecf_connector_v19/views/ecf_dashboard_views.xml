@@ -24,7 +24,7 @@
                 <field name="estado"/>
                 <field name="move_id"/>
                 <field name="tipo_ecf"/>
-                <field name="cufe"/>
+                <field name="codigo_seguridad"/>
                 <field name="approved_at"/>
                 <field name="ambiente"/>
                 <field name="create_date"/>

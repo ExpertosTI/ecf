@@ -207,18 +207,20 @@ async def procesar_rfce_diario(db_pool: asyncpg.Pool):
 
     logger.info("Iniciando procesamiento de RFCE diario (Tipo 31)...")
     rfce_service = RFCEService(db_pool)
-    
+
     async with db_pool.acquire() as conn:
         tenants = await conn.fetch("SELECT id, rnc, razon_social FROM public.tenants WHERE estado = 'activo'")
-        
+
     for t in tenants:
         try:
             resumen = await rfce_service.generar_resumen_diario(t['id'])
-            if resumen:
-                logger.info(f"RFCE generado para {t['razon_social']} ({t['rnc']})")
-                # Aquí se llamaría a rfce_service.enviar_a_dgii(t['id'], resumen)
+            if resumen and "errores" not in resumen:
+                await rfce_service.enviar_a_dgii(t['id'], resumen)
+                logger.info("RFCE enviado para %s (%s)", t['razon_social'], t['rnc'])
+            elif resumen:
+                logger.warning("RFCE con errores XSD para %s: %s", t['rnc'], resumen.get('errores'))
         except Exception as e:
-            logger.error(f"Error procesando RFCE para {t['razon_social']}: {e}")
+            logger.error("Error procesando RFCE para %s: %s", t['razon_social'], e)
 
 
 async def main():

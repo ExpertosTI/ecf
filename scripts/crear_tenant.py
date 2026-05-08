@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-crear_tenant.py — Crea un nuevo tenant en la plataforma SaaS ECF.
+crear_tenant.py — Crea un nuevo tenant en la plataforma Renace e-CF.
 
 Uso:
     python scripts/crear_tenant.py \
@@ -24,7 +24,7 @@ import requests
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Crear tenant en SaaS ECF DGII")
+    parser = argparse.ArgumentParser(description="Crear tenant en Renace e-CF DGII")
     parser.add_argument("--rnc", required=True, help="RNC del tenant (9-11 dígitos)")
     parser.add_argument("--razon-social", required=True, help="Razón social de la empresa")
     parser.add_argument("--email", required=True, help="Email del administrador")

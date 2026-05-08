@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Webhook Controller — Recibe callbacks del SaaS ECF
+Webhook Controller — Recibe callbacks del Renace e-CF
 Verifica la firma HMAC-SHA256 y timestamp anti-replay antes de actualizar el estado en Odoo.
 """
 
@@ -81,10 +81,10 @@ class ECFWebhookController(http.Controller):
             return request.make_response('Error', status=500)
 
     def _verificar_firma(self, body: bytes, sig_header: str, secret: bytes) -> bool:
-        """Verifica que el callback proviene del SaaS autorizado."""
+        """Verifica que el callback proviene del gateway autorizado."""
+        sig_clean = sig_header.replace('sha256=', '', 1)
         expected = hmac.new(secret, body, hashlib.sha256).hexdigest()
-        # Comparación en tiempo constante para evitar timing attacks
-        return hmac.compare_digest(expected, sig_header)
+        return hmac.compare_digest(expected, sig_clean)
 
     def _verificar_timestamp(self, data: dict) -> bool:
         """
@@ -108,7 +108,7 @@ class ECFWebhookController(http.Controller):
         odoo_move_id = data.get('odoo_move_id')
         ncf          = data.get('ncf')
         estado       = data.get('estado')
-        cufe         = data.get('cufe')
+        codigo_seguridad = data.get('codigo_seguridad') or data.get('cufe')
         qr_code      = data.get('qr_code')
         error_msg    = data.get('error_msg')
 
@@ -125,8 +125,8 @@ class ECFWebhookController(http.Controller):
 
         # Actualizar factura
         vals = {'ecf_estado': estado}
-        if cufe:
-            vals['ecf_cufe'] = cufe
+        if codigo_seguridad:
+            vals['ecf_codigo_seguridad'] = codigo_seguridad
         if qr_code:
             vals['ecf_qr'] = qr_code
 
@@ -141,7 +141,7 @@ class ECFWebhookController(http.Controller):
         if log:
             log_vals = {
                 'estado':       estado,
-                'cufe':         cufe,
+                'codigo_seguridad': codigo_seguridad,
                 'qr_code':      qr_code,
             }
             if error_msg:
@@ -197,7 +197,7 @@ class ECFWebhookController(http.Controller):
             # Verificar firma si hay secret configurado
             secret = company.ecf_webhook_secret or ''
             if secret and sig_header:
-                if not self._verificar_firma(body_bytes, sig_header.replace('sha256=', ''), secret.encode()):
+                if not self._verificar_firma(body_bytes, sig_header, secret.encode()):
                     _logger.warning("Webhook recibida: firma HMAC inválida")
                     return request.make_response('Unauthorized', status=401)
 
@@ -264,7 +264,7 @@ class ECFWebhookController(http.Controller):
                     'rnc_proveedor':    compra.get('rnc_proveedor', ''),
                     'nombre_proveedor': (compra.get('nombre_proveedor', '') or '')[:255],
                     'tipo_ecf':         compra.get('tipo_ecf') or 31,
-                    'cufe':             compra.get('cufe') or False,
+                    'codigo_seguridad': compra.get('codigo_seguridad') or compra.get('cufe') or False,
                     'fecha_comprobante': fecha,
                     'total_monto':      _dec('total_monto'),
                     'itbis_facturado':  _dec('itbis_facturado'),

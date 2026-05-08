@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Renace e-CF — Facturación Electrónica DGII',
-    'version': '18.0.4.0',
+    'version': '18.0.5.0',
     'category': 'Accounting/Localizations',
     'summary': 'Renace e-CF · Facturación Electrónica DGII RD (e-CF, ITBIS, retenciones, 606/607/608, IT-1)',
     'description': """

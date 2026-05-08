@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import io
 import logging
 import os
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
-from typing import List, Optional
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -39,7 +37,8 @@ TIPOS_ECF = {
 
 PREFIJOS_ECF = {t: f"E{t}" for t in TIPOS_ECF}
 
-NAMESPACE_ECF   = "http://www.dgii.gov.do/ecf"
+# Los XSD oficiales de la DGII no declaran targetNamespace; los elementos del
+# e-CF se emiten sin namespace y `ds:Signature` se inserta en el slot xs:any.
 NAMESPACE_DS    = "http://www.w3.org/2000/09/xmldsig#"
 
 # Rutas a los XSD oficiales de la DGII (debes descargarlos de la DGII)
@@ -56,7 +55,9 @@ class ItemECF:
     precio_unitario: Decimal
     descuento: Decimal = Decimal("0")
     itbis_tasa: Decimal = Decimal("18")
-    unidad: str = "Unidad"
+    # Código DGII de unidad de medida (43 = "UND" Unidad). Ver UnidadMedidaType
+    # en los XSD oficiales para el catálogo completo (1..XX).
+    unidad: str = "43"
     indicador_bien_servicio: int = 2    # 1=Bien, 2=Servicio
 
     @property
@@ -99,16 +100,16 @@ class FacturaECF:
     fecha_emision: date
 
     # Comprador
-    rnc_comprador: Optional[str]
-    nombre_comprador: Optional[str]
+    rnc_comprador: str | None
+    nombre_comprador: str | None
     tipo_rnc_comprador: str = "1"     # 1=RNC, 2=Cédula, 3=Pasaporte
 
     # Items
-    items: List[ItemECF] = None
+    items: list[ItemECF] = None
 
     # Referencia (notas de crédito/débito)
-    ncf_referencia: Optional[str] = None
-    fecha_ncf_referencia: Optional[date] = None
+    ncf_referencia: str | None = None
+    fecha_ncf_referencia: date | None = None
     codigo_modificacion: str = "1"    # 1=Descuento, 2=Devolución, 3=Anulación, 4=Otro
 
     # Configuración fiscal
@@ -120,15 +121,15 @@ class FacturaECF:
     indicador_envio_diferido: int = 0  # 0=Tiempo real, 1=Diferido
 
     # Emisor adicional
-    nombre_comercial: Optional[str] = None
-    municipio: Optional[str] = None
-    provincia: Optional[str] = None
+    nombre_comercial: str | None = None
+    municipio: str | None = None
+    provincia: str | None = None
 
     # Comprador adicional
-    direccion_comprador: Optional[str] = None
+    direccion_comprador: str | None = None
 
     # Para 606/607 (compras)
-    tipo_bienes_servicios: Optional[int] = None
+    tipo_bienes_servicios: int | None = None
 
     def __post_init__(self):
         if self.items is None:
@@ -186,23 +187,26 @@ class ECFXMLGenerator:
     """
 
     def generar(self, factura: FacturaECF) -> bytes:
-        nsmap = {
-            None: NAMESPACE_ECF,
-            "ds":  NAMESPACE_DS,
-        }
-        root = etree.Element(
-            f"{{{NAMESPACE_ECF}}}ECF",
-            nsmap=nsmap
-        )
-        root.set("Version", "1.0")
+        # Los XSD oficiales de la DGII NO declaran targetNamespace; los elementos
+        # del e-CF se emiten sin namespace. La firma XAdES se inserta después en
+        # el lugar permitido por <xs:any> al final del documento.
+        root = etree.Element("ECF")
 
         root.append(self._build_encabezado(factura))
         root.append(self._build_detalles(factura))
-        root.append(self._build_paginacion(factura))
-        root.append(self._build_resumen(factura))
+
+        # Paginacion sólo si hay > 1 página (Integer4ValidationTypeMayorUno).
+        if factura.total_paginas > 1:
+            root.append(self._build_paginacion(factura))
 
         if factura.ncf_referencia:
             root.append(self._build_referencia(factura))
+
+        # FechaHoraFirma es elemento de nivel ECF (NO va dentro de Resumen).
+        # Placeholder reemplazado por ECFSigner.firmar() para coincidir con
+        # xades:SigningTime.
+        fhf = etree.SubElement(root, "FechaHoraFirma")
+        fhf.text = "PENDING_SIGN"
 
         return etree.tostring(
             root,
@@ -213,126 +217,158 @@ class ECFXMLGenerator:
 
     def _e(self, parent: _Element, tag: str, text: str = None, **attrib) -> _Element:
         """Helper: crea elemento hijo."""
-        el = etree.SubElement(parent, f"{{{NAMESPACE_ECF}}}{tag}", **attrib)
+        el = etree.SubElement(parent, tag, **attrib)
         if text is not None:
             el.text = str(text)
         return el
 
     def _build_encabezado(self, f: FacturaECF) -> _Element:
-        enc = etree.Element(f"{{{NAMESPACE_ECF}}}Encabezado")
+        enc = etree.Element("Encabezado")
+
+        # Version (REQUIRED) — primer elemento de Encabezado por XSD.
+        self._e(enc, "Version", "1.0")
 
         # IdDoc
         id_doc = self._e(enc, "IdDoc")
-        self._e(id_doc, "TipoeCF",        str(f.tipo_ecf))
-        self._e(id_doc, "eNCF",           f.ncf)
-        self._e(id_doc, "IndicadorEnvioDiferido", str(f.indicador_envio_diferido))
-        self._e(id_doc, "IndicadorMontoGravado",
-                "1" if f.indicador_itbis_incluido else "0")
-        self._e(id_doc, "TipoIngresos",   f.tipo_ingresos)
-        self._e(id_doc, "TipoPago",       f.tipo_pago)
-        self._e(id_doc, "FechaLimitePago", f.fecha_emision.strftime("%d-%m-%Y"))
-        self._e(id_doc, "TotalPaginas",   str(f.total_paginas))
+        self._e(id_doc, "TipoeCF", str(f.tipo_ecf))
+        self._e(id_doc, "eNCF", f.ncf)
+        # ECF-34 (Nota de Crédito) reemplaza FechaVencimientoSecuencia con
+        # IndicadorNotaCredito (1 = nota de crédito normal).
+        if f.tipo_ecf == 34:
+            self._e(id_doc, "IndicadorNotaCredito", "1")
+        # FechaVencimientoSecuencia aplica a {31, 33, 41, 43, 44, 45, 46, 47}.
+        # Los XSD ECF-32 y ECF-34 no la incluyen.
+        elif f.tipo_ecf != 32:
+            self._e(
+                id_doc, "FechaVencimientoSecuencia",
+                date(f.fecha_emision.year, 12, 31).strftime("%d-%m-%Y"),
+            )
+        # IndicadorEnvioDiferido sólo admite valor 1 — omitir cuando no aplica.
+        if f.indicador_envio_diferido == 1:
+            self._e(id_doc, "IndicadorEnvioDiferido", "1")
+        self._e(
+            id_doc, "IndicadorMontoGravado",
+            "1" if f.indicador_itbis_incluido else "0",
+        )
+        self._e(id_doc, "TipoIngresos", f.tipo_ingresos)
+        self._e(id_doc, "TipoPago", f.tipo_pago)
+        if f.tipo_pago == "2":
+            # FechaLimitePago aplica a crédito; en contado/gratuito se omite.
+            self._e(
+                id_doc, "FechaLimitePago",
+                f.fecha_emision.strftime("%d-%m-%Y"),
+            )
+        # TotalPaginas tiene minExclusive=1 — sólo emitir cuando > 1.
+        if f.total_paginas > 1:
+            self._e(id_doc, "TotalPaginas", str(f.total_paginas))
 
         # Emisor
         emisor = self._e(enc, "Emisor")
-        self._e(emisor, "RNCEmisor",      f.rnc_emisor)
+        self._e(emisor, "RNCEmisor", f.rnc_emisor)
         self._e(emisor, "RazonSocialEmisor", f.razon_social_emisor)
         if f.nombre_comercial:
             self._e(emisor, "NombreComercial", f.nombre_comercial)
-        self._e(emisor, "DireccionEmisor",   f.direccion_emisor)
+        self._e(emisor, "DireccionEmisor", f.direccion_emisor)
         if f.municipio:
             self._e(emisor, "Municipio", f.municipio)
         if f.provincia:
             self._e(emisor, "Provincia", f.provincia)
-        self._e(emisor, "FechaEmision",
-                f.fecha_emision.strftime("%d-%m-%Y"))
+        self._e(emisor, "FechaEmision", f.fecha_emision.strftime("%d-%m-%Y"))
 
-        # Comprador (opcional en tipo 32 consumo final)
-        if f.rnc_comprador:
+        # Comprador — los XSD ECF-31, 32, 41, 44, 45, 46 lo exigen presente
+        # (sus children son opcionales: el RNC puede faltar para consumidor
+        # final). En 33, 34, 43 y 47 es opcional. El XSD no define
+        # TipoIdentificacion (el RNC distingue: 9=RNC, 11=Cédula).
+        comprador_obligatorio = f.tipo_ecf in (31, 32, 41, 44, 45, 46)
+        if f.rnc_comprador or comprador_obligatorio:
             comprador = self._e(enc, "Comprador")
-            self._e(comprador, "TipoIdentificacion", f.tipo_rnc_comprador)
-            self._e(comprador, "RNCComprador",  f.rnc_comprador)
-            self._e(comprador, "RazonSocialComprador", f.nombre_comprador or "")
+            if f.rnc_comprador:
+                self._e(comprador, "RNCComprador", f.rnc_comprador)
+            if f.nombre_comprador:
+                self._e(comprador, "RazonSocialComprador", f.nombre_comprador)
             if f.direccion_comprador:
                 self._e(comprador, "DireccionComprador", f.direccion_comprador)
 
-        # Totales de encabezado — separados por tasa ITBIS
+        # Totales — los campos ITBIS1/ITBIS2/ITBIS3 son TASAS (Integer2),
+        # no montos. Los montos van en TotalITBIS / TotalITBIS1 / TotalITBIS2.
         totales = self._e(enc, "Totales")
-        self._e(totales, "MontoGravadoTotal", str(f.subtotal))
-        self._e(totales, "MontoGravadoI1", str(f.monto_gravado_i1))
-        self._e(totales, "MontoGravadoI2", str(f.monto_gravado_i2))
-        self._e(totales, "MontoExento",    str(f.monto_exento))
-        self._e(totales, "ITBIS1",         str(f.total_itbis1))
-        self._e(totales, "ITBIS2",         str(f.total_itbis2))
-        self._e(totales, "TotalITBIS",     str(f.total_itbis))
-        self._e(totales, "MontoTotal",     str(f.total))
+        if f.subtotal > 0:
+            self._e(totales, "MontoGravadoTotal", str(f.subtotal))
+        if f.monto_gravado_i1 > 0:
+            self._e(totales, "MontoGravadoI1", str(f.monto_gravado_i1))
+        if f.monto_gravado_i2 > 0:
+            self._e(totales, "MontoGravadoI2", str(f.monto_gravado_i2))
+        if f.monto_exento > 0:
+            self._e(totales, "MontoExento", str(f.monto_exento))
+        if f.total_itbis1 > 0:
+            self._e(totales, "ITBIS1", "18")
+        if f.total_itbis2 > 0:
+            self._e(totales, "ITBIS2", "16")
+        if f.total_itbis > 0:
+            self._e(totales, "TotalITBIS", str(f.total_itbis))
+        if f.total_itbis1 > 0:
+            self._e(totales, "TotalITBIS1", str(f.total_itbis1))
+        if f.total_itbis2 > 0:
+            self._e(totales, "TotalITBIS2", str(f.total_itbis2))
+        self._e(totales, "MontoTotal", str(f.total))
 
+        # OtraMoneda — bloque con todos los datos en moneda extranjera.
         if f.moneda != "DOP":
-            self._e(totales, "MontoTotalTransaccionado",
-                    str((f.total * f.tipo_cambio).quantize(Decimal("0.01"))))
+            otra = self._e(enc, "OtraMoneda")
+            self._e(otra, "TipoMoneda", f.moneda)
+            self._e(otra, "TipoCambio", str(f.tipo_cambio))
+            self._e(
+                otra, "MontoTotalOtraMoneda",
+                str((f.total * f.tipo_cambio).quantize(Decimal("0.01"), ROUND_HALF_UP)),
+            )
 
         return enc
 
     def _build_detalles(self, f: FacturaECF) -> _Element:
-        detalles = etree.Element(f"{{{NAMESPACE_ECF}}}DetallesItems")
+        # Orden de campos por XSD: NumeroLinea, IndicadorFacturacion, NombreItem,
+        # IndicadorBienoServicio, [DescripcionItem], CantidadItem, [UnidadMedida],
+        # ..., PrecioUnitarioItem, [DescuentoMonto], MontoItem.
+        detalles = etree.Element("DetallesItems")
 
         for item in f.items:
             linea = self._e(detalles, "Item")
-            self._e(linea, "NumeroLinea",      str(item.linea))
+            self._e(linea, "NumeroLinea", str(item.linea))
             self._e(linea, "IndicadorFacturacion", str(item.indicador_facturacion))
-            self._e(linea, "NombreItem",       item.descripcion)
+            self._e(linea, "NombreItem", item.descripcion)
             self._e(linea, "IndicadorBienoServicio", str(item.indicador_bien_servicio))
-            self._e(linea, "UnidadMedida",     item.unidad)
-            self._e(linea, "CantidadItem",     str(item.cantidad))
+            self._e(linea, "CantidadItem", str(item.cantidad))
+            if item.unidad:
+                self._e(linea, "UnidadMedida", item.unidad)
             self._e(linea, "PrecioUnitarioItem", str(item.precio_unitario))
             if item.descuento > 0:
-                self._e(linea, "DescuentoMonto",   str(item.descuento))
-            self._e(linea, "MontoItem",        str(item.subtotal_bruto))
+                self._e(linea, "DescuentoMonto", str(item.descuento))
+            self._e(linea, "MontoItem", str(item.subtotal_bruto))
 
         return detalles
 
     def _build_paginacion(self, f: FacturaECF) -> _Element:
-        # Página 1 — la DGII permite e-CF en página única siempre que TotalPaginas
-        # refleje el split físico. Para impresión multi-página el cliente que
-        # genere la representación impresa pagina los detalles, pero el XML
-        # transmitido a DGII viaja consolidado.
-        pag = etree.Element(f"{{{NAMESPACE_ECF}}}Paginacion")
-        self._e(pag, "PaginaActual", "1")
-        self._e(pag, "TotalPaginas", str(f.total_paginas))
+        # Sólo se emite cuando hay split físico real (>1 página). Cada Pagina
+        # describe el rango de líneas que cubre.
+        pag = etree.Element("Paginacion")
+        items_per_page = 50
+        for page_no in range(1, f.total_paginas + 1):
+            pagina = self._e(pag, "Pagina")
+            self._e(pagina, "PaginaNo", str(page_no))
+            desde = (page_no - 1) * items_per_page + 1
+            hasta = min(page_no * items_per_page, len(f.items))
+            self._e(pagina, "NoLineaDesde", str(desde))
+            self._e(pagina, "NoLineaHasta", str(hasta))
         return pag
 
-    def _build_resumen(self, f: FacturaECF) -> _Element:
-        resumen = etree.Element(f"{{{NAMESPACE_ECF}}}Resumen")
-
-        self._e(resumen, "CodigoMoneda",         f.moneda)
-        self._e(resumen, "TipoCambio",           str(f.tipo_cambio))
-        self._e(resumen, "MontoGravadoTotal",    str(f.subtotal))
-        self._e(resumen, "MontoGravadoI1",       str(f.monto_gravado_i1))
-        self._e(resumen, "MontoGravadoI2",       str(f.monto_gravado_i2))
-        self._e(resumen, "MontoExento",          str(f.monto_exento))
-        self._e(resumen, "ITBIS1",              str(f.total_itbis1))
-        self._e(resumen, "ITBIS2",              str(f.total_itbis2))
-        self._e(resumen, "TotalITBIS",           str(f.total_itbis))
-        self._e(resumen, "MontoTotal",           str(f.total))
-
-        if f.moneda != "DOP":
-            self._e(resumen, "MontoTotalTransaccionado",
-                    str((f.total * f.tipo_cambio).quantize(Decimal("0.01"), ROUND_HALF_UP)))
-
-        self._e(resumen, "TotalPagos",           str(f.total))
-        # FechaHoraFirma: placeholder. Se sustituye con la hora real de firma
-        # en ECFSigner.firmar() para mantener consistencia con xades:SigningTime.
-        self._e(resumen, "FechaHoraFirma", "PENDING_SIGN")
-
-        return resumen
-
     def _build_referencia(self, f: FacturaECF) -> _Element:
-        ref = etree.Element(f"{{{NAMESPACE_ECF}}}InformacionReferencia")
-        self._e(ref, "NCFModificado",       f.ncf_referencia)
+        ref = etree.Element("InformacionReferencia")
+        self._e(ref, "NCFModificado", f.ncf_referencia)
         if f.fecha_ncf_referencia:
-            self._e(ref, "FechaNCFModificado",
-                    f.fecha_ncf_referencia.strftime("%d-%m-%Y"))
-        self._e(ref, "CodigoModificacion",  f.codigo_modificacion)
+            self._e(
+                ref, "FechaNCFModificado",
+                f.fecha_ncf_referencia.strftime("%d-%m-%Y"),
+            )
+        self._e(ref, "CodigoModificacion", f.codigo_modificacion)
         return ref
 
 
@@ -486,10 +522,15 @@ class ECFSigner:
 
 # Validador XSD
 
-# SKIP_XSD_VALIDATION=true sólo se honra en ambientes de prueba (TesteCF/CerteCF/
-# simulación). En el ambiente de producción (eCF) se ignora siempre.
+# SKIP_XSD_VALIDATION=true SÓLO se honra cuando ECF_AMBIENTE=simulacion.
+# En cualquier otro ambiente (TesteCF, CerteCF, eCF/produccion) la validación XSD
+# es obligatoria y SKIP_XSD_VALIDATION se ignora — la DGII puede rechazar XML que
+# pasa nuestro pipeline pero no su esquema oficial, y permitir el bypass invita
+# a producir comprobantes inválidos en certificación.
 _SKIP_XSD_VALIDATION = os.environ.get("SKIP_XSD_VALIDATION", "false").lower() == "true"
-_PROD_AMBIENTE = os.environ.get("ECF_AMBIENTE", "").lower() in {"ecf", "produccion"}
+_AMBIENTE_RAW = os.environ.get("ECF_AMBIENTE", "").lower()
+_PROD_AMBIENTE = _AMBIENTE_RAW in {"ecf", "produccion", "certificacion", "certeecf", "testecf"}
+_SIM_AMBIENTE  = _AMBIENTE_RAW in {"simulacion", "sim", ""}
 
 
 class ECFValidator:
@@ -514,22 +555,26 @@ class ECFValidator:
         self,
         xml_bytes: bytes,
         schema_name: str,
-        fallback: Optional[str] = None,
+        fallback: str | None = None,
     ) -> tuple[bool, list[str]]:
         schema = self._get_schema(schema_name) or (
             self._get_schema(fallback) if fallback else None
         )
         if schema is None:
-            if _SKIP_XSD_VALIDATION and not _PROD_AMBIENTE:
+            # Bypass SOLO en simulación local (modo desarrollo): cualquier otro
+            # ambiente exige el XSD presente en disco — ejecutar el script
+            # de descarga es parte del despliegue.
+            if _SKIP_XSD_VALIDATION and _SIM_AMBIENTE:
                 logger.warning(
-                    "XSD no disponible para %s — validación omitida (modo prueba). "
-                    "Esto NO debe ocurrir en producción.",
+                    "XSD no disponible para %s — validación omitida (modo simulación). "
+                    "Esto NUNCA debe ocurrir en certificación o producción.",
                     schema_name,
                 )
                 return True, []
             raise ValueError(
                 f"XSD obligatorio no disponible para {schema_name}. "
-                f"Ejecuta: bash scripts/actualizar_xsd.sh"
+                f"Ejecuta: bash scripts/actualizar_xsd.sh "
+                f"(ECF_AMBIENTE={_AMBIENTE_RAW or 'no_definido'})"
             )
 
         doc = etree.fromstring(xml_bytes)
@@ -537,7 +582,7 @@ class ECFValidator:
         errores = [str(e) for e in schema.error_log]
         return valido, errores
 
-    def _get_schema(self, name: Optional[str]) -> Optional[etree.XMLSchema]:
+    def _get_schema(self, name: str | None) -> etree.XMLSchema | None:
         if not name:
             return None
         if name in self._schemas:
@@ -575,25 +620,26 @@ class ECFCoreService:
         factura: FacturaECF,
         p12_data: bytes,
         p12_password: bytes,
-        clave_secreta_cufe: str = "",  # mantenido por compatibilidad — no usado
     ) -> dict:
-        # 1. XML
+        # 1. XML (sin firma)
         logger.info("Generando XML para NCF %s", factura.ncf)
         xml_original = self.generator.generar(factura)
 
-        # 2. XSD
-        logger.info("Validando XSD para tipo %s", factura.tipo_ecf)
-        valido, errores = self.validator.validar(xml_original, factura.tipo_ecf)
-        if not valido:
-            raise ValueError(f"XML no válido contra XSD DGII: {'; '.join(errores)}")
-
-        # 3. Firma XAdES-BES
+        # 2. Firma XAdES-BES — el XSD del e-CF exige <ds:Signature> (xs:any
+        # minOccurs=1 al final), por lo que la validación XSD se hace sobre
+        # el XML ya firmado.
         logger.info("Firmando XML con certificado del tenant")
         xml_firmado = self.signer.firmar(xml_original, p12_data, p12_password)
 
+        # 3. XSD oficial DGII — sobre el XML firmado.
+        logger.info("Validando XSD para tipo %s", factura.tipo_ecf)
+        valido, errores = self.validator.validar(xml_firmado, factura.tipo_ecf)
+        if not valido:
+            raise ValueError(f"XML no válido contra XSD DGII: {'; '.join(errores)}")
+
         return {
             "ncf":          factura.ncf,
-            "cufe":         None,  # deprecated — ver docstring
+            "codigo_seguridad": None,  # siempre None — DGII devuelve esto en su respuesta, no en el XML generado
             "xml_original": xml_original,
             "xml_firmado":  xml_firmado,
             "tipo_ecf":     factura.tipo_ecf,

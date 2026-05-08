@@ -9,12 +9,10 @@ from __future__ import annotations
 import base64
 import os
 import uuid
-from datetime import date
-from typing import Optional
 
+import asyncpg
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.serialization import pkcs12
-import asyncpg
 
 
 class CertVaultError(Exception):
@@ -58,7 +56,7 @@ class CertVault:
         ct_with_tag = ciphertext + tag
         return self._aesgcm.decrypt(iv, ct_with_tag, None)
 
-    # --- Cifrado de campos sensibles (cert_password, cufe_secret, webhook_secret) ---
+    # --- Cifrado de campos sensibles (cert_password, webhook_secret) ---
 
     def cifrar_campo(self, plaintext: str) -> str:
         """

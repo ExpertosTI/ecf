@@ -10,20 +10,23 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
 
 import asyncpg
 import httpx
 import redis.asyncio as aioredis
 
-from ecf_core.ecf_core_service import ECFCoreService, FacturaECF, ItemECF
-from ecf_core.cert_vault import CertVault, CertVaultRepository
+from ecf_core.cert_vault import CertVaultRepository
 from ecf_core.dgii_client import (
-    DGIIClient, EstadoDGII, DGIIClientError,
-    generar_security_code, generar_qr_url,
+    DGIIClient,
+    DGIIClientError,
+    EstadoDGII,
+    generar_qr_url,
+    generar_security_code,
 )
+from ecf_core.ecf_core_service import ECFCoreService, FacturaECF, ItemECF
 from ecf_core.utils import safe_schema as _safe_schema
 
 logger = logging.getLogger(__name__)
@@ -117,25 +120,30 @@ class ECFQueueWorker:
             # Construir FacturaECF desde los datos de la DB
             factura = self._construir_factura(ecf_data, tenant)
 
-            # Procesar: generar XML, validar XSD, firmar
-            cufe_secret = self.vault.descifrar_campo(tenant.get("cufe_secret") or "")
-            resultado = self.ecf_service.procesar(
-                factura, p12_data, p12_pass,
-                clave_secreta_cufe=cufe_secret
-            )
+            # Procesar: generar XML, validar XSD, firmar.
+            # `cufe_secret` (algoritmo Colombia) ya no se usa — DGII RD usa
+            # CodigoSeguridad de 6 chars derivado del SignatureValue.
+            resultado = self.ecf_service.procesar(factura, p12_data, p12_pass)
 
             # Enviar a DGII con autenticación por semilla
-            # MOCK MODE: Si es ambiente de simulacion, auto-aprobar localmente (El SaaS fuge como DGII)
+            # MOCK MODE: Solo activo cuando ECF_AMBIENTE != eCF/produccion
+            _sistema_ambiente = os.environ.get("ECF_AMBIENTE", "").lower()
+            _es_produccion = _sistema_ambiente in {"ecf", "produccion"}
             if tenant["ambiente"] == "simulacion":
-                logger.info("Modo Simulación Detectado: Auto-aprobando localmente para tenant %s", tenant["rnc"])
-                from ecf_core.dgii_client import RespuestaDGII, EstadoDGII
+                if _es_produccion:
+                    raise RuntimeError(
+                        f"Tenant {tenant['rnc']} tiene ambiente='simulacion' pero el sistema está "
+                        f"en producción (ECF_AMBIENTE={_sistema_ambiente}). Corrija el ambiente del tenant."
+                    )
+                logger.warning("MOCK MODE activo para tenant %s — e-CF NO se envía a DGII", tenant["rnc"])
+                from ecf_core.dgii_client import EstadoDGII, RespuestaDGII
                 # Lógica de prueba para desarrolladores en Odoo:
                 # Si el total de la factura termina en .99 -> Rechazado
                 # Si el total termina en .98 -> Condicionado
                 # Si no -> Aceptado
                 estado_mock = EstadoDGII.ACEPTADO
                 mensaje_mock = "Aceptado Local (Modo Simulación SaaS)"
-                
+
                 total_str = f"{factura.total:.2f}"
                 if total_str.endswith(".99"):
                     estado_mock = EstadoDGII.RECHAZADO
@@ -148,7 +156,7 @@ class ECFQueueWorker:
                     estado=estado_mock,
                     track_id=f"MOCK-{uuid.uuid4().hex[:8].upper()}",
                     mensaje=mensaje_mock,
-                    cufe=resultado["cufe"],
+                    codigo_seguridad=None,
                     qr_code=None,  # Se genera localmente abajo
                     detalles=[{"codigo": "MOCK01", "mensaje": mensaje_mock}],
                     raw={"mock": True, "ambiente": tenant["ambiente"]}
@@ -181,7 +189,7 @@ class ECFQueueWorker:
                 schema     = tenant["schema_name"],
                 ecf_id     = ecf_id,
                 estado     = self._estado_dgii_a_local(respuesta.estado),
-                cufe       = respuesta.cufe,
+                codigo_seguridad = respuesta.codigo_seguridad,
                 xml_original = resultado.get("xml_original"),
                 xml_firmado= resultado["xml_firmado"],
                 respuesta  = respuesta.raw,
@@ -305,14 +313,18 @@ class ECFQueueWorker:
 
     async def _callback_odoo(self, tenant: dict, ecf_data: dict, respuesta, estado_local: str,
                               qr_url: str = None):
-        """Notifica a Odoo el resultado mediante webhook firmado con HMAC-SHA256."""
+        """Notifica a Odoo el resultado mediante webhook firmado con HMAC-SHA256.
+
+        Durante ventana de rotación acepta también el secret anterior almacenado
+        en Redis bajo ``whk:prev:{tenant_id}`` con TTL.
+        """
         if not tenant.get("odoo_webhook_url"):
             return
 
         payload = json.dumps({
             "odoo_move_id": ecf_data.get("odoo_move_id"),
             "ncf":          ecf_data["ncf"],
-            "cufe":         respuesta.cufe,
+            "codigo_seguridad": respuesta.codigo_seguridad,
             "estado":       estado_local,
             "qr_code":      qr_url or respuesta.qr_code,
             "error_msg":    respuesta.mensaje if estado_local != "aprobado" else None,
@@ -320,41 +332,61 @@ class ECFQueueWorker:
             "timestamp":    datetime.now(timezone.utc).isoformat(),
         }).encode()
 
-        # Firma HMAC-SHA256 para que Odoo verifique la autenticidad
         webhook_secret = self.vault.descifrar_campo(tenant.get("odoo_webhook_secret") or "")
         if not webhook_secret:
             logger.error("Webhook secret vacío para tenant %s — callback abortado", tenant["rnc"])
             return
-        firma = hmac.new(webhook_secret.encode(), payload, hashlib.sha256).hexdigest()
 
-        try:
+        async def _post_webhook(secret: str) -> httpx.Response:
+            firma = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(
+                return await client.post(
                     tenant["odoo_webhook_url"],
                     content=payload,
                     headers={
-                        "Content-Type":         "application/json",
-                        "X-ECF-Signature":      firma,
-                        "X-ECF-Tenant-RNC":     tenant["rnc"],
-                    }
+                        "Content-Type":     "application/json",
+                        "X-ECF-Signature":  firma,
+                        "X-ECF-Tenant-RNC": tenant["rnc"],
+                    },
                 )
-                resp.raise_for_status()
+
+        try:
+            resp = await _post_webhook(webhook_secret)
+            resp.raise_for_status()
             logger.info("Callback enviado a Odoo para move %s", ecf_data.get("odoo_move_id"))
-        except Exception as e:
-            logger.warning("Falló callback a Odoo (reintentando 1 vez): %s", e)
-            try:
-                await asyncio.sleep(2)
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    resp = await client.post(
-                        tenant["odoo_webhook_url"],
-                        content=payload,
-                        headers={
-                            "Content-Type":         "application/json",
-                            "X-ECF-Signature":      firma,
-                            "X-ECF-Tenant-RNC":     tenant["rnc"],
-                        }
+        except httpx.HTTPStatusError as e:
+            # En rotación, el secret de Odoo puede ser todavía el anterior
+            if e.response.status_code in (401, 403):
+                prev_secret = await self.redis.get(f"whk:prev:{tenant['id']}")
+                if prev_secret:
+                    logger.warning(
+                        "Retrying webhook con secret anterior (rotación en progreso) tenant=%s",
+                        tenant["rnc"],
                     )
-                    resp.raise_for_status()
+                    try:
+                        resp2 = await _post_webhook(prev_secret)
+                        resp2.raise_for_status()
+                        logger.info(
+                            "Callback a Odoo exitoso con secret anterior para move %s",
+                            ecf_data.get("odoo_move_id"),
+                        )
+                        return
+                    except Exception as e_prev:
+                        logger.error("Retry con secret anterior también falló: %s", e_prev)
+            logger.warning("Falló callback a Odoo (reintentando en 2 s): %s", e)
+            await asyncio.sleep(2)
+            try:
+                resp3 = await _post_webhook(webhook_secret)
+                resp3.raise_for_status()
+                logger.info("Callback a Odoo exitoso en reintento para move %s", ecf_data.get("odoo_move_id"))
+            except Exception as e2:
+                logger.error("Reintento callback a Odoo falló: %s", e2)
+        except Exception as e:
+            logger.warning("Falló callback a Odoo (reintentando en 2 s): %s", e)
+            await asyncio.sleep(2)
+            try:
+                resp3 = await _post_webhook(webhook_secret)
+                resp3.raise_for_status()
                 logger.info("Callback a Odoo exitoso en reintento para move %s", ecf_data.get("odoo_move_id"))
             except Exception as e2:
                 logger.error("Reintento callback a Odoo falló: %s", e2)
@@ -405,7 +437,7 @@ class ECFQueueWorker:
         async with self.db.acquire() as conn:
             row = await conn.fetchrow(
                 "SELECT id, rnc, razon_social, nombre_comercial, direccion, "
-                "schema_name, ambiente, estado, cert_password, cufe_secret, "
+                "schema_name, ambiente, estado, cert_password, "
                 "odoo_webhook_url, odoo_webhook_secret "
                 "FROM public.tenants WHERE id = $1 AND deleted_at IS NULL",
                 uuid.UUID(tenant_id)
@@ -426,7 +458,7 @@ class ECFQueueWorker:
             )
         return dict(row) if row else {}
 
-    async def _actualizar_ecf(self, schema, ecf_id, estado, cufe, xml_firmado, respuesta, intento,
+    async def _actualizar_ecf(self, schema, ecf_id, estado, codigo_seguridad, xml_firmado, respuesta, intento,
                               track_id=None, security_code=None, qr_url=None,
                               xml_original=None):
         s = _safe_schema(schema)
@@ -434,7 +466,7 @@ class ECFQueueWorker:
             await conn.execute(f"""
                 UPDATE {s}.ecf SET
                     estado          = $1,
-                    cufe            = COALESCE($2, cufe),
+                    codigo_seguridad = COALESCE($2, codigo_seguridad),
                     xml_original    = COALESCE($3, xml_original),
                     xml_firmado     = COALESCE($4, xml_firmado),
                     respuesta_dgii  = $5,
@@ -446,7 +478,7 @@ class ECFQueueWorker:
                     approved_at     = CASE WHEN $1 = 'aprobado' AND approved_at IS NULL THEN NOW() ELSE approved_at END,
                     updated_at      = NOW()
                 WHERE id = $10
-            """, estado, cufe, xml_original, xml_firmado, json.dumps(respuesta), intento,
+            """, estado, codigo_seguridad, xml_original, xml_firmado, json.dumps(respuesta), intento,
                 track_id, security_code, qr_url, uuid.UUID(ecf_id))
 
     async def _marcar_error(self, schema, ecf_id, error):

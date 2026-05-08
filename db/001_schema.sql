@@ -1,6 +1,8 @@
--- SAAS ECF DGII — Esquema multitenant PostgreSQL
--- Versión: 1.0.0
+-- Renace e-CF — Esquema multitenant PostgreSQL
+-- Versión: 2.6 (estado final post-migraciones 002–010)
 -- Compatible con requisitos de homologación DGII RD
+-- Este archivo es la fuente de verdad para nuevos despliegues.
+-- Las migraciones 002–010 solo son necesarias para instancias existentes.
 
 -- Extensiones necesarias
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -30,7 +32,7 @@ CREATE TABLE public.tenants (
     cert_vencimiento    DATE,                                 -- vencimiento del .p12 del tenant
     cert_alerta_enviada BOOLEAN NOT NULL DEFAULT FALSE,
     cert_password       VARCHAR(255),                         -- password del .p12 (cifrado en app layer)
-    cufe_secret         VARCHAR(128),                         -- clave secreta CUFE registrada ante DGII
+    cufe_secret         VARCHAR(128),                         -- DEPRECATED v2.5: columna sin uso (era algoritmo Colombia, no DGII RD)
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at          TIMESTAMPTZ                          -- soft delete
@@ -126,61 +128,64 @@ CREATE INDEX idx_audit_tenant    ON public.system_audit_log(tenant_id);
 CREATE INDEX idx_audit_created   ON public.system_audit_log(created_at);
 CREATE INDEX idx_audit_accion    ON public.system_audit_log(accion);
 
--- FUNCIÓN: crear schema y tablas por tenant
--- Se invoca al activar un tenant nuevo
+-- FUNCIÓN: crear schema y tablas por tenant (v2.6 — estado final)
+-- Se invoca al activar un tenant nuevo.
+-- Refleja el estado completo tras todas las migraciones (002–010).
 CREATE OR REPLACE FUNCTION public.crear_schema_tenant(p_schema VARCHAR)
 RETURNS VOID AS $$
 BEGIN
     EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', p_schema);
 
-    -- e-CF emitidos
+    -- ── e-CF emitidos ────────────────────────────────────────────────────────
     EXECUTE format('
     CREATE TABLE IF NOT EXISTS %I.ecf (
         id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        ncf             VARCHAR(13) NOT NULL UNIQUE,          -- E310000000001
+        ncf             VARCHAR(13) NOT NULL UNIQUE,
         tipo_ecf        SMALLINT NOT NULL,
         estado          VARCHAR(20) NOT NULL DEFAULT ''pendiente''
-                        CHECK (estado IN (''pendiente'',''enviado'',''aprobado'',''rechazado'',''condicionado'',''anulacion_pendiente'',''anulado'',''anulacion_fallida'')),
-        cufe            VARCHAR(128),                         -- hash SHA-384 DGII
-        rnc_comprador   VARCHAR(11),
+                        CHECK (estado IN (''pendiente'',''enviado'',''aprobado'',''rechazado'',
+                                         ''condicionado'',''anulacion_pendiente'',''anulado'',''anulacion_fallida'')),
+        codigo_seguridad VARCHAR(128),             -- Código de Seguridad DGII (hasta v2.5 llamado cufe)
+        rnc_comprador    VARCHAR(11),
         nombre_comprador VARCHAR(255),
-        fecha_emision   DATE NOT NULL,
-        subtotal        NUMERIC(18,2) NOT NULL DEFAULT 0,
-        itbis           NUMERIC(18,2) NOT NULL DEFAULT 0,
-        total           NUMERIC(18,2) NOT NULL,
-        moneda          CHAR(3) NOT NULL DEFAULT ''DOP'',
-        tipo_cambio     NUMERIC(12,4) NOT NULL DEFAULT 1,
-        xml_original    BYTEA,                               -- XML sin firmar
-        xml_firmado     BYTEA,                               -- XML firmado (almacenado 10 años)
-        respuesta_dgii  JSONB,                               -- respuesta completa DGII
-        intentos_envio  SMALLINT NOT NULL DEFAULT 0,
-        ultimo_error    TEXT,
-        odoo_move_id    VARCHAR(64),                         -- id del account.move en Odoo
-        odoo_move_name  VARCHAR(64),
-        referencia_ncf  VARCHAR(13),                         -- para notas de crédito/débito
-        fecha_ncf_referencia DATE,                           -- fecha del NCF de referencia
-        codigo_modificacion VARCHAR(1) DEFAULT ''1'',        -- 1=Descuento 2=Devol 3=Anul 4=Otro
-        tipo_pago       VARCHAR(1) DEFAULT ''1'',             -- 1=Contado 2=Crédito 3=Gratuito
-        tipo_ingresos   VARCHAR(2) DEFAULT ''01'',            -- 01..05
-        tipo_rnc_comprador VARCHAR(1) DEFAULT ''1'',          -- 1=RNC 2=Cédula 3=Pasaporte
-        indicador_envio_diferido SMALLINT DEFAULT 0,         -- 0=Tiempo real 1=Diferido
+        fecha_emision    DATE NOT NULL,
+        subtotal         NUMERIC(18,2) NOT NULL DEFAULT 0,
+        itbis            NUMERIC(18,2) NOT NULL DEFAULT 0,
+        total            NUMERIC(18,2) NOT NULL,
+        moneda           CHAR(3) NOT NULL DEFAULT ''DOP'',
+        tipo_cambio      NUMERIC(12,4) NOT NULL DEFAULT 1,
+        xml_original     BYTEA,
+        xml_firmado      BYTEA,
+        respuesta_dgii   JSONB,
+        intentos_envio   SMALLINT NOT NULL DEFAULT 0,
+        ultimo_error     TEXT,
+        odoo_move_id     VARCHAR(64),
+        odoo_move_name   VARCHAR(64),
+        referencia_ncf   VARCHAR(13),
+        fecha_ncf_referencia DATE,
+        codigo_modificacion VARCHAR(1) DEFAULT ''1'',
+        tipo_pago        VARCHAR(1) DEFAULT ''1'',
+        tipo_ingresos    VARCHAR(2) DEFAULT ''01'',
+        tipo_rnc_comprador VARCHAR(1) DEFAULT ''1'',
+        indicador_envio_diferido SMALLINT DEFAULT 0,
         direccion_comprador VARCHAR(255),
-        track_id        VARCHAR(128),                        -- trackId retornado por DGII
-        security_code   VARCHAR(6),                          -- primeros 6 chars del hash firma
-        qr_url          TEXT,                                -- URL para QR de representación impresa
-        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        sent_at         TIMESTAMPTZ,
-        approved_at     TIMESTAMPTZ
+        track_id         VARCHAR(128),
+        security_code    VARCHAR(6),              -- primeros 6 chars del hash de firma
+        qr_url           TEXT,
+        rfce_id          UUID,                    -- resumen RFCE (Tipo 31) si aplica
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        sent_at          TIMESTAMPTZ,
+        approved_at      TIMESTAMPTZ
     )', p_schema);
 
-    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_ncf     ON %I.ecf(ncf)',           p_schema);
-    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_estado  ON %I.ecf(estado)',         p_schema);
-    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_fecha   ON %I.ecf(fecha_emision)',  p_schema);
-    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_cufe    ON %I.ecf(cufe)',           p_schema);
-    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_rnc_c   ON %I.ecf(rnc_comprador)', p_schema);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_ncf              ON %I.ecf(ncf)',              p_schema);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_estado           ON %I.ecf(estado)',            p_schema);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_fecha            ON %I.ecf(fecha_emision)',     p_schema);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_codigo_seguridad ON %I.ecf(codigo_seguridad)', p_schema);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_rnc_c            ON %I.ecf(rnc_comprador)',    p_schema);
 
-    -- Items del e-CF
+    -- ── Ítems del e-CF ───────────────────────────────────────────────────────
     EXECUTE format('
     CREATE TABLE IF NOT EXISTS %I.ecf_items (
         id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -194,41 +199,84 @@ BEGIN
         itbis_monto NUMERIC(18,2) NOT NULL DEFAULT 0,
         subtotal    NUMERIC(18,2) NOT NULL,
         unidad      VARCHAR(20),
-        indicador_bien_servicio SMALLINT NOT NULL DEFAULT 2  -- 1=Bien 2=Servicio
+        indicador_bien_servicio SMALLINT NOT NULL DEFAULT 2
     )', p_schema, p_schema);
 
-    -- Historial de estados del e-CF
+    -- ── Historial de estados ─────────────────────────────────────────────────
     EXECUTE format('
     CREATE TABLE IF NOT EXISTS %I.ecf_estado_log (
         id          BIGSERIAL PRIMARY KEY,
         ecf_id      UUID NOT NULL REFERENCES %I.ecf(id) ON DELETE CASCADE,
         estado_prev VARCHAR(20),
         estado_new  VARCHAR(20) NOT NULL
-                    CHECK (estado_new IN (''pendiente'',''enviado'',''aprobado'',''rechazado'',''condicionado'',''anulacion_pendiente'',''anulado'',''anulacion_fallida'')),
+                    CHECK (estado_new IN (''pendiente'',''enviado'',''aprobado'',''rechazado'',
+                                         ''condicionado'',''anulacion_pendiente'',''anulado'',''anulacion_fallida'')),
         detalle     TEXT,
         created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )', p_schema, p_schema);
 
-    -- Compras (para 606)
+    -- ── Resúmenes RFCE (Tipo 31) ─────────────────────────────────────────────
     EXECUTE format('
-    CREATE TABLE IF NOT EXISTS %I.compras (
+    CREATE TABLE IF NOT EXISTS %I.rfce (
         id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        ncf             VARCHAR(13) NOT NULL,
-        rnc_proveedor   VARCHAR(11) NOT NULL,
-        nombre_proveedor VARCHAR(255),
-        tipo_bienes     SMALLINT,
-        fecha_comprobante DATE NOT NULL,
-        fecha_pago      DATE,
-        monto_servicios NUMERIC(18,2) NOT NULL DEFAULT 0,
-        monto_bienes    NUMERIC(18,2) NOT NULL DEFAULT 0,
-        total_monto     NUMERIC(18,2) NOT NULL,
-        itbis_facturado NUMERIC(18,2) NOT NULL DEFAULT 0,
-        itbis_retenido  NUMERIC(18,2) NOT NULL DEFAULT 0,
-        isr_retencion   NUMERIC(18,2) NOT NULL DEFAULT 0,
-        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        fecha_resumen   DATE NOT NULL UNIQUE,
+        estado          VARCHAR(20) NOT NULL DEFAULT ''pendiente''
+                        CHECK (estado IN (''pendiente'',''enviado'',''aprobado'',''rechazado'')),
+        track_id        VARCHAR(128),
+        secuencia_ncf   BIGINT,
+        cantidad_facturas INTEGER NOT NULL,
+        monto_total     NUMERIC(18,2) NOT NULL,
+        xml_firmado     BYTEA,
+        respuesta_dgii  JSONB,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )', p_schema);
 
-    -- Retenciones ISR (para reportes IR-17 / uso auxiliar)
+    -- FK rfce_id ahora que la tabla existe
+    EXECUTE format('
+        ALTER TABLE %I.ecf
+        ADD CONSTRAINT fk_ecf_rfce
+        FOREIGN KEY (rfce_id) REFERENCES %I.rfce(id) ON DELETE SET NULL
+    ', p_schema, p_schema);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_rfce_id ON %I.ecf(rfce_id)', p_schema);
+
+    -- ── Compras (e-CF Recibidas) ─────────────────────────────────────────────
+    EXECUTE format('
+    CREATE TABLE IF NOT EXISTS %I.compras (
+        id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        ncf              VARCHAR(13) NOT NULL UNIQUE,
+        rnc_proveedor    VARCHAR(11) NOT NULL,
+        nombre_proveedor VARCHAR(255),
+        tipo_bienes      SMALLINT,
+        tipo_ecf         SMALLINT,
+        codigo_seguridad VARCHAR(128),             -- Código de Seguridad del e-CF recibido
+        xml_original     BYTEA,
+        fecha_comprobante DATE NOT NULL,
+        fecha_pago       DATE,
+        monto_servicios  NUMERIC(18,2) NOT NULL DEFAULT 0,
+        monto_bienes     NUMERIC(18,2) NOT NULL DEFAULT 0,
+        total_monto      NUMERIC(18,2) NOT NULL,
+        itbis_facturado  NUMERIC(18,2) NOT NULL DEFAULT 0,
+        itbis_retenido   NUMERIC(18,2) NOT NULL DEFAULT 0,
+        isr_retencion    NUMERIC(18,2) NOT NULL DEFAULT 0,
+        ambiente         VARCHAR(20) DEFAULT ''produccion'',
+        estado_odoo      VARCHAR(20) NOT NULL DEFAULT ''nueva''
+                         CHECK (estado_odoo IN (''nueva'',''enviada'',''procesada'',''error'')),
+        estado_comercial VARCHAR(20) NOT NULL DEFAULT ''pendiente''
+                         CHECK (estado_comercial IN (''pendiente'',''aprobado'',''rechazado'')),
+        motivo_rechazo   VARCHAR(250),
+        odoo_bill_id     VARCHAR(64),
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )', p_schema);
+
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_compras_ncf              ON %I.compras(ncf)',               p_schema);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_compras_rnc_prov         ON %I.compras(rnc_proveedor)',     p_schema);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_compras_fecha            ON %I.compras(fecha_comprobante)', p_schema);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_compras_estado_odoo      ON %I.compras(estado_odoo)',       p_schema);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_compras_estado_comercial ON %I.compras(estado_comercial)',  p_schema);
+
+    -- ── Retenciones ISR ──────────────────────────────────────────────────────
     EXECUTE format('
     CREATE TABLE IF NOT EXISTS %I.retenciones (
         id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -242,7 +290,19 @@ BEGIN
         created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )', p_schema);
 
-    RAISE NOTICE 'Schema % creado correctamente', p_schema;
+    -- ── Tracking sincronización ──────────────────────────────────────────────
+    EXECUTE format('
+    CREATE TABLE IF NOT EXISTS %I.ecf_recibidas_sync (
+        id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        ultima_sync     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        ultima_fecha_consultada DATE NOT NULL DEFAULT CURRENT_DATE - 1,
+        total_nuevos    INTEGER NOT NULL DEFAULT 0,
+        total_errores   INTEGER NOT NULL DEFAULT 0,
+        error_mensaje   TEXT,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )', p_schema);
+
+    RAISE NOTICE 'Schema % creado correctamente (v2.6 — codigo_seguridad)', p_schema;
 END;
 $$ LANGUAGE plpgsql;
 

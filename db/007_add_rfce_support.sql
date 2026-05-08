@@ -1,4 +1,4 @@
--- SAAS ECF DGII — Migración 007
+-- Renace e-CF — Migración 007
 -- Soporte para Resumen de Facturación de Consumo Electrónico (RFCE - Tipo 31)
 
 CREATE OR REPLACE FUNCTION public.apply_rfce_support(p_schema VARCHAR)

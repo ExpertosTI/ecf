@@ -1,4 +1,4 @@
-# Dockerfile.api — SaaS ECF DGII
+# Dockerfile.api — Renace e-CF
 # Imagen base para API Gateway, Worker y Scheduler
 
 FROM python:3.11.9-slim AS base

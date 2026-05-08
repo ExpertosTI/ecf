@@ -27,13 +27,15 @@ env/
 *~
 .DS_Store
 
-# Certificados y llaves — NUNCA commitar
+# Certificados y llaves — NUNCA commitear
 *.p12
 *.pfx
 *.pem
 *.key
 *.crt
+*.cer
 certs/
+nginx/certs/
 
 # Backups
 backups/
@@ -54,23 +56,6 @@ htmlcov/
 .coverage
 coverage.xml
 
-# Docker
-docker-compose.override.yml
-
-# Certificados y llaves (NUNCA subir)
-*.p12
-*.pfx
-*.pem
-*.key
-*.crt
-*.cer
-certs/
-nginx/certs/
-
-# Logs
-*.log
-logs/
-
 # Datos persistentes
 pgdata/
 redisdata/
@@ -84,8 +69,11 @@ RNC_*.csv
 # Scratch / WIP
 scratch/
 
+# Documentación interna (solo para colaboración entre IAs y equipo)
+docs/internal/
+INTERNAL*.md
+
 # Node (portal admin)
 node_modules/
 .next/
 portal_admin/node_modules/
-.!*

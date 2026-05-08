@@ -1,4 +1,4 @@
-# SaaS ECF DGII — Documentación Completa
+# Renace e-CF — Facturación Electrónica DGII RD
 
 ## Arquitectura general
 
@@ -28,11 +28,20 @@ API DGII (ecf.dgii.gov.do)
 ## Estructura del proyecto
 
 ```
-saas_ecf/
+renace_ecf/
 ├── db/
-│   └── 001_schema.sql          # Schema PostgreSQL multitenant
+│   ├── 001_schema.sql          # Schema base (tenants, certs, sequences, audit_log, portal_users)
+│   ├── 002_add_anulacion_states.sql
+│   ├── 003_ecf_recibidas.sql   # Extiende compras + tabla sync
+│   ├── 004_dgii_rnc.sql
+│   ├── 005_widen_plan_check.sql
+│   ├── 006_fix_ambiente_check.sql
+│   ├── 007_add_rfce_support.sql
+│   ├── 008_compras_comercial.sql  # estado_comercial + motivo_rechazo en compras
+│   ├── 009_encrypt_mfa_secret.sql # Columna cifrada para TOTP secret
+│   └── 010_rename_cufe.sql        # Renombra cufe → codigo_seguridad (DGII RD)
 ├── ecf_core/
-│   ├── ecf_core_service.py     # Generación XML, firma, CUFE, validación XSD
+│   ├── ecf_core_service.py     # Generación XML, firma XAdES-BES, validación XSD
 │   ├── cert_vault.py           # Almacenamiento cifrado de .p12 (AES-256-GCM)
 │   ├── dgii_client.py          # Cliente mTLS para la API DGII
 │   ├── queue_worker.py         # Worker Redis con reintentos y callbacks
@@ -140,6 +149,137 @@ cp -r odoo_module/ecf_connector /path/to/odoo/addons/
 ```
 
 
+## Flujo de certificación DGII — paso a paso
+
+Este es el procedimiento completo para obtener la habilitación de producción DGII.
+
+### Paso 0 — Preparar el entorno local
+
+```bash
+# Levantar en modo certificacion
+ECF_AMBIENTE=certificacion docker-compose up -d
+
+# Verificar salud del sistema
+curl http://localhost:8000/health
+curl -H "Authorization: Bearer $ADMIN_API_KEY" http://localhost:8000/v1/admin/stats
+```
+
+### Paso 1 — Crear tenant de prueba y subir certificado de prueba DGII
+
+```bash
+# Crear tenant de prueba
+python scripts/crear_tenant.py \
+  --rnc 130156822 \
+  --razon-social "EMPRESA PRUEBA DGII SRL" \
+  --email tecnico@miempresa.do \
+  --plan basico \
+  --ambiente certificacion
+
+# Subir el .p12 de prueba que proveyó la DGII
+python scripts/subir_certificado.py \
+  --tenant-id <UUID-del-tenant> \
+  --cert /ruta/cert_prueba_dgii.p12 \
+  --password "clave_del_p12"
+
+# Crear secuencia NCF tipo 31 (Crédito Fiscal)
+curl -X POST http://localhost:8000/v1/admin/tenants/<UUID>/ncf-sequences \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tipo_ecf": 31, "prefijo": "E31", "secuencia_max": 50}'
+```
+
+### Paso 2 — Instalar el módulo Odoo y configurar
+
+```bash
+# Copiar módulo al addons path de Odoo (versión 18)
+cp -r odoo_module/ecf_connector /path/to/odoo/addons/
+
+# Instalar desde Odoo: Apps → Actualizar lista → Buscar "Renace e-CF" → Instalar
+```
+
+En Odoo: **Ajustes → e-CF DGII**:
+- URL SaaS: `http://localhost:8000` (o la URL pública del gateway)
+- API Key: la que devolvió `crear_tenant.py`
+- Webhook Secret: el que devolvió `crear_tenant.py`
+- Ambiente: `certificacion`
+- Activar emisión automática: ✅
+
+### Paso 3 — Ejecutar los casos de prueba DGII
+
+```bash
+export ECF_AMBIENTE=certificacion
+export TENANT_API_KEY=<api_key_del_tenant>
+export TENANT_RNC=130156822
+export COMPRADOR_RNC=130000001
+
+# Ejecutar suite completa
+pytest tests/test_homologacion.py -v --tb=short 2>&1 | tee resultados_homologacion.txt
+```
+
+**Casos obligatorios de la DGII** (todos deben pasar):
+
+| # | Tipo | Descripción | Status |
+|---|------|-------------|--------|
+| 1 | E31 | Crédito Fiscal con RNC válido | `pytest -k test_e31_credito_fiscal` |
+| 2 | E32 | Consumo sin RNC | `pytest -k test_e32_consumo` |
+| 3 | E33 | Nota de Débito con NCF referencia | `pytest -k test_e33_nota_debito` |
+| 4 | E34 | Nota de Crédito con NCF referencia | `pytest -k test_e34_nota_credito` |
+| 5 | E31 | ITBIS exento (0%) | `pytest -k test_itbis_exento` |
+| 6 | E31 | Moneda extranjera USD | `pytest -k test_moneda_usd` |
+| 7 | — | Anulación de e-CF aprobado | `pytest -k test_anulacion` |
+| 8 | — | Consulta de estado por NCF | `pytest -k test_consulta_estado` |
+
+### Paso 4 — Validar representación impresa
+
+Generar PDF de un e-CF aprobado y verificar:
+- NCF visible y correcto
+- Código de Seguridad (6 chars del `security_code`)
+- QR funcional que abre `ecf.dgii.gov.do`
+- Marca de agua del ambiente (`CERTIFICACION` o `PRODUCCION`)
+
+```bash
+curl -H "X-API-Key: $TENANT_API_KEY" \
+  http://localhost:8000/v1/ecf/<NCF>/pdf \
+  -o ecf_prueba.pdf
+```
+
+### Paso 5 — Presentar documentación a la DGII
+
+Documentos requeridos:
+1. Formulario PSFE completado (descargar en `dgii.gov.do/ecf`)
+2. `resultados_homologacion.txt` (salida de pytest)
+3. Capturas de las representaciones impresas
+4. [`docs/contingencia.md`](docs/contingencia.md) — Plan de contingencia
+5. Declaración jurada de cumplimiento de retención (10 años)
+6. SLA documentado (disponibilidad ≥ 99.5%, latencia p99 < 5s)
+
+### Paso 6 — Ambiente de producción
+
+Una vez aprobado por la DGII:
+
+```bash
+# 1. Actualizar .env
+ECF_AMBIENTE=produccion
+
+# 2. Subir certificado de producción del tenant
+python scripts/subir_certificado.py \
+  --tenant-id <UUID> \
+  --cert /ruta/cert_produccion.p12
+
+# 3. Cambiar ambiente del tenant
+curl -X PATCH http://localhost:8000/v1/admin/tenants/<UUID> \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ambiente": "produccion"}'
+
+# 4. Actualizar ambiente en Odoo: Ajustes → e-CF DGII → Ambiente: produccion
+
+# 5. Emitir primera factura de producción y verificar en:
+#    https://ecf.dgii.gov.do
+```
+
+---
+
 ## Proceso de homologación DGII
 
 La DGII exige pasar por estas fases antes de operar en producción:
@@ -182,7 +322,7 @@ Casos obligatorios que la DGII evalúa:
 3. ✅ e-CF tipo 33 (Nota de Débito) con NCF referencia
 4. ✅ e-CF tipo 34 (Nota de Crédito) con NCF referencia
 5. ✅ ITBIS exento (tasa 0%)
-6. ✅ CUFE correcto (SHA-384, 96 chars hex)
+6. ✅ Código de Seguridad correcto (6 alfanuméricos del SignatureValue, DGII RD)
 7. ✅ Firma digital XML válida (RSA-SHA256)
 8. ✅ NCF con formato correcto y secuencia sin saltos
 9. ✅ Factura en moneda extranjera (USD con tipo de cambio)
@@ -242,7 +382,8 @@ La Admin API permite gestionar tenants, certificados y DLQ. Requiere header `Aut
 | `GET` | `/v1/admin/tenants/{id}` | Detalle de un tenant |
 | `PATCH` | `/v1/admin/tenants/{id}` | Actualizar tenant |
 | `DELETE` | `/v1/admin/tenants/{id}` | Desactivar tenant |
-| `POST` | `/v1/admin/tenants/{id}/rotate-key` | Rotar API key |
+| `POST` | `/v1/admin/tenants/{id}/rotate-key` | Rotar API key (invalida la anterior) |
+| `POST` | `/v1/admin/tenants/{id}/rotate-webhook` | Rotar webhook secret (zero-downtime) |
 | `POST` | `/v1/admin/tenants/{id}/certs` | Subir certificado .p12 |
 | `GET` | `/v1/admin/tenants/{id}/certs` | Listar certificados |
 | `POST` | `/v1/admin/tenants/{id}/ncf-sequences` | Crear secuencia NCF |

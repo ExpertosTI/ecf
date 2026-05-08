@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
-from decimal import Decimal
 from datetime import date, timedelta
+from decimal import Decimal
 
-from ecf_core.ecf_core_service import (
-    ECFCoreService, FacturaECF, ItemECF
-)
-from ecf_core.dgii_client import DGIIClient, EstadoDGII
+import pytest
 
+from ecf_core.dgii_client import DGIIClient
+from ecf_core.ecf_core_service import ECFCoreService, ECFValidator, FacturaECF, ItemECF
 
 # Fixtures
 
@@ -25,12 +23,13 @@ def p12_prueba(tmp_path):
     Certificado .p12 de PRUEBA — generado para el ambiente de certificación.
     En producción usar el certificado real emitido por la DGII.
     """
+    import datetime
+
     from cryptography import x509
-    from cryptography.x509.oid import NameOID
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.hazmat.primitives.serialization import pkcs12
-    import datetime
+    from cryptography.x509.oid import NameOID
 
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     subject = issuer = x509.Name([
@@ -91,9 +90,9 @@ class TestCaso01CreditoFiscal:
             nombre_comprador="Cliente Empresa SA",
             items=[_item_simple(5000, 18)],
         )
-        resultado = ecf_service.procesar(factura, p12_data, p12_pass, "secret_prueba")
+        resultado = ecf_service.procesar(factura, p12_data, p12_pass)
         assert resultado["ncf"] == "E310000000001"
-        assert resultado["cufe"]
+        assert resultado["codigo_seguridad"] is None  # DGII RD usa CodigoSeguridad (6-char), no CUFE de Colombia
         assert b"<ds:Signature" in resultado["xml_firmado"]
         assert resultado["xml_firmado"].startswith(b"<?xml")
 
@@ -128,7 +127,7 @@ class TestCaso01CreditoFiscal:
             rnc_comprador="101000002", nombre_comprador="Cliente Multi",
             items=items,
         )
-        resultado = ecf_service.procesar(factura, p12_data, p12_pass, "secret_prueba")
+        resultado = ecf_service.procesar(factura, p12_data, p12_pass)
         assert resultado["xml_firmado"]
         assert factura.total == Decimal("2950.00")  # 2500 + 450 ITBIS
 
@@ -146,7 +145,7 @@ class TestCaso02Consumo:
             nombre_comprador=None,
             items=[_item_simple(500, 18)],
         )
-        resultado = ecf_service.procesar(factura, p12_data, p12_pass, "secret_prueba")
+        resultado = ecf_service.procesar(factura, p12_data, p12_pass)
         assert resultado["xml_firmado"]
         # Verificar que el XML no incluye nodo Comprador
         assert b"<Comprador>" not in resultado["xml_firmado"]
@@ -166,12 +165,13 @@ class TestCaso03NotaCredito:
             ncf_referencia="E310000000001",
             fecha_ncf_referencia=date.today() - timedelta(days=5),
         )
-        resultado = ecf_service.procesar(factura, p12_data, p12_pass, "secret_prueba")
+        resultado = ecf_service.procesar(factura, p12_data, p12_pass)
         assert b"InformacionReferencia" in resultado["xml_firmado"]
         assert b"E310000000001" in resultado["xml_firmado"]
 
     def test_nota_credito_sin_referencia_falla(self, ecf_service, p12_prueba, emisor_base):
-        """La DGII rechaza una nota de crédito sin referencia."""
+        """El XSD ECF-34 exige InformacionReferencia: el pipeline rechaza
+        antes de enviar a DGII."""
         p12_data, p12_pass = p12_prueba
         factura = FacturaECF(
             tipo_ecf=34, ncf="E340000000002",
@@ -180,10 +180,8 @@ class TestCaso03NotaCredito:
             items=[_item_simple(200, 18)],
             ncf_referencia=None,  # Falta la referencia
         )
-        # El XML se genera pero el validador XSD debe detectar el error
-        # (cuando los XSD estén instalados)
-        resultado = ecf_service.procesar(factura, p12_data, p12_pass, "secret_prueba")
-        assert resultado["xml_firmado"]  # Se genera, DGII lo rechazará
+        with pytest.raises(ValueError, match="XML no válido"):
+            ecf_service.procesar(factura, p12_data, p12_pass)
 
 
 # CASO 4: Nota de Débito (e-CF tipo 33)
@@ -199,7 +197,7 @@ class TestCaso04NotaDebito:
             ncf_referencia="E310000000001",
             fecha_ncf_referencia=date.today() - timedelta(days=2),
         )
-        resultado = ecf_service.procesar(factura, p12_data, p12_pass, "secret_prueba")
+        resultado = ecf_service.procesar(factura, p12_data, p12_pass)
         assert b"InformacionReferencia" in resultado["xml_firmado"]
 
 
@@ -221,28 +219,30 @@ class TestCaso05ITBISExento:
         )
         assert factura.total_itbis == Decimal("0")
         assert factura.total == Decimal("1000.00")
-        resultado = ecf_service.procesar(factura, p12_data, p12_pass, "secret_prueba")
+        resultado = ecf_service.procesar(factura, p12_data, p12_pass)
         assert resultado["xml_firmado"]
 
 
-# CASO 6: CUFE — verificación del algoritmo SHA-384
+# CASO 6: Código de Seguridad — verificación del resultado de firma
 
-class TestCaso06CUFE:
-    def test_cufe_es_sha384(self, ecf_service, p12_prueba, emisor_base):
+class TestCaso06CodigoSeguridad:
+    """Código de Seguridad DGII RD: 6 alfanuméricos del SignatureValue (NO SHA-384/CUFE de Colombia)."""
+
+    def test_xml_firmado_presente(self, ecf_service, p12_prueba, emisor_base):
         p12_data, p12_pass = p12_prueba
         factura = FacturaECF(
             tipo_ecf=31, ncf="E310000000010",
             **emisor_base, fecha_emision=date.today(),
-            rnc_comprador="101000004", nombre_comprador="Cliente CUFE",
+            rnc_comprador="101000004", nombre_comprador="Cliente Test",
             items=[_item_simple(1000, 18)],
         )
-        resultado = ecf_service.procesar(factura, p12_data, p12_pass, "secret_cufe")
-        # SHA-384 produce 96 caracteres hex
-        assert len(resultado["cufe"]) == 96
-        assert all(c in "0123456789abcdef" for c in resultado["cufe"])
+        resultado = ecf_service.procesar(factura, p12_data, p12_pass)
+        # xml_firmado debe contener ds:Signature con SignatureValue
+        assert resultado["xml_firmado"] is not None
+        assert b"SignatureValue" in resultado["xml_firmado"]
 
-    def test_cufe_determinista(self, ecf_service, p12_prueba, emisor_base):
-        """El mismo input siempre produce el mismo CUFE."""
+    def test_cufe_campo_es_none(self, ecf_service, p12_prueba, emisor_base):
+        """El campo 'cufe' es None — DGII RD usa CodigoSeguridad, no CUFE de Colombia."""
         p12_data, p12_pass = p12_prueba
         factura = FacturaECF(
             tipo_ecf=31, ncf="E310000000011",
@@ -250,9 +250,9 @@ class TestCaso06CUFE:
             rnc_comprador="101000004", nombre_comprador="Cliente",
             items=[_item_simple(1000, 18)],
         )
-        r1 = ecf_service.procesar(factura, p12_data, p12_pass, "mi_clave")
-        r2 = ecf_service.procesar(factura, p12_data, p12_pass, "mi_clave")
-        assert r1["cufe"] == r2["cufe"]
+        resultado = ecf_service.procesar(factura, p12_data, p12_pass)
+        # DGII RD: CodigoSeguridad (6 chars) se extrae del SignatureValue en el cliente DGII
+        assert resultado["codigo_seguridad"] is None
 
 
 # CASO 7: Firma digital
@@ -266,7 +266,7 @@ class TestCaso07FirmaDigital:
             rnc_comprador=None, nombre_comprador=None,
             items=[_item_simple()],
         )
-        resultado = ecf_service.procesar(factura, p12_data, p12_pass, "secret")
+        resultado = ecf_service.procesar(factura, p12_data, p12_pass)
         xml = resultado["xml_firmado"]
         assert b"ds:Signature" in xml
         assert b"ds:SignatureValue" in xml
@@ -281,7 +281,7 @@ class TestCaso07FirmaDigital:
             rnc_comprador="101000005", nombre_comprador="Äccents Ñoño",
             items=[_item_simple()],
         )
-        resultado = ecf_service.procesar(factura, p12_data, p12_pass, "secret")
+        resultado = ecf_service.procesar(factura, p12_data, p12_pass)
         xml = resultado["xml_firmado"]
         assert xml.decode("utf-8")  # No debe lanzar UnicodeDecodeError
 
@@ -322,7 +322,7 @@ class TestCaso09MonedaExtranjera:
             moneda="USD",
             tipo_cambio=Decimal("59.50"),
         )
-        resultado = ecf_service.procesar(factura, p12_data, p12_pass, "secret")
+        resultado = ecf_service.procesar(factura, p12_data, p12_pass)
         assert b"USD" in resultado["xml_firmado"]
         assert b"59.50" in resultado["xml_firmado"]
 
@@ -333,6 +333,8 @@ class TestCaso10Contingencia:
     @pytest.mark.asyncio
     async def test_reintento_en_timeout(self, monkeypatch):
         """El sistema debe reintentar hasta 3 veces ante timeouts."""
+        from unittest.mock import MagicMock
+
         import httpx
         llamadas = {"count": 0}
 
@@ -341,7 +343,6 @@ class TestCaso10Contingencia:
             if llamadas["count"] < 3:
                 raise httpx.TimeoutException("timeout simulado")
             # Tercera llamada exitosa
-            from unittest.mock import MagicMock
             resp = MagicMock()
             resp.status_code = 200
             resp.json.return_value = {
@@ -353,7 +354,65 @@ class TestCaso10Contingencia:
         client = DGIIClient(ambiente="certificacion")
         client._client = MagicMock()
         client._client.post = mock_post
+        # Saltar autenticación inyectando token vigente.
+        client._access_token = "mock-token"
+        client._token_expires_at = float("inf")
 
         respuesta = await client.enviar_ecf(b"<xml/>", "130000001", 31, "E310000000001")
         assert llamadas["count"] == 3
-        assert respuesta.estado.value == "1"
+        assert respuesta.estado.value == "Aceptado"
+
+
+# CASO 11: ACECF/ARECF — eventos de intercambio DGII conforme a XSD
+
+class TestCaso11Intercambio:
+    def _svc(self):
+        from ecf_core.ecf_interchange_service import ECFInterchangeService
+        return ECFInterchangeService(signer=None, validator=ECFValidator())
+
+    def test_acecf_aceptado(self):
+        svc = self._svc()
+        xml = svc.generar_aprobacion_comercial(
+            ncf="E310000000001", rnc_emisor="130000001",
+            rnc_comprador="101000000", fecha_emision=date(2026, 5, 3),
+            monto_total="5900.00", estado=1,
+        )
+        ok, errs = svc.validator.validar_evento(xml, "ACECF")
+        assert ok, f"ACECF inválido: {errs}"
+
+    def test_acecf_rechazado_con_motivo(self):
+        svc = self._svc()
+        xml = svc.generar_aprobacion_comercial(
+            ncf="E310000000001", rnc_emisor="130000001",
+            rnc_comprador="101000000", fecha_emision=date(2026, 5, 3),
+            monto_total="5900.00", estado=2, motivo_rechazo="Error en montos",
+        )
+        ok, errs = svc.validator.validar_evento(xml, "ACECF")
+        assert ok, f"ACECF rechazo inválido: {errs}"
+
+    def test_acecf_rechazado_sin_motivo_falla(self):
+        svc = self._svc()
+        with pytest.raises(ValueError, match="motivo_rechazo"):
+            svc.generar_aprobacion_comercial(
+                ncf="E310000000001", rnc_emisor="130000001",
+                rnc_comprador="101000000", fecha_emision=date(2026, 5, 3),
+                monto_total="5900.00", estado=2,
+            )
+
+    def test_arecf_recibido(self):
+        svc = self._svc()
+        xml = svc.generar_acuse_recibo(
+            ncf="E310000000001", rnc_emisor="130000001",
+            rnc_comprador="101000000", estado=0,
+        )
+        ok, errs = svc.validator.validar_evento(xml, "ARECF")
+        assert ok, f"ARECF inválido: {errs}"
+
+    def test_arecf_no_recibido_con_motivo(self):
+        svc = self._svc()
+        xml = svc.generar_acuse_recibo(
+            ncf="E310000000001", rnc_emisor="130000001",
+            rnc_comprador="101000000", estado=1, codigo_motivo_no_recibido=2,
+        )
+        ok, errs = svc.validator.validar_evento(xml, "ARECF")
+        assert ok, f"ARECF no-recibido inválido: {errs}"

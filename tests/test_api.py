@@ -8,12 +8,10 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import uuid
 from datetime import datetime, timezone
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -198,7 +196,7 @@ class TestAuth:
             json={},
             headers={"X-API-Key": "sk_cert_invalidkey000"}
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_inactive_tenant(self, client, fake_pool):
         fake_pool.conn.fetchrow.return_value = make_record(
@@ -222,17 +220,14 @@ class TestEmitirECF:
     def _valid_payload(self):
         return {
             "tipo_ecf": 31,
-            "ncf": "E310000000001",
             "fecha_emision": "2025-01-15",
             "rnc_comprador": "101000001",
-            "monto_total": 1180.00,
-            "monto_itbis": 180.00,
             "items": [
                 {
                     "descripcion": "Servicio de consultoría",
                     "cantidad": 1,
                     "precio_unitario": 1000.00,
-                    "itbis": 180.00,
+                    "itbis_tasa": 18,
                 }
             ],
         }
@@ -282,8 +277,22 @@ class TestValidarECF:
 
 class TestEstadoECF:
     def test_estado_not_found(self, client, fake_pool):
-        _setup_tenant_auth(fake_pool)
-        # fetchrow returns None (no ecf found)
+        tenant_record = make_record(
+            id=TENANT_ID,
+            rnc="130000001",
+            razon_social="Empresa Test SRL",
+            schema_name=TENANT_SCHEMA,
+            ambiente="certificacion",
+            estado="activo",
+            activo=True,
+            max_ecf_mensual=1000,
+            ecf_emitidos_mes=0,
+            cert_vencimiento=None,
+            odoo_webhook_url=None,
+            odoo_webhook_secret=None,
+        )
+        # 1ra llamada (auth): retorna tenant. 2da (consulta NCF): None.
+        fake_pool.conn.fetchrow.side_effect = [tenant_record, None]
         resp = client.get(
             "/v1/ecf/E310000000099/estado",
             headers={"X-API-Key": TEST_API_KEY},

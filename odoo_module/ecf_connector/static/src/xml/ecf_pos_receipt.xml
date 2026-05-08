@@ -12,9 +12,9 @@
                     <div style="font-size: 0.9em;">
                         NCF: <span style="font-weight: 900; font-size: 1.3em;"><t t-esc="props.data.ecf_ncf"/></span>
                     </div>
-                    <t t-if="props.data.ecf_cufe">
-                        <div style="font-size: 0.6em; margin-top: 4px; line-height: 1.0; word-break: break-all;">
-                            CUFE: <t t-esc="props.data.ecf_cufe.substring(0, 32)"/>...
+                    <t t-if="props.data.ecf_codigo_seguridad">
+                        <div style="font-size: 0.75em; margin-top: 4px; font-weight: bold;">
+                            Cód. Seg.: <t t-esc="props.data.ecf_codigo_seguridad"/>
                         </div>
                     </t>
                     <div style="font-size: 0.65em; margin-top: 3px; font-weight: bold; border-top: 1px dashed #000; padding-top: 2px;">
@@ -41,9 +41,9 @@
                 <div style="font-size: 0.65em; text-align: center; margin-top: 10px; padding-top: 6px; border-top: 1px solid #000; line-height: 1.2;">
                     Representación impresa de un comprobante electrónico.
                     <br/>
-                    Consulte la validez en el portal DGII.
+                    Consulte la validez en <strong>ecf.dgii.gov.do</strong> o escanee el QR.
                     <br/>
-                    <strong>RENACE.TECH - Dominican E-Invoicing</strong>
+                    <strong>Renace e-CF · Facturación Electrónica DGII</strong>
                 </div>
             </t>
         </xpath>

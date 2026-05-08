@@ -9,34 +9,43 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import List, Optional
+from typing import Optional
 
 import asyncpg
 import redis.asyncio as aioredis
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse, Response, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from lxml import etree
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from api_gateway.admin import (
     router as admin_router,
+)
+from api_gateway.admin import (
     set_db_pool as admin_set_db_pool,
+)
+from api_gateway.admin import (
     set_redis as admin_set_redis,
 )
 from api_gateway.reportes import (
+    HEADERS_606,
+    HEADERS_607,
+    HEADERS_608,
     ExportFormat,
-    HEADERS_606, HEADERS_607, HEADERS_608,
-    _606_to_txt, _607_to_txt, _608_to_txt,
+    _606_to_txt,
+    _607_to_txt,
+    _608_to_txt,
     _build_response,
 )
-from ecf_core.ecf_recibidas_service import ECFRecibidasService
-from ecf_core.ecf_interchange_service import ECFInterchangeService
 from ecf_core.cert_vault import CertVault, CertVaultRepository
 from ecf_core.dgii_client import DGIIClient
 from ecf_core.ecf_core_service import ECFSigner
+from ecf_core.ecf_interchange_service import ECFInterchangeService
+from ecf_core.ecf_recibidas_service import ECFRecibidasService
 from ecf_core.utils import safe_schema as _safe_schema
+from ecf_core.utils import validar_rnc_o_cedula
 
 logger = logging.getLogger(__name__)
 
@@ -52,24 +61,29 @@ def _validar_periodo(anio: int, mes: int):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    app.state.db_pool = await asyncpg.create_pool(
-        dsn=os.environ["DATABASE_URL"],
-        min_size=5,
-        max_size=20,
-    )
-    app.state.redis = await aioredis.from_url(
-        os.environ["REDIS_URL"],
-        password=os.environ.get("REDIS_PASSWORD"),
-        decode_responses=True,
-    )
+    # Startup. Si los tests pre-inyectaron pools mock, no los pisamos.
+    owns_resources = False
+    if not getattr(app.state, "db_pool", None):
+        app.state.db_pool = await asyncpg.create_pool(
+            dsn=os.environ["DATABASE_URL"],
+            min_size=5,
+            max_size=20,
+        )
+        owns_resources = True
+    if not getattr(app.state, "redis", None):
+        app.state.redis = await aioredis.from_url(
+            os.environ["REDIS_URL"],
+            password=os.environ.get("REDIS_PASSWORD"),
+            decode_responses=True,
+        )
     admin_set_db_pool(app.state.db_pool)
     admin_set_redis(app.state.redis)
     logger.info("API Gateway iniciado")
     yield
-    # Shutdown
-    await app.state.db_pool.close()
-    await app.state.redis.aclose()
+    # Shutdown — sólo cerramos los recursos que nosotros creamos.
+    if owns_resources:
+        await app.state.db_pool.close()
+        await app.state.redis.aclose()
 
 
 # App
@@ -105,7 +119,7 @@ _landing_file = pathlib.Path(__file__).resolve().parent.parent / "landing" / "in
 async def landing():
     if _landing_file.is_file():
         return FileResponse(str(_landing_file), media_type="text/html")
-    return JSONResponse({"service": "SaaS ECF DGII", "status": "running"})
+    return JSONResponse({"service": "Renace e-CF", "status": "running"})
 
 # ── Portal Admin (static SPA) ──
 _portal_dir = pathlib.Path(__file__).resolve().parent.parent / "portal_admin"
@@ -130,6 +144,36 @@ async def _check_rate_limit(api_key_hash: str, redis: aioredis.Redis):
             status_code=429,
             detail="Demasiadas solicitudes. Intente de nuevo en unos segundos.",
             headers={"Retry-After": str(ttl if ttl > 0 else RATE_LIMIT_WINDOW)},
+        )
+
+
+# Límites para el endpoint público de recepción (sin API key)
+IP_RATE_LIMIT_MAX = int(os.environ.get("IP_RATE_LIMIT_MAX", "30"))
+IP_RATE_LIMIT_WINDOW = int(os.environ.get("IP_RATE_LIMIT_WINDOW", "60"))
+
+
+def _get_client_ip(request: Request) -> str:
+    """Extrae la IP real del cliente respetando X-Forwarded-For del proxy."""
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        # El primer valor es la IP original del cliente
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+async def _check_rate_limit_ip(request: Request, redis: aioredis.Redis):
+    """Limita requests al endpoint público por IP de origen."""
+    ip = _get_client_ip(request)
+    key = f"rl:ip:{ip}"
+    current = await redis.incr(key)
+    if current == 1:
+        await redis.expire(key, IP_RATE_LIMIT_WINDOW)
+    if current > IP_RATE_LIMIT_MAX:
+        ttl = await redis.ttl(key)
+        raise HTTPException(
+            status_code=429,
+            detail="Demasiadas solicitudes desde esta IP.",
+            headers={"Retry-After": str(ttl if ttl > 0 else IP_RATE_LIMIT_WINDOW)},
         )
 
 
@@ -169,11 +213,13 @@ async def get_redis() -> aioredis.Redis:
 
 
 async def get_tenant(
-    x_api_key: str = Header(..., alias="X-API-Key"),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
     db: asyncpg.Pool = Depends(get_db),
     redis: aioredis.Redis = Depends(get_redis),
 ) -> dict:
     """Autentica y retorna el tenant por su API key."""
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="X-API-Key requerido")
     # Hash de la key para comparar con lo almacenado
     key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
 
@@ -252,7 +298,7 @@ class FacturaPayload(BaseModel):
     nombre_comprador:   Optional[str] = Field(None, max_length=255)
     tipo_rnc_comprador: str = Field(default="1", pattern=r"^[123]$")
     fecha_emision:      date
-    items:              List[ItemPayload] = Field(..., min_length=1, max_length=200)
+    items:              list[ItemPayload] = Field(..., min_length=1, max_length=200)
     ncf_referencia:     Optional[str] = Field(None, min_length=13, max_length=13)
     fecha_ncf_referencia: Optional[date] = None
     codigo_modificacion: str = Field(default="1", pattern=r"^[1234]$")
@@ -279,8 +325,8 @@ class FacturaPayload(BaseModel):
     @field_validator("rnc_comprador")
     @classmethod
     def validar_rnc(cls, v):
-        if v and not v.isdigit():
-            raise ValueError("RNC/Cédula debe contener solo dígitos")
+        if v and not validar_rnc_o_cedula(v):
+            raise ValueError("RNC/Cédula inválido (dígito verificador mod-11 incorrecto)")
         return v
 
     @model_validator(mode="after")
@@ -431,7 +477,7 @@ async def consultar_estado(
     schema = _safe_schema(tenant["schema_name"])
     async with db.acquire() as conn:
         row = await conn.fetchrow(
-            f"SELECT ncf, estado, cufe, intentos_envio, ultimo_error, created_at, approved_at "
+            f"SELECT ncf, estado, codigo_seguridad, intentos_envio, ultimo_error, created_at, approved_at "
             f"FROM {schema}.ecf WHERE ncf = $1",
             ncf
         )
@@ -771,7 +817,7 @@ async def listar_compras(
             SELECT ncf, rnc_proveedor, nombre_proveedor, tipo_bienes,
                    fecha_comprobante, fecha_pago, monto_servicios, monto_bienes,
                    total_monto, itbis_facturado, itbis_retenido, isr_retencion,
-                   estado_odoo, cufe, tipo_ecf, ambiente
+                   estado_odoo, codigo_seguridad, tipo_ecf, ambiente
             FROM {schema}.compras WHERE {where}
             ORDER BY fecha_comprobante, ncf
         """, *params)
@@ -864,28 +910,38 @@ async def aprobar_compra_comercial(
     tenant: dict = Depends(get_tenant),
     db:     asyncpg.Pool = Depends(get_db),
 ):
-    """Genera y envía la Aprobación Comercial (ACECF) para una compra."""
+    """Genera y envía la Aprobación Comercial (ACECF, Estado=1) para una compra.
+
+    Conforme a ``xsd/ACECF.xsd``: requiere RNCEmisor, eNCF, FechaEmision,
+    MontoTotal, RNCComprador, Estado=1, FechaHoraAprobacionComercial.
+    """
     schema = _safe_schema(tenant["schema_name"])
     async with db.acquire() as conn:
         compra = await conn.fetchrow(
-            f"SELECT rnc_proveedor FROM {schema}.compras WHERE ncf = $1", ncf
+            f"SELECT rnc_proveedor, fecha_comprobante, total_monto "
+            f"FROM {schema}.compras WHERE ncf = $1",
+            ncf,
         )
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
 
-    # Obtener certificado del tenant
     cert_repo = CertVaultRepository(db, CertVault())
     cert = await cert_repo.obtener_certificado(str(tenant["id"]))
 
     interchange = ECFInterchangeService(ECFSigner())
     cert_password_bytes = (cert["cert_password"] or "").encode()
 
-    xml_firmado = await interchange.procesar_evento(
-        "ACECF", ncf, compra["rnc_proveedor"], tenant,
-        cert["cert_data"], cert_password_bytes,
+    xml_firmado = await interchange.procesar_aprobacion_comercial(
+        ncf=ncf,
+        rnc_emisor=compra["rnc_proveedor"],
+        rnc_comprador=tenant["rnc"],
+        fecha_emision=compra["fecha_comprobante"],
+        monto_total=compra["total_monto"],
+        estado=1,
+        cert_data=cert["cert_data"],
+        cert_password=cert_password_bytes,
     )
 
-    # Enviar a DGII (Aceptación Comercial)
     async with DGIIClient(tenant["ambiente"]) as client:
         client.set_certificate(cert["cert_data"], cert_password_bytes)
         await client._authenticate()
@@ -914,11 +970,19 @@ async def rechazar_compra_comercial(
     tenant: dict = Depends(get_tenant),
     db:     asyncpg.Pool = Depends(get_db),
 ):
-    """Genera y envía el Rechazo Comercial (ARECF) para una compra."""
+    """Genera y envía el Rechazo Comercial (ACECF, Estado=2) para una compra.
+
+    Conforme a ``xsd/ACECF.xsd`` Estado=2 con DetalleMotivoRechazo (≤250 chars).
+    """
+    if not motivo or not motivo.strip():
+        raise HTTPException(status_code=422, detail="El motivo de rechazo es obligatorio")
+
     schema = _safe_schema(tenant["schema_name"])
     async with db.acquire() as conn:
         compra = await conn.fetchrow(
-            f"SELECT rnc_proveedor FROM {schema}.compras WHERE ncf = $1", ncf,
+            f"SELECT rnc_proveedor, fecha_comprobante, total_monto "
+            f"FROM {schema}.compras WHERE ncf = $1",
+            ncf,
         )
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
@@ -929,9 +993,16 @@ async def rechazar_compra_comercial(
     interchange = ECFInterchangeService(ECFSigner())
     cert_password_bytes = (cert["cert_password"] or "").encode()
 
-    xml_firmado = await interchange.procesar_evento(
-        "ARECF", ncf, compra["rnc_proveedor"], tenant,
-        cert["cert_data"], cert_password_bytes, motivo=motivo,
+    xml_firmado = await interchange.procesar_aprobacion_comercial(
+        ncf=ncf,
+        rnc_emisor=compra["rnc_proveedor"],
+        rnc_comprador=tenant["rnc"],
+        fecha_emision=compra["fecha_comprobante"],
+        monto_total=compra["total_monto"],
+        estado=2,
+        motivo_rechazo=motivo.strip()[:250],
+        cert_data=cert["cert_data"],
+        cert_password=cert_password_bytes,
     )
 
     async with DGIIClient(tenant["ambiente"]) as client:
@@ -958,12 +1029,62 @@ async def rechazar_compra_comercial(
     return {"status": "rechazado", "ncf": ncf}
 
 
+async def _enviar_arecf_background(
+    db: asyncpg.Pool,
+    ncf: str,
+    rnc_emisor: str,
+    rnc_comprador: str,
+    tenant_id: str,
+    ambiente: str,
+) -> None:
+    """Envía ARECF Estado=0 (Recibido) a la DGII. Fire-and-forget — no bloquea la respuesta."""
+    try:
+        cert_repo = CertVaultRepository(db, CertVault())
+        cert = await cert_repo.obtener_certificado(tenant_id)
+        cert_password_bytes = (cert.get("cert_password") or "").encode()
+
+        interchange = ECFInterchangeService(ECFSigner())
+        xml_firmado = await interchange.procesar_acuse_recibo(
+            ncf=ncf,
+            rnc_emisor=rnc_emisor,
+            rnc_comprador=rnc_comprador,
+            cert_data=cert["cert_data"],
+            cert_password=cert_password_bytes,
+            estado=0,
+        )
+
+        async with DGIIClient(ambiente) as client:
+            client.set_certificate(cert["cert_data"], cert_password_bytes)
+            await client._authenticate()
+            resp = await client._client.post(
+                "/fe/acuserecibo/api/ecf",
+                content=xml_firmado,
+                headers=client._auth_headers(),
+            )
+            if resp.status_code not in (200, 202):
+                logger.warning(
+                    "ARECF rechazado por DGII: NCF=%s HTTP=%s body=%s",
+                    ncf, resp.status_code, resp.text[:200],
+                )
+            else:
+                logger.info("ARECF (Estado=0) enviado OK: NCF=%s", ncf)
+    except Exception as exc:
+        logger.error("Error enviando ARECF para NCF=%s: %s", ncf, exc)
+
+
 @app.post("/fe/recepcion/api/ecf", include_in_schema=False)
-async def recibir_ecf_externo(request: Request, db: asyncpg.Pool = Depends(get_db)):
+async def recibir_ecf_externo(
+    request: Request,
+    db: asyncpg.Pool = Depends(get_db),
+    redis: aioredis.Redis = Depends(get_redis),
+):
     """Endpoint público para recibir e-CF de otros contribuyentes.
 
     Este es el URL que se registra en la DGII como 'URL de Recepción'.
+    Al recibir un e-CF nuevo responde 202 y dispara automáticamente
+    el Acuse de Recibo (ARECF Estado=0) en segundo plano.
     """
+    await _check_rate_limit_ip(request, redis)
     xml_bytes = await request.body()
     if not xml_bytes:
         return Response(status_code=400, content="Body vacío")
@@ -986,10 +1107,10 @@ async def recibir_ecf_externo(request: Request, db: asyncpg.Pool = Depends(get_d
         logger.warning("Error parseando e-CF entrante: %s", exc)
         return Response(status_code=400, content="XML inválido")
 
-    # 2. Identificar tenant receptor
+    # 2. Identificar tenant receptor (incluye ambiente para ARECF)
     async with db.acquire() as conn:
         tenant = await conn.fetchrow(
-            "SELECT id, schema_name, rnc FROM public.tenants "
+            "SELECT id, schema_name, rnc, ambiente FROM public.tenants "
             "WHERE rnc = $1 AND estado = 'activo' AND deleted_at IS NULL",
             rnc_receptor,
         )
@@ -1004,13 +1125,24 @@ async def recibir_ecf_externo(request: Request, db: asyncpg.Pool = Depends(get_d
         return Response(status_code=500, content="Configuración inválida")
 
     async with db.acquire() as conn:
-        await conn.execute(
+        result = await conn.execute(
             f"""INSERT INTO {schema}.compras (ncf, rnc_proveedor, xml_original, estado_odoo,
                                               fecha_comprobante, total_monto)
                 VALUES ($1, $2, $3, 'nueva', CURRENT_DATE, 0)
                 ON CONFLICT (ncf) DO NOTHING""",
             ncf, rnc_emisor, xml_bytes,
         )
+
+    # "INSERT 0 1" → nuevo; "INSERT 0 0" → duplicado (no re-enviamos ARECF)
+    if result.endswith("1"):
+        asyncio.create_task(_enviar_arecf_background(
+            db=db,
+            ncf=ncf,
+            rnc_emisor=rnc_emisor,
+            rnc_comprador=rnc_receptor,
+            tenant_id=str(tenant["id"]),
+            ambiente=tenant["ambiente"] or "certificacion",
+        ))
 
     logger.info("e-CF recibido: NCF=%s emisor=%s receptor=%s", ncf, rnc_emisor, rnc_receptor)
     return Response(status_code=202, content="e-CF recibido correctamente")
@@ -1136,7 +1268,7 @@ async def anular_ecf(
 # Consulta batch de estados
 
 class BatchStatusPayload(BaseModel):
-    ncfs: List[str] = Field(..., min_length=1, max_length=100)
+    ncfs: list[str] = Field(..., min_length=1, max_length=100)
 
 
 @app.post("/v1/ecf/estado-batch")
@@ -1149,7 +1281,7 @@ async def estado_batch(
     schema = _safe_schema(tenant["schema_name"])
     async with db.acquire() as conn:
         rows = await conn.fetch(
-            f"SELECT ncf, estado, cufe, track_id, security_code, qr_url, "
+            f"SELECT ncf, estado, codigo_seguridad, track_id, security_code, qr_url, "
             f"intentos_envio, ultimo_error, created_at, approved_at "
             f"FROM {schema}.ecf WHERE ncf = ANY($1)",
             payload.ncfs,
@@ -1184,25 +1316,79 @@ async def metrics(
     expected = f"Bearer {METRICS_API_KEY}"
     if not hmac.compare_digest(auth, expected):
         raise HTTPException(status_code=401, detail="No autorizado")
+
     pending   = await redis.llen("ecf:pending")
     retry_cnt = await redis.zcard("ecf:retry")
     dlq_cnt   = await redis.llen("ecf:dlq")
 
     async with db.acquire() as conn:
-        tenant_count = await conn.fetchval("SELECT COUNT(*) FROM public.tenants WHERE deleted_at IS NULL")
+        tenant_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM public.tenants WHERE deleted_at IS NULL"
+        )
+        # Lista de tenants para iterar y agregar contadores por schema.
+        tenants_rows = await conn.fetch(
+            "SELECT schema_name FROM public.tenants WHERE deleted_at IS NULL"
+        )
 
-    body = (
-        f"# HELP ecf_queue_pending Pending ECFs in queue\n"
-        f"# TYPE ecf_queue_pending gauge\n"
-        f"ecf_queue_pending {pending}\n"
-        f"# HELP ecf_queue_retry ECFs waiting for retry\n"
-        f"# TYPE ecf_queue_retry gauge\n"
-        f"ecf_queue_retry {retry_cnt}\n"
-        f"# HELP ecf_queue_dlq ECFs in dead letter queue\n"
-        f"# TYPE ecf_queue_dlq gauge\n"
-        f"ecf_queue_dlq {dlq_cnt}\n"
-        f"# HELP ecf_tenants_active Active tenants\n"
-        f"# TYPE ecf_tenants_active gauge\n"
-        f"ecf_tenants_active {tenant_count}\n"
-    )
+    # Build per-state / per-tipo counters by querying each tenant schema
+    estado_tipo_counts: dict = {}
+    latency_by_tipo: dict = {}  # tipo_ecf → list of seconds
+
+    async with db.acquire() as conn:
+        for t_row in tenants_rows:
+            try:
+                schema = _safe_schema(t_row["schema_name"])
+            except ValueError:
+                continue
+            rows = await conn.fetch(f"""
+                SELECT estado, tipo_ecf, COUNT(*) AS cnt
+                FROM {schema}.ecf
+                GROUP BY estado, tipo_ecf
+            """)
+            for r in rows:
+                key = (r["estado"], str(r["tipo_ecf"]))
+                estado_tipo_counts[key] = estado_tipo_counts.get(key, 0) + r["cnt"]
+
+            # Average approval latency per tipo (seconds)
+            lat_rows = await conn.fetch(f"""
+                SELECT tipo_ecf,
+                       EXTRACT(EPOCH FROM AVG(approved_at - created_at))::float AS avg_secs
+                FROM {schema}.ecf
+                WHERE approved_at IS NOT NULL AND created_at IS NOT NULL
+                GROUP BY tipo_ecf
+            """)
+            for lr in lat_rows:
+                tipo = str(lr["tipo_ecf"])
+                if lr["avg_secs"] is not None:
+                    latency_by_tipo.setdefault(tipo, []).append(lr["avg_secs"])
+
+    lines: list[str] = [
+        "# HELP ecf_queue_pending Pending ECFs in queue",
+        "# TYPE ecf_queue_pending gauge",
+        f"ecf_queue_pending {pending}",
+        "# HELP ecf_queue_retry ECFs waiting for retry",
+        "# TYPE ecf_queue_retry gauge",
+        f"ecf_queue_retry {retry_cnt}",
+        "# HELP ecf_queue_dlq ECFs in dead letter queue",
+        "# TYPE ecf_queue_dlq gauge",
+        f"ecf_queue_dlq {dlq_cnt}",
+        "# HELP ecf_tenants_active Active tenants",
+        "# TYPE ecf_tenants_active gauge",
+        f"ecf_tenants_active {tenant_count}",
+        "# HELP ecf_total Total e-CF by state and tipo",
+        "# TYPE ecf_total counter",
+    ]
+    for (estado, tipo), cnt in sorted(estado_tipo_counts.items()):
+        lines.append(f'ecf_total{{estado="{estado}",tipo="{tipo}"}} {cnt}')
+
+    if latency_by_tipo:
+        lines += [
+            "# HELP ecf_aprobacion_latency_avg_seconds Average approval latency per tipo",
+            "# TYPE ecf_aprobacion_latency_avg_seconds gauge",
+        ]
+        for tipo, vals in sorted(latency_by_tipo.items()):
+            avg = sum(vals) / len(vals)
+            lines.append(f'ecf_aprobacion_latency_avg_seconds{{tipo="{tipo}"}} {avg:.3f}')
+
+    body = "\n".join(lines) + "\n"
     return PlainTextResponse(body, media_type="text/plain; version=0.0.4")

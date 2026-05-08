@@ -12,15 +12,17 @@ export class EcfDashboard extends Component {
         this.actionService = useService("action");
         this.notification = useService("notification");
         
+        this.companyService = useService("company");
+
         const today = new Date();
         const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-        
+
         this.state = useState({
             stats: {},
             fiscal: {},
             compliance: {},
             loading: true,
-            saas_status: 'checking', 
+            saas_status: 'checking',
             date_from: firstDay.toISOString().split('T')[0],
             date_to: today.toISOString().split('T')[0],
             show_report_viewer: false,
@@ -34,7 +36,6 @@ export class EcfDashboard extends Component {
 
         onWillStart(async () => {
             await this.loadData();
-            await this.checkSaasStatus();
         });
 
         onMounted(() => {
@@ -45,24 +46,41 @@ export class EcfDashboard extends Component {
     async loadData() {
         this.state.loading = true;
         try {
-            const context = { 
-                date_from: this.state.date_from, 
-                date_to: this.state.date_to 
+            const context = {
+                date_from: this.state.date_from,
+                date_to: this.state.date_to,
             };
-            
+
             const stats = await this.orm.call("ecf.log", "get_dashboard_stats", [[]], { context });
             this.state.stats = stats;
-            
+
             const fiscal = await this.orm.call("ecf.log", "get_fiscal_summary", [[]], { context });
             this.state.fiscal = fiscal;
 
+            // check_dgii_compliance hace un GET real a /v1/health del SaaS y
+            // refleja certificado, plan y rechazos recientes; reutilizamos su
+            // resultado para el indicador "SaaS Online".
             const compliance = await this.orm.call("ecf.log", "check_dgii_compliance", [[]]);
             this.state.compliance = compliance;
+            if (compliance.status === 'ready') {
+                this.state.saas_status = 'online';
+            } else if (compliance.status === 'critical') {
+                this.state.saas_status = 'offline';
+            } else {
+                this.state.saas_status = 'warning';
+            }
         } catch (err) {
             console.error("Error loading dashboard data", err);
+            this.state.saas_status = 'offline';
         } finally {
             this.state.loading = false;
         }
+    }
+
+    iconForIssue(type) {
+        if (type === 'error') return 'oi-x-circle text-danger';
+        if (type === 'warning') return 'oi-warning-triangle text-warning';
+        return 'oi-check-circle text-white';
     }
 
     async openReportDetail(type) {
@@ -105,18 +123,6 @@ export class EcfDashboard extends Component {
         }
     }
 
-    async checkSaasStatus() {
-        try {
-            const configs = await this.orm.searchRead("res.company", [["id", "=", 1]], ["ecf_saas_url", "ecf_api_key"]);
-            if (configs.length && configs[0].ecf_saas_url) {
-                this.state.saas_status = 'online';
-            } else {
-                this.state.saas_status = 'offline';
-            }
-        } catch (err) {
-            this.state.saas_status = 'offline';
-        }
-    }
 
     renderCharts() {
         if (this.state.loading || !this.state.stats.daily_volume) return;

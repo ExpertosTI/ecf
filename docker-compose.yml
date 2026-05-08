@@ -1,4 +1,4 @@
-# SaaS ECF DGII — Docker Compose con Traefik
+# Renace e-CF — Docker Compose con Traefik
 # Cumple requisitos DGII: TLS, aislamiento, logs, health checks
 
 services:
@@ -82,6 +82,10 @@ services:
       METRICS_API_KEY: ${METRICS_API_KEY:-}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-60}
       RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-60}
+      IP_RATE_LIMIT_MAX: ${IP_RATE_LIMIT_MAX:-30}
+      IP_RATE_LIMIT_WINDOW: ${IP_RATE_LIMIT_WINDOW:-60}
+      ECF_AMBIENTE: ${ECF_AMBIENTE:-certificacion}
+      SKIP_XSD_VALIDATION: ${SKIP_XSD_VALIDATION:-false}
       TZ: America/Santo_Domingo
     depends_on:
       postgres:
@@ -124,6 +128,8 @@ services:
       PSFE_KEY_B64: ${PSFE_KEY_B64}
       DGII_CA_B64: ${DGII_CA_B64}
       VAULT_MASTER_KEY: ${VAULT_MASTER_KEY}
+      ECF_AMBIENTE: ${ECF_AMBIENTE:-certificacion}
+      SKIP_XSD_VALIDATION: ${SKIP_XSD_VALIDATION:-false}
       TZ: America/Santo_Domingo
     depends_on:
       postgres:
@@ -152,6 +158,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       VAULT_MASTER_KEY: ${VAULT_MASTER_KEY}
+      ECF_AMBIENTE: ${ECF_AMBIENTE:-certificacion}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}

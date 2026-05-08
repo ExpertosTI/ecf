@@ -633,11 +633,15 @@ class PosShipment(models.Model):
         self.ensure_one()
         self.write({'state': 'cancelled', 'messenger_note': note})
         if self.order_id:
-            try: self.order_id.action_pos_order_cancel()
-            except: pass
+            try:
+                self.order_id.action_pos_order_cancel()
+            except Exception as e:
+                _logger.warning("No se pudo cancelar pos.order %s: %s", self.order_id.id, e)
         if self.sale_order_id and self.sale_order_id.state not in ['cancel', 'done']:
-            try: self.sale_order_id.action_cancel()
-            except: pass
+            try:
+                self.sale_order_id.action_cancel()
+            except Exception as e:
+                _logger.warning("No se pudo cancelar sale.order %s: %s", self.sale_order_id.id, e)
 
     def get_portal_url(self):
         self.ensure_one()

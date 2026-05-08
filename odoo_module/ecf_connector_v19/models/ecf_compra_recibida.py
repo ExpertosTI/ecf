@@ -3,7 +3,7 @@
 ecf_compra_recibida.py — Modelo para e-CF Recibidas en Odoo 18
 
 Representa las facturas de proveedor recibidas automáticamente desde la DGII
-vía el SaaS ECF. Al procesarlas, se crea un account.move tipo in_invoice.
+vía el Renace e-CF. Al procesarlas, se crea un account.move tipo in_invoice.
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ class ECFCompraRecibida(models.Model):
     # Campos de identificación
     # ─────────────────────────────────────────────────────────────────────────
     ncf              = fields.Char('NCF', required=True, index=True, size=13)
-    cufe             = fields.Char('CUFE', size=128)
+    codigo_seguridad = fields.Char('Código de Seguridad', size=128)
     tipo_ecf         = fields.Integer('Tipo e-CF')
     tipo_ecf_nombre  = fields.Char('Tipo', compute='_compute_tipo_nombre', store=False)
     ambiente         = fields.Selection([
@@ -145,16 +145,33 @@ class ECFCompraRecibida(models.Model):
             ('deprecated', '=', False),
         ], limit=1)
 
-        # Cuenta de ITBIS (IVA soportado)
-        tax_account = self.env['account.tax'].search([
-            ('type_tax_use', '=', 'purchase'),
-            ('amount', 'in', [16, 18]),
-            ('company_id', '=', self.env.company.id),
-            ('active', '=', True),
-        ], limit=1)
-
         # Monto base (sin ITBIS)
         monto_base = self.total_monto - self.itbis_facturado
+
+        # Derivar tasa real del ITBIS a partir de los montos del e-CF
+        tasa_itbis = 0.0
+        if monto_base > 0 and self.itbis_facturado > 0:
+            tasa_calc = round(float(self.itbis_facturado) / float(monto_base) * 100)
+            if 15 <= tasa_calc <= 17:
+                tasa_itbis = 16.0
+            elif 17 < tasa_calc <= 20:
+                tasa_itbis = 18.0
+
+        # Buscar el impuesto ITBIS que coincida con la tasa real del e-CF
+        tax_account = False
+        if tasa_itbis > 0:
+            tax_account = self.env['account.tax'].search([
+                ('type_tax_use', '=', 'purchase'),
+                ('amount', '=', tasa_itbis),
+                ('company_id', '=', self.env.company.id),
+                ('active', '=', True),
+            ], limit=1)
+            if not tax_account:
+                _logger.warning(
+                    'No se encontró impuesto de compra con tasa %.0f%% — '
+                    'línea de factura sin impuesto para NCF %s',
+                    tasa_itbis, self.ncf,
+                )
 
         invoice_line_vals = [{
             'name':       _('e-CF Recibido NCF: %s — %s', self.ncf, self.nombre_proveedor or ''),
@@ -171,8 +188,8 @@ class ECFCompraRecibida(models.Model):
             'ref':              self.ncf,
             'narration':        _(
                 'e-CF Recibido automáticamente desde DGII.\n'
-                'NCF: %s | CUFE: %s | Ambiente: %s',
-                self.ncf, self.cufe or 'N/D', self.ambiente,
+                'NCF: %s | Cód. Seg.: %s | Ambiente: %s',
+                self.ncf, self.codigo_seguridad or 'N/D', self.ambiente,
             ),
             'invoice_line_ids': [(0, 0, line) for line in invoice_line_vals],
         }
@@ -219,7 +236,7 @@ class ECFCompraRecibida(models.Model):
             'tag':  'display_notification',
             'params': {
                 'title':   _('Pago Registrado'),
-                'message': _('Fecha de pago %s notificada al SaaS ECF.', self.fecha_pago),
+                'message': _('Fecha de pago %s notificada al Renace e-CF.', self.fecha_pago),
                 'type':    'success',
                 'sticky':  False,
             },
@@ -229,7 +246,7 @@ class ECFCompraRecibida(models.Model):
         """Dispara sincronización manual con la DGII desde Odoo."""
         company = self.env.company
         if not company.ecf_saas_url or not company.ecf_api_key:
-            raise UserError(_('Configure la URL y API Key del SaaS ECF en Ajustes → e-CF DGII'))
+            raise UserError(_('Configure la URL y API Key del Renace e-CF en Ajustes → e-CF DGII'))
         try:
             resp = requests.post(
                 f"{company.ecf_saas_url}/v1/compras/sincronizar",
@@ -281,7 +298,7 @@ class ECFCompraRecibida(models.Model):
                 if not self.search([('ncf', '=', ecf.get('ncf')), ('company_id', '=', company.id)]):
                     self.create({
                         'ncf': ecf.get('ncf'),
-                        'cufe': ecf.get('cufe'),
+                        'codigo_seguridad': ecf.get('codigo_seguridad') or ecf.get('cufe'),
                         'tipo_ecf': ecf.get('tipo_ecf'),
                         'rnc_proveedor': ecf.get('rnc_proveedor'),
                         'nombre_proveedor': ecf.get('nombre_proveedor'),

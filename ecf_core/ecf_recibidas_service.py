@@ -17,10 +17,9 @@ import hmac
 import json
 import logging
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Optional
 
 import asyncpg
 import httpx
@@ -46,8 +45,8 @@ class ECFRecibida:
     total_monto:      Decimal
     itbis_facturado:  Decimal
     subtotal:         Decimal
-    cufe:             Optional[str] = None
-    xml_original:     Optional[bytes] = None
+    codigo_seguridad: str | None = None
+    xml_original:     bytes | None = None
 
 
 @dataclass
@@ -59,7 +58,7 @@ class ResultadoSync:
     duplicados:    int = 0
     errores:       int = 0
     notificados:   int = 0
-    error_global:  Optional[str] = None
+    error_global:  str | None = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -122,7 +121,7 @@ def _parse_recibidas_xml(xml_text: str) -> list[ECFRecibida]:
                 total_monto=_decimal(_get(node, "MontoTotal", "Total")),
                 itbis_facturado=_decimal(_get(node, "ITBIS", "Itbis")),
                 subtotal=_decimal(_get(node, "Subtotal", "MontoSinImpuesto")),
-                cufe=_get(node, "CUFE") or None,
+                codigo_seguridad=_get(node, "CUFE") or None,
             ))
 
     except etree.XMLSyntaxError as e:
@@ -324,7 +323,7 @@ class ECFRecibidasService:
                     total_monto=Decimal(str(item.get("montoTotal", 0))),
                     itbis_facturado=Decimal(str(item.get("itbis", 0))),
                     subtotal=Decimal(str(item.get("subtotal", 0))),
-                    cufe=item.get("cufe") or item.get("CUFE"),
+                    codigo_seguridad=item.get("cufe") or item.get("CUFE"),
                 ))
             except Exception as e:
                 logger.warning("Error parseando e-CF recibida JSON: %s — %s", e, item)
@@ -382,7 +381,7 @@ class ECFRecibidasService:
                 result = await conn.execute(f"""
                     INSERT INTO {schema}.compras (
                         id, ncf, rnc_proveedor, nombre_proveedor,
-                        tipo_bienes, tipo_ecf, cufe, xml_original,
+                        tipo_bienes, tipo_ecf, codigo_seguridad, xml_original,
                         fecha_comprobante, total_monto,
                         itbis_facturado, monto_servicios, monto_bienes,
                         ambiente, estado_odoo
@@ -396,7 +395,7 @@ class ECFRecibidasService:
                     ecf.nombre_emisor,
                     tipo_bienes,
                     ecf.tipo_ecf,
-                    ecf.cufe,
+                    ecf.codigo_seguridad,
                     xml_data,
                     ecf.fecha_emision,
                     ecf.total_monto,
@@ -433,7 +432,7 @@ class ECFRecibidasService:
             rows = await conn.fetch(f"""
                 SELECT ncf, rnc_proveedor, nombre_proveedor, tipo_ecf,
                        fecha_comprobante, total_monto, itbis_facturado,
-                       monto_servicios, monto_bienes, cufe, ambiente
+                       monto_servicios, monto_bienes, codigo_seguridad, ambiente
                 FROM {schema}.compras
                 WHERE estado_odoo = 'nueva'
                 ORDER BY fecha_comprobante, ncf

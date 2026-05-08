@@ -43,16 +43,8 @@ export class EcfTypeButton extends Component {
         const order = this.pos.get_order();
         if (!order) return;
 
-        // Health Check simplificado para máxima velocidad
-        try {
-            const configs = await this.orm.searchRead("res.company", [["id", "=", this.pos.company.id]], ["ecf_saas_url", "ecf_api_key"]);
-            if (configs.length && configs[0].ecf_saas_url) {
-                fetch(`${configs[0].ecf_saas_url}/v1/health`, {
-                    headers: { "X-API-Key": configs[0].ecf_api_key },
-                    signal: AbortSignal.timeout(1500)
-                }).catch(() => console.warn("SaaS Offline check ignored"));
-            }
-        } catch (e) {}
+        // Health ping ejecutado en el servidor (ecf_api_key nunca sale al browser)
+        this.orm.call("res.company", "pos_check_ecf_health", [[]]).catch(() => {});
 
         if (this.state.types.length === 0) {
             this.state.types = await this.orm.searchRead("ecf.tipo", [["activo", "=", true]], ["id", "nombre", "codigo", "prefijo"]);

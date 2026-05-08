@@ -9,6 +9,7 @@ import logging
 import os
 import secrets
 import uuid
+from datetime import timezone
 from typing import Optional
 
 import asyncpg
@@ -16,6 +17,7 @@ from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Uploa
 from pydantic import BaseModel, Field, field_validator
 
 from ecf_core.cert_vault import CertVault, CertVaultError, CertVaultRepository
+from ecf_core.utils import safe_schema as _safe_schema
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +27,13 @@ ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "")
 
 
 async def require_admin(
-    authorization: str = Header(..., alias="Authorization"),
+    authorization: Optional[str] = Header(None, alias="Authorization"),
 ):
     """Validates the admin bearer token."""
     if not ADMIN_API_KEY:
         raise HTTPException(status_code=503, detail="Admin API not configured")
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header requerido")
     expected = f"Bearer {ADMIN_API_KEY}"
     if not hmac.compare_digest(authorization, expected):
         raise HTTPException(status_code=401, detail="Invalid admin credentials")
@@ -38,6 +42,7 @@ async def require_admin(
 # ---------------------------------------------------------------------------
 # Pydantic models
 # ---------------------------------------------------------------------------
+
 
 class TenantCreate(BaseModel):
     rnc: str = Field(..., min_length=9, max_length=11)
@@ -134,17 +139,13 @@ def set_redis(redis_client):
 
 def _get_pool():
     if _db_pool_ref is None:
-        raise HTTPException(
-            status_code=503, detail="Database not initialized"
-        )
+        raise HTTPException(status_code=503, detail="Database not initialized")
     return _db_pool_ref
 
 
 def _get_redis():
     if _redis_ref is None:
-        raise HTTPException(
-            status_code=503, detail="Redis not initialized"
-        )
+        raise HTTPException(status_code=503, detail="Redis not initialized")
     return _redis_ref
 
 
@@ -168,19 +169,29 @@ async def create_tenant(
 
     tenant_id = str(uuid.uuid4())
 
-    # Encrypt webhook_secret if vault is available
+    # Cifrar webhook_secret con vault (obligatorio en producción)
+    _sistema_ambiente = os.environ.get("ECF_AMBIENTE", "").lower()
+    _es_produccion = _sistema_ambiente in {"ecf", "produccion"}
     encrypted_webhook_secret = webhook_secret
     try:
         vault = CertVault()
         encrypted_webhook_secret = vault.cifrar_campo(webhook_secret)
     except CertVaultError:
-        logger.warning("VAULT_MASTER_KEY not available, storing webhook_secret in plain text")
+        if _es_produccion:
+            raise HTTPException(
+                status_code=500,
+                detail="VAULT_MASTER_KEY no configurada. En producción todos los secrets deben cifrarse en reposo.",
+            )
+        logger.warning(
+            "VAULT_MASTER_KEY no disponible — webhook_secret en texto plano (solo aceptable en pruebas)"
+        )
 
     try:
         async with db.acquire() as conn:
             async with conn.transaction():
                 # Insert tenant
-                await conn.execute("""
+                await conn.execute(
+                    """
                     INSERT INTO public.tenants
                         (id, rnc, razon_social, nombre_comercial, direccion,
                          telefono, email, api_key, api_key_hash,
@@ -196,8 +207,8 @@ async def create_tenant(
                     payload.direccion,
                     payload.telefono,
                     payload.email,
-                    api_key_hash,      # api_key column stores the SHA-256 hash
-                    api_key_hash,      # api_key_hash column (bcrypt would be better, same for now)
+                    api_key_hash,  # api_key column stores the SHA-256 hash
+                    api_key_hash,  # api_key_hash column (bcrypt would be better, same for now)
                     payload.plan,
                     schema_name,
                     payload.ambiente,
@@ -215,7 +226,8 @@ async def create_tenant(
                 # Create NCF sequences for all e-CF types
                 for tipo_ecf in (31, 32, 33, 34, 41, 43, 44, 45, 46, 47):
                     prefijo = f"E{tipo_ecf}"
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         INSERT INTO public.ncf_sequences
                             (tenant_id, tipo_ecf, prefijo, secuencia_actual, secuencia_max, activo)
                         VALUES ($1, $2, $3, 0, 9999999999, TRUE)
@@ -232,11 +244,15 @@ async def create_tenant(
         if "rnc" in detail:
             raise HTTPException(status_code=409, detail=f"RNC {payload.rnc} ya está registrado")
         raise HTTPException(status_code=409, detail="Tenant ya existe")
-    except asyncpg.CheckViolationError as e:
-        raise HTTPException(status_code=422, detail=f"Valor no permitido por la base de datos: {e}")
+    except asyncpg.CheckViolationError:
+        raise HTTPException(
+            status_code=422, detail="Valor no permitido. Verifique ambiente, plan y estado del tenant."
+        )
     except Exception as e:
         logger.error("Error creando tenant %s: %s", payload.rnc, e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error interno al crear empresa: {type(e).__name__}: {e}")
+        raise HTTPException(
+            status_code=500, detail="Error interno al crear empresa. Revise los logs del servidor."
+        )
 
     return {
         "tenant_id": tenant_id,
@@ -261,14 +277,17 @@ async def list_tenants(
         db = _get_pool()
         async with db.acquire() as conn:
             if estado:
-                rows = await conn.fetch("""
+                rows = await conn.fetch(
+                    """
                     SELECT id, rnc, razon_social, plan, estado, ambiente,
                            ecf_emitidos_mes, max_ecf_mensual, cert_vencimiento,
                            created_at
                     FROM public.tenants
                     WHERE deleted_at IS NULL AND estado = $1
                     ORDER BY created_at DESC
-                """, estado)
+                """,
+                    estado,
+                )
             else:
                 rows = await conn.fetch("""
                     SELECT id, rnc, razon_social, plan, estado, ambiente,
@@ -281,7 +300,7 @@ async def list_tenants(
         return {"tenants": [dict(r) for r in rows]}
     except Exception as e:
         logger.error("Error listando tenants: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error al listar empresas: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail="Error al listar empresas. Revise los logs del servidor.")
 
 
 @router.get("/tenants/{tenant_id}")
@@ -292,14 +311,17 @@ async def get_tenant(
     """Get tenant details."""
     db = _get_pool()
     async with db.acquire() as conn:
-        row = await conn.fetchrow("""
+        row = await conn.fetchrow(
+            """
             SELECT id, rnc, razon_social, nombre_comercial, direccion,
                    telefono, email, plan, estado, schema_name, ambiente,
                    odoo_webhook_url, ecf_emitidos_mes, max_ecf_mensual,
                    cert_vencimiento, created_at, updated_at
             FROM public.tenants
             WHERE id = $1 AND deleted_at IS NULL
-        """, uuid.UUID(tenant_id))
+        """,
+            uuid.UUID(tenant_id),
+        )
     if not row:
         raise HTTPException(status_code=404, detail="Tenant no encontrado")
     return dict(row)
@@ -379,15 +401,87 @@ async def rotate_api_key(
     async with db.acquire() as conn:
         await conn.execute(
             "UPDATE public.tenants SET api_key = $1, api_key_hash = $1, updated_at = NOW() WHERE id = $2",
-            new_hash, uuid.UUID(tenant_id),
+            new_hash,
+            uuid.UUID(tenant_id),
         )
 
-    return {"tenant_id": tenant_id, "api_key": new_api_key, "mensaje": "Guarda la nueva API key — no se puede recuperar."}
+    return {
+        "tenant_id": tenant_id,
+        "api_key": new_api_key,
+        "mensaje": "Guarda la nueva API key — no se puede recuperar.",
+    }
+
+
+_WEBHOOK_PREV_TTL = int(os.environ.get("WEBHOOK_ROTATION_TTL", "900"))  # 15 min default
+
+
+@router.post("/tenants/{tenant_id}/rotate-webhook")
+async def rotate_webhook_secret(
+    tenant_id: str,
+    _: None = Depends(require_admin),
+):
+    """Rota el webhook secret con ventana de gracia de 15 min (configurable via WEBHOOK_ROTATION_TTL).
+
+    Durante el TTL, el worker acepta también el secret anterior para que los
+    callbacks en vuelo no fallen mientras Odoo es actualizado con el nuevo valor.
+    """
+    db = _get_pool()
+    redis = _get_redis()
+
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, odoo_webhook_secret FROM public.tenants WHERE id = $1 AND deleted_at IS NULL",
+            uuid.UUID(tenant_id),
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Tenant no encontrado")
+
+    # Guardar secret actual (descifrado) en Redis con TTL para fallback durante rotación
+    old_encrypted = row["odoo_webhook_secret"]
+    if old_encrypted:
+        try:
+            vault = CertVault()
+            old_plain = vault.descifrar_campo(old_encrypted)
+        except Exception:
+            old_plain = old_encrypted  # ya estaba en texto plano
+        if old_plain:
+            await redis.set(
+                f"whk:prev:{tenant_id}",
+                old_plain,
+                ex=_WEBHOOK_PREV_TTL,
+            )
+
+    new_secret = secrets.token_hex(32)
+    encrypted = new_secret
+    try:
+        vault = CertVault()
+        encrypted = vault.cifrar_campo(new_secret)
+    except CertVaultError:
+        logger.warning("VAULT_MASTER_KEY no disponible — webhook secret en texto plano")
+
+    async with db.acquire() as conn:
+        await conn.execute(
+            "UPDATE public.tenants SET odoo_webhook_secret = $1, updated_at = NOW() WHERE id = $2",
+            encrypted,
+            uuid.UUID(tenant_id),
+        )
+
+    return {
+        "tenant_id": tenant_id,
+        "webhook_secret": new_secret,
+        "ttl_segundos": _WEBHOOK_PREV_TTL,
+        "mensaje": (
+            f"Actualiza el Webhook Secret en Odoo dentro de los próximos "
+            f"{_WEBHOOK_PREV_TTL // 60} minutos. "
+            "Durante ese período el sistema acepta ambos secrets automáticamente."
+        ),
+    }
 
 
 # ---------------------------------------------------------------------------
 # Certificate management
 # ---------------------------------------------------------------------------
+
 
 @router.post("/tenants/{tenant_id}/certs", status_code=201)
 async def upload_certificate(
@@ -424,7 +518,8 @@ async def upload_certificate(
         async with db.acquire() as conn:
             await conn.execute(
                 "UPDATE public.tenants SET cert_password = $1, updated_at = NOW() WHERE id = $2",
-                encrypted_password, uuid.UUID(tenant_id),
+                encrypted_password,
+                uuid.UUID(tenant_id),
             )
 
         cert_id = await cert_repo.guardar(tenant_id, p12_data, cert_password.encode("utf-8"))
@@ -432,8 +527,12 @@ async def upload_certificate(
         # Get cert metadata for response
         metadatos = vault.extraer_metadatos(p12_data, cert_password.encode("utf-8"))
 
-        logger.info("Certificado subido para tenant %s: serial=%s, vence=%s",
-                     tenant_id, metadatos["serial"], metadatos["valid_to"])
+        logger.info(
+            "Certificado subido para tenant %s: serial=%s, vence=%s",
+            tenant_id,
+            metadatos["serial"],
+            metadatos["valid_to"],
+        )
 
         return {
             "cert_id": cert_id,
@@ -457,18 +556,22 @@ async def list_certificates(
     """List certificates for a tenant."""
     db = _get_pool()
     async with db.acquire() as conn:
-        rows = await conn.fetch("""
+        rows = await conn.fetch(
+            """
             SELECT id, cert_serial, cert_subject, valid_from, valid_to, activo, created_at
             FROM public.tenant_certs
             WHERE tenant_id = $1
             ORDER BY created_at DESC
-        """, uuid.UUID(tenant_id))
+        """,
+            uuid.UUID(tenant_id),
+        )
     return {"certificates": [dict(r) for r in rows]}
 
 
 # ---------------------------------------------------------------------------
 # NCF Sequence management
 # ---------------------------------------------------------------------------
+
 
 @router.post("/tenants/{tenant_id}/ncf-sequences", status_code=201)
 async def create_ncf_sequence(
@@ -490,14 +593,18 @@ async def create_ncf_sequence(
             raise HTTPException(status_code=404, detail="Tenant no encontrado")
 
         # Upsert sequence
-        await conn.execute("""
+        await conn.execute(
+            """
             INSERT INTO public.ncf_sequences
                 (tenant_id, tipo_ecf, prefijo, secuencia_actual, secuencia_max, activo)
             VALUES ($1, $2, $3, 0, $4, TRUE)
             ON CONFLICT (tenant_id, tipo_ecf)
             DO UPDATE SET secuencia_max = $4, activo = TRUE, updated_at = NOW()
         """,
-            uuid.UUID(tenant_id), payload.tipo_ecf, prefijo, payload.secuencia_max,
+            uuid.UUID(tenant_id),
+            payload.tipo_ecf,
+            prefijo,
+            payload.secuencia_max,
         )
 
     return {
@@ -516,18 +623,22 @@ async def list_ncf_sequences(
     """List NCF sequences for a tenant."""
     db = _get_pool()
     async with db.acquire() as conn:
-        rows = await conn.fetch("""
+        rows = await conn.fetch(
+            """
             SELECT tipo_ecf, prefijo, secuencia_actual, secuencia_max, activo, updated_at
             FROM public.ncf_sequences
             WHERE tenant_id = $1
             ORDER BY tipo_ecf
-        """, uuid.UUID(tenant_id))
+        """,
+            uuid.UUID(tenant_id),
+        )
     return {"sequences": [dict(r) for r in rows]}
 
 
 # ---------------------------------------------------------------------------
 # DLQ Management
 # ---------------------------------------------------------------------------
+
 
 @router.get("/dlq")
 async def list_dlq(
@@ -536,6 +647,7 @@ async def list_dlq(
 ):
     """List messages in the Dead Letter Queue."""
     import json
+
     redis_client = _get_redis()
 
     messages = await redis_client.lrange("ecf:dlq", 0, limit - 1)
@@ -573,6 +685,7 @@ async def retry_dlq_message(
 ):
     """Move a DLQ message back to the pending queue for reprocessing."""
     import json
+
     redis_client = _get_redis()
 
     messages = await redis_client.lrange("ecf:dlq", 0, -1)
@@ -598,47 +711,9 @@ async def retry_dlq_message(
 
 
 # ---------------------------------------------------------------------------
-# DGII Integration: cufe_secret por tenant
-# ---------------------------------------------------------------------------
-
-class CufeSecretUpdate(BaseModel):
-    cufe_secret: str = Field(..., min_length=8, max_length=128,
-                             description="Clave secreta CUFE registrada ante la DGII para este tenant")
-
-
-@router.put("/tenants/{tenant_id}/cufe-secret", status_code=200)
-async def set_cufe_secret(
-    tenant_id: str,
-    payload: CufeSecretUpdate,
-    _: None = Depends(require_admin),
-):
-    """
-    Registra el cufe_secret de un tenant (entregado por la DGII durante homologación).
-    El secreto se cifra con AES-256-GCM antes de almacenarse.
-    """
-    db = _get_pool()
-    try:
-        vault = CertVault()
-        encrypted = vault.cifrar_campo(payload.cufe_secret)
-    except CertVaultError as e:
-        raise HTTPException(status_code=500, detail=f"Vault no disponible: {e}")
-
-    async with db.acquire() as conn:
-        updated = await conn.fetchval(
-            "UPDATE public.tenants SET cufe_secret = $1, updated_at = NOW() "
-            "WHERE id = $2 AND deleted_at IS NULL RETURNING id",
-            encrypted, uuid.UUID(tenant_id),
-        )
-    if not updated:
-        raise HTTPException(status_code=404, detail="Tenant no encontrado")
-
-    logger.info("cufe_secret actualizado para tenant %s", tenant_id)
-    return {"tenant_id": tenant_id, "mensaje": "cufe_secret registrado y cifrado correctamente"}
-
-
-# ---------------------------------------------------------------------------
 # System stats
 # ---------------------------------------------------------------------------
+
 
 @router.get("/stats")
 async def system_stats(
@@ -654,8 +729,7 @@ async def system_stats(
                 "SELECT COUNT(*) FROM public.tenants WHERE deleted_at IS NULL"
             )
             tenants_activos = await conn.fetchval(
-                "SELECT COUNT(*) FROM public.tenants "
-                "WHERE estado = 'activo' AND deleted_at IS NULL"
+                "SELECT COUNT(*) FROM public.tenants WHERE estado = 'activo' AND deleted_at IS NULL"
             )
             certs_por_vencer = await conn.fetchval(
                 "SELECT COUNT(*) FROM public.tenants "
@@ -681,11 +755,15 @@ async def system_stats(
         }
     except Exception as e:
         logger.error("Error en system_stats: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error en estadísticas: {type(e).__name__}: {e}")
+        raise HTTPException(
+            status_code=500, detail="Error al obtener estadísticas. Revise los logs del servidor."
+        )
+
 
 # ---------------------------------------------------------------------------
 # DGII RNC Lookup
 # ---------------------------------------------------------------------------
+
 
 @router.get("/dgii/rnc/{rnc}")
 async def lookup_rnc_dgii(
@@ -697,7 +775,7 @@ async def lookup_rnc_dgii(
     """
     # Sanitize RNC: remove dashes or spaces
     rnc = "".join(filter(str.isdigit, rnc))
-    
+
     if not (len(rnc) == 9 or len(rnc) == 11):
         raise HTTPException(status_code=422, detail="RNC debe tener 9 u 11 dígitos")
 
@@ -705,16 +783,19 @@ async def lookup_rnc_dgii(
     db = _get_pool()
     # Limpiamos el RNC de entrada de guiones o espacios
     rnc_clean = "".join(filter(str.isdigit, rnc))
-    
+
     try:
         async with db.acquire() as conn:
             # Buscamos limpiando también lo que haya en la base de datos (por si acaso)
-            row = await conn.fetchrow("""
-                SELECT rnc, razon_social, estado 
-                FROM public.dgii_rnc 
+            row = await conn.fetchrow(
+                """
+                SELECT rnc, razon_social, estado
+                FROM public.dgii_rnc
                 WHERE regexp_replace(rnc, '[^0-9]', '', 'g') = $1
-            """, rnc_clean)
-            
+            """,
+                rnc_clean,
+            )
+
             if row:
                 logger.info(f"RNC {rnc} found in local PostgreSQL DB")
                 return {
@@ -723,32 +804,27 @@ async def lookup_rnc_dgii(
                     "nombre_comercial": row["razon_social"],
                     "direccion": "Consultar en DGII",
                     "estado": row["estado"],
-                    "source": "local_db"
+                    "source": "local_db",
                 }
     except Exception as e:
         logger.error(f"Error querying local RNC DB: {e}")
+        raise HTTPException(
+            status_code=503, detail="Error consultando base de datos local de RNC. Intente más tarde."
+        )
 
-    # 2. Fallback to Mock DB (Expertos TI and others)
-    mock_db = {
-        "133109192": {"razon": "LA PERSONA BOUTIQUE SRL", "comercial": "La Persona Boutique", "direccion": "Calle Duarte #410, Santo Domingo"},
-        "101001001": {"razon": "BANCO POPULAR DOMINICANO SA", "comercial": "Banco Popular", "direccion": "Av. John F. Kennedy #20, Santo Domingo"},
-        "101010632": {"razon": "CERVECERIA NACIONAL DOMINICANA SA", "comercial": "CND", "direccion": "Av. Independencia #100, Santo Domingo"},
-        "132842316": {"razon": "EXPERTOS TI, SRL", "comercial": "Expertos TI", "direccion": "Av. Winston Churchill, Santo Domingo"} 
-    }
+    # No hay fallback con datos fabricados: si el RNC no está en el padrón
+    # cargado desde DGII (tabla public.dgii_rnc), respondemos 404. Devolver
+    # datos hardcodeados induce a emitir e-CF con razón social incorrecta.
+    raise HTTPException(
+        status_code=404,
+        detail=(
+            "RNC no encontrado en el padrón DGII local. "
+            "Verifique que se haya ejecutado scripts/cargar_padron_dgii.sh "
+            "con el último archivo RNC_Contribuyentes."
+        ),
+    )
 
-    # 2. Fallback to Mock DB
-    found = mock_db.get(rnc)
-    if found:
-        return {
-            "rnc": rnc,
-            "razon_social": found["razon"],
-            "nombre_comercial": found["comercial"],
-            "direccion": found["direccion"],
-            "estado": "ACTIVO",
-            "source": "saas_cache"
-        }
 
-    raise HTTPException(status_code=404, detail="RNC no encontrado en DGII ni en caché local")
 @router.post("/tenants/{tenant_id}/test-webhook")
 async def test_webhook(
     tenant_id: str,
@@ -762,40 +838,44 @@ async def test_webhook(
         row = await conn.fetchrow(
             "SELECT rnc, odoo_webhook_url, odoo_webhook_secret FROM public.tenants "
             "WHERE id = $1 AND deleted_at IS NULL",
-            uuid.UUID(tenant_id)
+            uuid.UUID(tenant_id),
         )
-    
+
     if not row:
         raise HTTPException(status_code=404, detail="Tenant no encontrado")
-    
+
     webhook_url = row["odoo_webhook_url"]
     if not webhook_url:
         raise HTTPException(status_code=400, detail="URL de webhook no configurada para esta empresa")
-    
+
     # Decrypt secret
     webhook_secret = row["odoo_webhook_secret"]
     try:
         vault = CertVault()
         webhook_secret = vault.descifrar_campo(webhook_secret)
-    except Exception:
-        pass # Stored in plain text or vault not available
-    
+    except Exception as exc:
+        # Almacenado en texto plano o vault no disponible — caemos al valor crudo.
+        logger.debug("webhook_secret no descifrable, usando valor crudo: %s", exc)
+
     if not webhook_secret:
         raise HTTPException(status_code=400, detail="Webhook secret no disponible")
 
     # Prepare test payload
-    import json
-    import hmac
     import hashlib
-    from datetime import datetime, timezone
+    import hmac
+    import json
+    from datetime import datetime
+
     import httpx
 
-    payload = json.dumps({
-        "event": "ping",
-        "message": "Prueba de conectividad desde Renace SaaS",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "rnc": row["rnc"]
-    }).encode()
+    payload = json.dumps(
+        {
+            "event": "ping",
+            "message": "Prueba de conectividad desde Renace SaaS",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "rnc": row["rnc"],
+        }
+    ).encode()
 
     # Sign payload
     firma = hmac.new(webhook_secret.encode(), payload, hashlib.sha256).hexdigest()
@@ -809,19 +889,17 @@ async def test_webhook(
                     "Content-Type": "application/json",
                     "X-ECF-Signature": firma,
                     "X-ECF-Tenant-RNC": row["rnc"],
-                    "X-ECF-Event": "ping"
-                }
+                    "X-ECF-Event": "ping",
+                },
             )
             return {
                 "status_code": resp.status_code,
-                "response_body": resp.text[:500], # Truncate for safety
-                "success": resp.is_success
+                "response_body": resp.text[:500],  # Truncate for safety
+                "success": resp.is_success,
             }
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
+
 
 @router.get("/tenants/{tenant_id}/compras")
 async def get_tenant_compras(
@@ -835,14 +913,14 @@ async def get_tenant_compras(
     async with db.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT schema_name FROM public.tenants WHERE id = $1 AND deleted_at IS NULL",
-            uuid.UUID(tenant_id)
+            uuid.UUID(tenant_id),
         )
         if not row:
             raise HTTPException(status_code=404, detail="Tenant no encontrado")
-        
+
         schema = _safe_schema(row["schema_name"])
         rows = await conn.fetch(f"""
-            SELECT ncf, rnc_proveedor, nombre_proveedor, tipo_ecf, cufe,
+            SELECT ncf, rnc_proveedor, nombre_proveedor, tipo_ecf, codigo_seguridad,
                    fecha_comprobante, total_monto, itbis_facturado,
                    monto_servicios, monto_bienes, ambiente, estado_odoo,
                    odoo_bill_id, created_at
@@ -864,20 +942,20 @@ async def sync_tenant_compras(
     db = _get_pool()
     async with db.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT * FROM public.tenants WHERE id = $1 AND deleted_at IS NULL",
-            uuid.UUID(tenant_id)
+            "SELECT * FROM public.tenants WHERE id = $1 AND deleted_at IS NULL", uuid.UUID(tenant_id)
         )
         if not row:
             raise HTTPException(status_code=404, detail="Tenant no encontrado")
-    
-    from ecf_core.ecf_recibidas_service import ECFRecibidasService
+
     from ecf_core.cert_vault import CertVaultRepository
-    
+    from ecf_core.ecf_recibidas_service import ECFRecibidasService
+
     repo = CertVaultRepository(db)
     service = ECFRecibidasService(db, repo)
-    
+
     # Ejecutar en segundo plano
     import asyncio
+
     asyncio.create_task(service.sincronizar_tenant(dict(row)))
-    
+
     return {"status": "accepted"}

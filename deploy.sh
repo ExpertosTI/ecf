@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy.sh — Script de despliegue SaaS ECF DGII
+# deploy.sh — Script de despliegue Renace e-CF
 # Uso: ./deploy.sh [produccion|certificacion]
 set -euo pipefail
 

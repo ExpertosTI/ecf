@@ -30,6 +30,47 @@ _logger = logging.getLogger(__name__)
 # Regex de validación para API Keys del SaaS (sk_cert_ o sk_prod_ + 48 hex)
 _API_KEY_RE = re.compile(r'^sk_(cert|prod)_[a-f0-9]{48}$')
 
+# Algoritmo oficial DGII para validar RNC (9 dígitos) y Cédula (11 dígitos).
+# Implementado in-line para no acoplar el módulo Odoo a los paquetes del SaaS.
+_RNC_WEIGHTS = (7, 9, 8, 6, 5, 4, 3, 2)
+_CEDULA_WEIGHTS = (1, 2, 1, 2, 1, 2, 1, 2, 1, 2)
+
+
+def _validar_rnc(rnc):
+    if not isinstance(rnc, str) or len(rnc) != 9 or not rnc.isdigit():
+        return False
+    suma = sum(int(d) * w for d, w in zip(rnc[:8], _RNC_WEIGHTS))
+    residuo = suma % 11
+    if residuo == 0:
+        esperado = 2
+    elif residuo == 1:
+        esperado = 1
+    else:
+        esperado = 11 - residuo
+    return esperado == int(rnc[8])
+
+
+def _validar_cedula(cedula):
+    if not isinstance(cedula, str) or len(cedula) != 11 or not cedula.isdigit():
+        return False
+    suma = 0
+    for i, peso in enumerate(_CEDULA_WEIGHTS[:10]):
+        producto = int(cedula[i]) * peso
+        if producto > 9:
+            producto -= 9
+        suma += producto
+    return ((10 - (suma % 10)) % 10) == int(cedula[10])
+
+
+def _validar_rnc_o_cedula(documento):
+    if not documento:
+        return False
+    if len(documento) == 9:
+        return _validar_rnc(documento)
+    if len(documento) == 11:
+        return _validar_cedula(documento)
+    return False
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Configuración ECF por compañía (aislamiento multi-empresa)
@@ -64,6 +105,27 @@ class ResCompany(models.Model):
              'facturas que NO estén en modo diferido. Para POS diferido siempre es manual.',
     )
 
+    @api.model
+    def pos_check_ecf_health(self):
+        """Ping al SaaS ejecutado en el servidor — ecf_api_key nunca llega al navegador."""
+        import time
+        company = self.env.company
+        if not company.ecf_saas_url or not company.ecf_api_key:
+            return {'status': 'not_configured'}
+        try:
+            t0 = time.monotonic()
+            resp = requests.get(
+                f"{company.ecf_saas_url}/v1/health",
+                headers={'X-API-Key': company.ecf_api_key},
+                timeout=3,
+            )
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            if resp.ok:
+                return {'status': 'online', 'latency_ms': latency_ms}
+            return {'status': 'error', 'http_status': resp.status_code}
+        except Exception:
+            return {'status': 'offline'}
+
 
 class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
@@ -71,7 +133,7 @@ class ResConfigSettings(models.TransientModel):
     ecf_saas_url = fields.Char(
         related='company_id.ecf_saas_url',
         readonly=False,
-        string='URL del SaaS ECF',
+        string='URL del Renace e-CF',
     )
     ecf_api_key = fields.Char(
         related='company_id.ecf_api_key',
@@ -110,14 +172,14 @@ class ResConfigSettings(models.TransientModel):
             ))
 
     def action_test_conexion_ecf(self):
-        """Prueba la conexión al SaaS ECF y muestra latencia + versión."""
+        """Prueba la conexión al Renace e-CF y muestra latencia + versión."""
         self.ensure_one()
         company = self.company_id
         api_url = company.ecf_saas_url or ''
         api_key = company.ecf_api_key or ''
 
         if not api_url or not api_key:
-            raise UserError(_('Configure la URL y API Key del SaaS ECF primero'))
+            raise UserError(_('Configure la URL y API Key del Renace e-CF primero'))
 
         import time
         try:
@@ -138,7 +200,7 @@ class ResConfigSettings(models.TransientModel):
                 'params': {
                     'title': _('✅ Conexión exitosa'),
                     'message': _(
-                        'SaaS ECF v%s conectado. Ambiente: %s. Latencia: %sms',
+                        'Renace e-CF v%s conectado. Ambiente: %s. Latencia: %sms',
                         version, ambiente.upper(), latency_ms
                     ),
                     'type': 'success',
@@ -151,7 +213,7 @@ class ResConfigSettings(models.TransientModel):
                 'tag': 'display_notification',
                 'params': {
                     'title': _('❌ Error de conexión'),
-                    'message': _('No se pudo conectar al SaaS ECF: %s', str(e)),
+                    'message': _('No se pudo conectar al Renace e-CF: %s', str(e)),
                     'type': 'danger',
                     'sticky': True,
                 },
@@ -178,6 +240,15 @@ class ECFTipo(models.Model):
         help='Si es True, no se requiere RNC del comprador (ej: E32)',
     )
 
+    # ── Loader Odoo 18 (point_of_sale) ──
+    @api.model
+    def _load_pos_data_domain(self, data):
+        return [('activo', '=', True)]
+
+    @api.model
+    def _load_pos_data_fields(self, config_id):
+        return ['id', 'nombre', 'codigo', 'prefijo', 'consumidor_final']
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Log de e-CF
@@ -188,13 +259,16 @@ class ECFLog(models.Model):
     _description = 'Registro de e-CF emitidos'
     _order = 'create_date desc'
     _rec_name = 'ncf'
+    _check_company_auto = True
 
     _sql_constraints = [
         ('ncf_move_unique', 'UNIQUE(move_id, ncf)',
          'Ya existe un registro con este NCF para esta factura'),
     ]
 
-    move_id      = fields.Many2one('account.move', string='Factura', ondelete='cascade')
+    move_id      = fields.Many2one(
+        'account.move', string='Factura', ondelete='cascade', check_company=True,
+    )
     ncf          = fields.Char(string='NCF', index=True)
     ecf_id       = fields.Char(string='ID en SaaS')
     tipo_ecf     = fields.Integer(string='Tipo e-CF')
@@ -208,7 +282,7 @@ class ECFLog(models.Model):
         ('anulado',             'Anulado'),
         ('anulacion_fallida',   'Anulación Fallida'),
     ], string='Estado', default='pendiente', index=True)
-    cufe         = fields.Char(string='CUFE')
+    codigo_seguridad = fields.Char(string='Código de Seguridad')
     qr_code      = fields.Text(string='Código QR')
     error_msg    = fields.Text(string='Error')
     raw_response = fields.Text(string='Respuesta raw DGII')
@@ -230,70 +304,73 @@ class ECFLog(models.Model):
 
     @api.model
     def get_dashboard_stats(self, domain=None):
+        """Estadísticas para el dashboard e-CF — usa ``read_group`` para evitar
+        cargar todos los logs en memoria. Apto para tenants con >50 k logs/mes.
         """
-        Retorna estadísticas para el dashboard e-CF
-        """
-        if domain is None:
-            domain = []
-        
-        # Filtro multi-compañía
+        domain = list(domain or [])
         domain.append(('company_id', '=', self.env.company.id))
-        
-        logs = self.search(domain)
-        
-        # 1. Conteo por estado
-        stats_estado = {
-            'aprobado': len(logs.filtered(lambda l: l.estado == 'aprobado')),
-            'rechazado': len(logs.filtered(lambda l: l.estado == 'rechazado')),
-            'pendiente': len(logs.filtered(lambda l: l.estado == 'pendiente')),
-            'condicionado': len(logs.filtered(lambda l: l.estado == 'condicionado')),
-        }
-        
-        # 2. Conteo por tipo
+
+        # 1. Conteo por estado (1 sola query agregada)
+        stats_estado = {'aprobado': 0, 'rechazado': 0, 'pendiente': 0, 'condicionado': 0}
+        for grp in self.read_group(domain, ['estado'], ['estado']):
+            estado = grp['estado']
+            if estado in stats_estado:
+                stats_estado[estado] = grp['estado_count']
+
+        # 2. Conteo por tipo (1 query agregada)
         tipos = self.env['ecf.tipo'].search([])
+        codigo_to_prefijo = {t.codigo: t.prefijo for t in tipos}
         stats_tipo = {}
-        for t in tipos:
-            count = len(logs.filtered(lambda l: l.tipo_ecf == t.codigo))
-            if count > 0:
-                stats_tipo[t.prefijo] = count
-        
-        # 3. Datos de volumen diario (últimos 30 días)
-        date_limit = datetime.now() - timedelta(days=30)
-        daily_query = """
-            SELECT create_date::date as day, count(id) as count
-            FROM ecf_log
-            WHERE create_date >= %s AND company_id = %s
-            GROUP BY day
-            ORDER BY day ASC
-        """
-        self.env.cr.execute(daily_query, (date_limit, self.env.company.id))
-        daily_volume = self.env.cr.dictfetchall()
-        
-        # Convertir fechas a string para JSON
-        for d in daily_volume:
-            d['day'] = str(d['day'])
-        
-        # 4. Montos totales (desde facturas asociadas)
-        total_amount = sum(logs.filtered(lambda l: l.move_id).mapped('move_id.amount_total'))
-        
-        # 5. Últimos e-CFs emitidos
-        recent_logs = []
-        for l in logs[:5]:
-            recent_logs.append({
-                'id': l.id,
-                'ncf': l.ncf or '---',
-                'cliente': l.move_id.partner_id.name or '---',
-                'monto': l.move_id.amount_total or 0.0,
-                'estado': l.estado,
-                'fecha': l.create_date.strftime('%Y-%m-%d %H:%M'),
+        for grp in self.read_group(domain, ['tipo_ecf'], ['tipo_ecf']):
+            codigo = grp['tipo_ecf']
+            if codigo in codigo_to_prefijo and grp['tipo_ecf_count']:
+                stats_tipo[codigo_to_prefijo[codigo]] = grp['tipo_ecf_count']
+
+        # 3. Volumen diario últimos 30 días (read_group por día)
+        date_limit = fields.Datetime.now() - timedelta(days=30)
+        daily_groups = self.read_group(
+            domain + [('create_date', '>=', date_limit)],
+            ['create_date:day'],
+            ['create_date:day'],
+            orderby='create_date',
+        )
+        daily_volume = []
+        for grp in daily_groups:
+            label = grp.get('create_date:day') or ''
+            daily_volume.append({
+                'day': str(label),
+                'count': grp.get('create_date_count', 0),
             })
-            
+
+        # 4. Total facturado: sum sobre amount_total de las facturas asociadas
+        moves_domain = [
+            ('company_id', '=', self.env.company.id),
+            ('ecf_estado', 'in', ('aprobado', 'condicionado', 'enviado', 'pendiente')),
+        ]
+        amount_groups = self.env['account.move'].read_group(
+            moves_domain, ['amount_total'], [],
+        )
+        total_amount = (amount_groups[0]['amount_total'] if amount_groups else 0.0) or 0.0
+        total_count = self.search_count(domain)
+
+        # 5. Últimos e-CFs (limit 5, no carga todo el recordset)
+        recent = self.search(domain, limit=5, order='create_date desc')
+        recent_logs = [{
+            'id': l.id,
+            'move_id': l.move_id.id,
+            'ncf': l.ncf or '---',
+            'cliente': (l.move_id.partner_id.name if l.move_id else '') or '---',
+            'monto': (l.move_id.amount_total if l.move_id else 0.0) or 0.0,
+            'estado': l.estado,
+            'fecha': l.create_date.strftime('%Y-%m-%d %H:%M') if l.create_date else '',
+        } for l in recent]
+
         return {
             'stats_estado': stats_estado,
             'stats_tipo': stats_tipo,
             'daily_volume': daily_volume,
             'total_amount': total_amount,
-            'total_count': len(logs),
+            'total_count': total_count,
             'recent_logs': recent_logs,
         }
 
@@ -390,11 +467,29 @@ class ECFLog(models.Model):
                 'msg': f'{failed_logs} e-CF rechazados en los últimos 7 días. Revise el historial.',
             })
 
-        has_error = any(i['type'] == 'error' for i in issues)
+        # Score matizado: cada error pesa 25 pts; cada warning 5 pts.
+        n_err = sum(1 for i in issues if i['type'] == 'error')
+        n_warn = sum(1 for i in issues if i['type'] == 'warning')
+        score = max(0, min(100, 100 - 25 * n_err - 5 * n_warn))
+        if n_err:
+            status = 'critical'
+        elif n_warn:
+            status = 'warning'
+        else:
+            status = 'ready'
+
         return {
-            'status': 'critical' if has_error else 'ready',
+            'status': status,
             'issues': issues,
-            'compliance_score': 0 if has_error else 100,
+            'compliance_score': score,
+        }
+
+    def action_export_excel(self, move_ids):
+        """Descarga reporte XLSX de e-CF vía controller /ecf/export/xlsx."""
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/ecf/export/xlsx?ids={",".join(str(i) for i in move_ids)}',
+            'target': 'new',
         }
 
 
@@ -417,6 +512,7 @@ class AccountMove(models.Model):
         ondelete='restrict',
         default=lambda self: self.env['ecf.tipo'].search([('codigo', '=', 32)], limit=1),
         help='Tipo de comprobante fiscal electrónico según norma DGII. Por defecto: Consumidor Final (32)',
+        tracking=True,
     )
     ecf_modo = fields.Selection([
         ('inmediato', 'Inmediato'),
@@ -424,11 +520,15 @@ class AccountMove(models.Model):
         ('excento',   'Exento de e-CF'),
     ], string='Modo e-CF', default='inmediato',
         help='Diferido: la factura viene del POS y aún no ha sido pagada completamente. '
-             'El e-CF se emitirá manualmente tras conciliar el pago.')
+             'El e-CF se emitirá manualmente tras conciliar el pago.',
+        tracking=True)
 
     # ── Datos del e-CF ──
+    # Estos campos son auditables (DGII exige retener cambios 10 años); por eso
+    # llevan tracking=True — quedan registrados en el chatter de la factura.
     ecf_ncf    = fields.Char(string='NCF', readonly=True, copy=False,
-                              help='Número de Comprobante Fiscal asignado por el SaaS')
+                              help='Número de Comprobante Fiscal asignado por el SaaS',
+                              tracking=True)
     ecf_estado = fields.Selection([
         ('pendiente',           'Pendiente'),
         ('enviado',             'Enviado'),
@@ -438,31 +538,16 @@ class AccountMove(models.Model):
         ('anulacion_pendiente', 'Anulación Pendiente'),
         ('anulado',             'Anulado'),
         ('anulacion_fallida',   'Anulación Fallida'),
-    ], string='Estado e-CF', readonly=True, copy=False, index=True)
-    ecf_cufe   = fields.Char(
-        string='Código Seguridad',
-        readonly=True, copy=False,
-        help='Código de Seguridad e-CF (6 alfanuméricos del SignatureValue, DGII RD). '
-             'Antes denominado CUFE — el campo conserva su nombre técnico para no romper integraciones.',
-    )
+    ], string='Estado e-CF', readonly=True, copy=False, index=True, tracking=True)
     ecf_codigo_seguridad = fields.Char(
-        string='Código Seguridad e-CF',
-        compute='_compute_codigo_seguridad', inverse='_inverse_codigo_seguridad',
-        store=False,
-        help='Alias legible de ecf_cufe — Código de Seguridad publicado por la DGII.',
+        string='Código de Seguridad',
+        readonly=True, copy=False,
+        help='Código de Seguridad e-CF (128 chars del SignatureValue, DGII RD).',
+        tracking=True,
     )
-    ecf_track_id = fields.Char(string='TrackId DGII', readonly=True, copy=False)
+    ecf_track_id = fields.Char(string='TrackId DGII', readonly=True, copy=False, tracking=True)
     ecf_qr     = fields.Text(string='QR Code', readonly=True, copy=False)
     ecf_log_ids = fields.One2many('ecf.log', 'move_id', string='Historial e-CF')
-
-    @api.depends('ecf_cufe')
-    def _compute_codigo_seguridad(self):
-        for r in self:
-            r.ecf_codigo_seguridad = r.ecf_cufe or False
-
-    def _inverse_codigo_seguridad(self):
-        for r in self:
-            r.ecf_cufe = r.ecf_codigo_seguridad or False
 
     # ── Flujo POS diferido ──
     ecf_pendiente_conciliacion = fields.Boolean(
@@ -551,13 +636,19 @@ class AccountMove(models.Model):
         if not self.ecf_tipo_id:
             raise UserError(_('Debe seleccionar un Tipo e-CF antes de emitir'))
 
-        # E31 (Crédito Fiscal) requiere RNC del comprador
+        # E31 (Crédito Fiscal) requiere RNC del comprador con dígito verificador válido
         if self.ecf_tipo_id.codigo == 31:
-            vat = self.partner_id.vat or ''
+            vat = (self.partner_id.vat or '').strip()
             if len(vat) not in (9, 11):
                 raise UserError(_(
                     'El tipo E31 (Crédito Fiscal) requiere el RNC o Cédula del comprador. '
                     'Configure el campo "NIF/RNC" del cliente (9 u 11 dígitos).'
+                ))
+            if not _validar_rnc_o_cedula(vat):
+                raise UserError(_(
+                    'El RNC o Cédula del cliente "%s" no pasa la validación oficial DGII '
+                    '(dígito verificador mod-11 incorrecto). Verifique el dato en el partner.',
+                    vat,
                 ))
 
         # Fecha emisión no puede ser futura
@@ -595,7 +686,7 @@ class AccountMove(models.Model):
         }
 
     def _emitir_ecf(self):
-        """Construye el payload DGII-compliant y lo envía al SaaS ECF."""
+        """Construye el payload DGII-compliant y lo envía al Renace e-CF."""
         self.ensure_one()
 
         company  = self.company_id
@@ -714,7 +805,7 @@ class AccountMove(models.Model):
             _logger.info('e-CF emitido para %s. NCF=%s', self.name, data['ncf'])
 
         except requests.RequestException as e:
-            raise UserError(_('Error de conexión con el SaaS ECF: %s', str(e)))
+            raise UserError(_('Error de conexión con el Renace e-CF: %s', str(e)))
 
     # ─────────────────────────────────────────────────────────────────────────
     #  Flujo POS diferido: conciliación de pago
@@ -776,7 +867,7 @@ class AccountMove(models.Model):
             response.raise_for_status()
             data = response.json()
         except requests.RequestException as e:
-            raise UserError(_('Error de conexión con el SaaS ECF: %s', str(e)))
+            raise UserError(_('Error de conexión con el Renace e-CF: %s', str(e)))
 
         self.sudo().write({'ecf_estado': data['estado']})
 
@@ -844,19 +935,29 @@ class PosOrder(models.Model):
         help='Tipo de comprobante seleccionado en el POS'
     )
     ecf_ncf    = fields.Char(string='e-NCF', readonly=True, copy=False)
-    ecf_cufe   = fields.Char(string='CUFE', readonly=True, copy=False)
+    ecf_codigo_seguridad = fields.Char(string='Código de Seguridad', readonly=True, copy=False)
     ecf_qr     = fields.Text(string='QR Code', readonly=True, copy=False)
 
     def _prepare_invoice_vals(self):
         vals = super()._prepare_invoice_vals()
-        if self.ecf_tipo_id:
-            vals['ecf_tipo_id'] = self.ecf_tipo_id.id
-            # Si el tipo es diferido (crédito/envío), forzar modo diferido
-            # Esto evita que se emita e-CF hasta que se concilie el pago
-            if self.ecf_tipo_id.codigo == 31 or self.amount_total > self.amount_paid:
-                vals['ecf_modo'] = 'diferido'
-            else:
-                vals['ecf_modo'] = 'inmediato'
+        if not self.ecf_tipo_id:
+            return vals
+
+        vals['ecf_tipo_id'] = self.ecf_tipo_id.id
+
+        # Diferido cuando:
+        #   1. Hay saldo pendiente (orden a crédito o ticket parcialmente pagado).
+        #   2. Es E31 (Crédito Fiscal) y el partner aún no tiene RNC válido —
+        #      damos tiempo a completar el dato antes de timbrar.
+        # Una venta E31 a un cliente con RNC válido pagada en efectivo SÍ se
+        # emite inmediato (el caso normal de B2B en mostrador).
+        partner_vat = (self.partner_id.vat or '').strip()
+        partner_tiene_rnc_valido = bool(partner_vat) and _validar_rnc_o_cedula(partner_vat)
+
+        es_credito = (self.amount_total > self.amount_paid)
+        es_e31_sin_rnc = (self.ecf_tipo_id.codigo == 31 and not partner_tiene_rnc_valido)
+
+        vals['ecf_modo'] = 'diferido' if (es_credito or es_e31_sin_rnc) else 'inmediato'
         return vals
 
     def export_for_ui(self):
@@ -864,7 +965,7 @@ class PosOrder(models.Model):
         if self.account_move:
             # Sincronizar datos del e-CF si la factura ya los tiene
             result['ecf_ncf'] = self.account_move.ecf_ncf
-            result['ecf_cufe'] = self.account_move.ecf_cufe
+            result['ecf_codigo_seguridad'] = self.account_move.ecf_codigo_seguridad
             result['ecf_qr'] = self.account_move.ecf_qr
             result['ecf_ambiente'] = self.company_id.ecf_ambiente
         return result
@@ -884,7 +985,7 @@ class PosOrder(models.Model):
                 move._emitir_ecf()
                 order.write({
                     'ecf_ncf':  move.ecf_ncf,
-                    'ecf_cufe': move.ecf_cufe,
+                    'ecf_codigo_seguridad': move.ecf_codigo_seguridad,
                     'ecf_qr':   move.ecf_qr,
                 })
             except Exception as e:
@@ -894,23 +995,27 @@ class PosOrder(models.Model):
 class PosSession(models.Model):
     _inherit = 'pos.session'
 
-    def _loader_params_res_company(self):
-        params = super()._loader_params_res_company()
-        params['search_params']['fields'] += ['ecf_saas_url', 'ecf_api_key', 'ecf_ambiente']
-        return params
+    @api.model
+    def _load_pos_data_models(self, config_id):
+        """Odoo 18: registrar `ecf.tipo` en el conjunto de modelos cargados al
+        abrir la sesión POS. La definición de campos/dominio vive en cada modelo
+        (`_load_pos_data_fields`/`_load_pos_data_domain`), no aquí.
+        """
+        data = super()._load_pos_data_models(config_id)
+        data += ['ecf.tipo']
+        return data
 
-    def _pos_ui_models_to_load(self):
-        result = super()._pos_ui_models_to_load()
-        result.append('ecf.tipo')
-        return result
 
-    def _loader_params_ecf_tipo(self):
-        return {
-            'search_params': {
-                'domain': [('activo', '=', True)],
-                'fields': ['id', 'nombre', 'codigo', 'prefijo', 'consumidor_final'],
-            },
-        }
+# Loader Odoo 18 para campos extra de res.company que el POS necesita
+class ResCompanyPos(models.Model):
+    _inherit = 'res.company'
+
+    @api.model
+    def _load_pos_data_fields(self, config_id):
+        params = super()._load_pos_data_fields(config_id)
+        # NOTA: ecf_api_key NO se expone al POS frontend por seguridad.
+        # El Health Check del POS debe hacerse vía un método ORM en el backend.
+        return params + ['ecf_saas_url', 'ecf_ambiente']
 
 
 

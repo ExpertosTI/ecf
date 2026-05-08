@@ -1,5 +1,5 @@
 -- Migration 003: e-CF Recibidas — extensión tabla compras + tracking de sincronización DGII
--- Ejecutar contra la base de datos del SaaS ECF
+-- Ejecutar contra la base de datos del Renace e-CF
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 1. Extender la función crear_schema_tenant para incluir los nuevos campos

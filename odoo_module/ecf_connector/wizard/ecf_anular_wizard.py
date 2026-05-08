@@ -59,7 +59,7 @@ class ECFAnularWizard(models.TransientModel):
         api_key = params.ecf_api_key or ''
 
         if not api_url or not api_key:
-            raise UserError(_('Configure la URL y API Key del SaaS ECF en Ajustes'))
+            raise UserError(_('Configure la URL y API Key del Renace e-CF en Ajustes'))
 
         payload = {
             'ncf': move.ecf_ncf,

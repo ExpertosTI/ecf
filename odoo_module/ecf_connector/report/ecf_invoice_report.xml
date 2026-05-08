@@ -13,11 +13,11 @@
                 <p>
                     Este documento es una representación impresa de un Comprobante Fiscal Electrónico (e-CF) 
                     emitido ante la Dirección General de Impuestos Internos (DGII).
-                    NCF: <strong><t t-esc="o.ecf_ncf"/></strong> | 
-                    CUFE: <span style="font-family: monospace; font-size: 8pt;"><t t-esc="o.ecf_cufe"/></span>
+                    NCF: <strong><t t-esc="o.ecf_ncf"/></strong> |
+                    Cód. Seguridad: <span style="font-family: monospace; font-size: 8pt;"><t t-esc="o.ecf_codigo_seguridad"/></span>
                 </p>
                 <p style="font-size: 7pt; color: #94a3b8;">
-                    Tecnología de Facturación Electrónica por <strong>Renace.tech</strong>
+                    Tecnología de Facturación Electrónica por <strong>Renace e-CF</strong>
                 </p>
             </div>
         </xpath>
@@ -45,10 +45,10 @@
                                     <strong><t t-esc="o.ecf_ncf"/></strong>
                                 </td>
                             </tr>
-                            <tr t-if="o.ecf_cufe">
-                                <td class="ecf-label">CUFE:</td>
-                                <td class="ecf-value ecf-cufe-value">
-                                    <t t-esc="o.ecf_cufe"/>
+                            <tr t-if="o.ecf_codigo_seguridad">
+                                <td class="ecf-label">Cód. Seguridad:</td>
+                                <td class="ecf-value ecf-codigo-seguridad-value">
+                                    <t t-esc="o.ecf_codigo_seguridad"/>
                                 </td>
                             </tr>
                             <tr t-if="o.ecf_log_ids">
@@ -63,9 +63,9 @@
                         </table>
 
                         <!-- QR Code: obligatorio -->
-                        <t t-if="o.ecf_qr or o.ecf_cufe">
+                        <t t-if="o.ecf_qr or o.ecf_codigo_seguridad">
                             <div class="ecf-qr-section">
-                                <t t-set="qr_data" t-value="o.ecf_qr or o.ecf_cufe"/>
+                                <t t-set="qr_data" t-value="o.ecf_qr or o.ecf_codigo_seguridad"/>
                                 <img t-attf-src="/report/barcode/?barcode_type=QR&amp;value=#{qr_data}&amp;width=100&amp;height=100"
                                      class="ecf-qr-img"
                                      alt="QR DGII"/>

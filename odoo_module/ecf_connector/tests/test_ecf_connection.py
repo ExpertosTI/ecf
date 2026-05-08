@@ -29,7 +29,7 @@ class TestECFConnection(HttpCase):
             "rnc_proveedor": "131793916",
             "nombre_proveedor": "PROVEEDOR TEST",
             "tipo_ecf": 31,
-            "cufe": "test_cufe_123",
+            "codigo_seguridad": "test_seg_123",
             "fecha_comprobante": "2026-04-26",
             "total_monto": 1180.00,
             "itbis_facturado": 180.00,

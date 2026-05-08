@@ -115,7 +115,7 @@
                     </group>
                     <group string="Validación DGII" invisible="not ecf_ncf">
                         <group>
-                            <field name="ecf_cufe" readonly="1"/>
+                            <field name="ecf_codigo_seguridad" readonly="1"/>
                         </group>
                         <group>
                             <field name="ecf_qr" readonly="1" widget="text"/>
@@ -149,7 +149,7 @@
                                    decoration-danger="estado == 'rechazado'"
                                    decoration-warning="estado in ('condicionado','anulacion_pendiente')"
                                    decoration-muted="estado in ('pendiente','anulado')"/>
-                            <field name="cufe"/>
+                            <field name="codigo_seguridad"/>
                             <field name="ambiente"/>
                             <field name="approved_at" string="Aprobado DGII"/>
                             <field name="error_msg"/>

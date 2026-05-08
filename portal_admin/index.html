@@ -519,6 +519,60 @@
             padding: 16px 24px;
             border-top: 1px solid var(--border);
         }
+        /* ── Glass Elements (Replacement for Tailwind) ── */
+        .glass-panel {
+            background: rgba(17, 24, 40, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 229, 160, 0.15);
+            border-radius: 1.25rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .flow-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+        }
+        .flow-step {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            transition: all 0.3s ease;
+        }
+        .flow-step.active {
+            color: var(--accent);
+            font-weight: 700;
+        }
+        .step-num {
+            width: 1.5rem;
+            height: 1.5rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            border: 1px solid var(--border);
+        }
+        .flow-step.active .step-num {
+            background: var(--accent);
+            color: var(--bg-deep);
+            border-color: var(--accent);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+        .flow-divider {
+            width: 2rem;
+            height: 1px;
+            background: var(--border);
+        }
+        .flow-more {
+            font-size: 0.7rem;
+            font-style: italic;
+            color: var(--text-dim);
+        }
     </style>
 </head>
 <body>
@@ -595,37 +649,32 @@
                 <div class="stat-card"><div class="stat-label">Errores (DLQ)</div><div class="stat-value warning" id="statDlq">—</div></div>
             </div>
 
-            <!-- Certification Flow Tracker (Inyectado) -->
-            <div class="glass p-6 rounded-2xl mb-8 border-emerald-500/20">
-                <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-xl font-bold flex items-center gap-2">
-                        <i data-lucide="award" class="text-emerald-400"></i>
-                        Progreso de Certificación DGII
+            <!-- Certification Flow Tracker -->
+            <div class="glass-panel">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem;">
+                    <h2 style="font-size:1.1rem; font-weight:700; display:flex; align-items:center; gap:0.5rem;">
+                        <span style="color:var(--accent);">🏆</span> Progreso de Certificación DGII
                     </h2>
                     <span class="badge badge-certificacion">1 / 15 Completado</span>
                 </div>
-                <div class="flex flex-wrap gap-4">
-                    <div class="flex items-center gap-2 text-sm text-emerald-400 font-bold">
-                        <div class="w-6 h-6 rounded-full bg-emerald-500 text-bg-deep flex items-center justify-center text-xs">1</div>
-                        Registrado
+                <div class="flow-container">
+                    <div class="flow-step active">
+                        <div class="step-num">1</div> Registrado
                     </div>
-                    <div class="w-8 h-px bg-zinc-800 self-center"></div>
-                    <div class="flex items-center gap-2 text-sm text-zinc-500">
-                        <div class="w-6 h-6 rounded-full border border-zinc-700 flex items-center justify-center text-xs">2</div>
-                        Pruebas Datos
+                    <div class="flow-divider"></div>
+                    <div class="flow-step">
+                        <div class="step-num">2</div> Pruebas Datos
                     </div>
-                    <div class="w-8 h-px bg-zinc-800 self-center"></div>
-                    <div class="flex items-center gap-2 text-sm text-zinc-500">
-                        <div class="w-6 h-6 rounded-full border border-zinc-700 flex items-center justify-center text-xs">3</div>
-                        Aprobación Com.
+                    <div class="flow-divider"></div>
+                    <div class="flow-step">
+                        <div class="step-num">3</div> Aprobación Com.
                     </div>
-                    <div class="w-8 h-px bg-zinc-800 self-center"></div>
-                    <div class="flex items-center gap-2 text-sm text-zinc-500">
-                        <div class="w-6 h-6 rounded-full border border-zinc-700 flex items-center justify-center text-xs">4</div>
-                        Simulación e-CF
+                    <div class="flow-divider"></div>
+                    <div class="flow-step">
+                        <div class="step-num">4</div> Simulación e-CF
                     </div>
-                    <div class="w-8 h-px bg-zinc-800 self-center"></div>
-                    <div class="text-zinc-600 text-xs self-center italic">... 11 pasos más</div>
+                    <div class="flow-divider"></div>
+                    <div class="flow-more">... 11 pasos restantes</div>
                 </div>
             </div>
             <div class="page-header" style="margin-top:8px;">
@@ -721,6 +770,19 @@
                     <table>
                         <thead><tr><th>Serial</th><th>Subject</th><th>Válido Desde</th><th>Válido Hasta</th><th>Activo</th></tr></thead>
                         <tbody id="certRows"><tr><td colspan="5" style="text-align:center; padding:20px;">Sin certificados</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Compras Tab -->
+            <div id="tab-compras" style="display:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                    <h3 style="font-size:0.95rem;">Facturas de Proveedores Recibidas</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="syncCompras()">🔄 Sincronizar DGII</button>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>NCF</th><th>Proveedor</th><th>Fecha</th><th>Monto</th><th>Estado Odoo</th></tr></thead>
+                        <tbody id="compraRows"><tr><td colspan="5" style="text-align:center; padding:20px;">Cargando compras...</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -970,14 +1032,28 @@ function showPage(page) {
     else if (page === 'dlq') loadDLQ();
 }
 
-// Tabs
+// Tabs Navigation (Consolidated)
+function handleTabChange(tab) {
+    const page = tab.closest('.page');
+    if (!page) return;
+
+    page.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    
+    const tabName = tab.dataset.tab;
+    page.querySelectorAll('[id^="tab-"]').forEach(c => c.style.display = 'none');
+    
+    const targetTab = document.getElementById(`tab-${tabName}`);
+    if (targetTab) targetTab.style.display = 'block';
+
+    // Load tab-specific data
+    if (tabName === 'sequences') loadSequences(currentTenantId);
+    if (tabName === 'certs') loadCerts(currentTenantId);
+    if (tabName === 'compras') loadCompras(currentTenantId);
+}
+
 document.querySelectorAll('.tab[data-tab]').forEach(tab => {
-    tab.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        document.querySelectorAll('[id^="tab-"]').forEach(c => c.style.display = 'none');
-        document.getElementById(`tab-${tab.dataset.tab}`).style.display = 'block';
-    });
+    tab.addEventListener('click', () => handleTabChange(tab));
 });
 
 // Filters

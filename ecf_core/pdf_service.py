@@ -1,18 +1,16 @@
 """
-pdf_service.py — Generación de Representación Impresa e-CF
-Responsabilidades:
-- Generar PDF con el formato legal de la DGII.
-- Incluir CUFE, Código de Seguridad y QR Code.
-- Diseño premium acorde a Renace Tech.
+pdf_service.py — Representación Impresa e-CF (Renace e-CF)
+Genera el PDF legal requerido por DGII con QR, Código de Seguridad y firma.
 """
 
-import os
-import qrcode
 import base64
 from io import BytesIO
-from datetime import datetime
-from lxml import etree
+
+import qrcode
 from jinja2 import Template
+from weasyprint import HTML
+
+from ecf_core.dgii_client import generar_qr_url
 
 # Plantilla HTML para la Representación Impresa (Basada en Estándares DGII)
 HTML_TEMPLATE = """
@@ -28,30 +26,30 @@ HTML_TEMPLATE = """
         .ecf-info { text-align: right; background: #f9fafb; padding: 10px; border-radius: 8px; border: 1px solid #e5e7eb; }
         .ecf-info h2 { margin: 0; color: #111; font-size: 16px; }
         .ecf-info p { margin: 2px 0; font-weight: bold; }
-        
+
         .section { margin-top: 20px; }
         .section-title { font-weight: bold; text-transform: uppercase; color: #6b7280; border-bottom: 1px solid #e5e7eb; margin-bottom: 5px; }
-        
+
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th { background: #f3f4f6; text-align: left; padding: 8px; border-bottom: 1px solid #e5e7eb; }
         td { padding: 8px; border-bottom: 1px solid #f3f4f6; }
-        
+
         .totals { margin-top: 20px; display: flex; justify-content: flex-end; }
         .totals-table { width: 250px; }
         .totals-table td { text-align: right; border: none; }
         .totals-table .grand-total { font-size: 14px; font-weight: bold; color: #10b981; }
-        
+
         .footer { margin-top: 40px; display: flex; border-top: 1px solid #e5e7eb; padding-top: 20px; }
         .qr-section { width: 120px; }
         .legal-section { flex-grow: 1; padding-left: 20px; font-size: 8px; color: #6b7280; }
-        .cufe-box { background: #f3f4f6; padding: 5px; border-radius: 4px; font-family: monospace; font-size: 9px; margin-top: 5px; word-break: break-all; }
+        .codigo-seguridad-box { background: #f3f4f6; padding: 5px; border-radius: 4px; font-family: monospace; font-size: 9px; margin-top: 5px; word-break: break-all; }
     </style>
 </head>
 <body>
     <div class="header">
         <div class="company-info">
-            <div class="logo">RENACE TECH</div>
-            <p><strong>{{ emisor_nombre }}</strong></p>
+            <div class="logo">{{ emisor_nombre }}</div>
+            <p><strong>Renace e-CF</strong></p>
             <p>RNC: {{ emisor_rnc }}</p>
             <p>{{ emisor_direccion }}</p>
             <p>Tel: {{ emisor_telefono }}</p>
@@ -117,15 +115,16 @@ HTML_TEMPLATE = """
         </div>
         <div class="legal-section">
             <p>ESTE DOCUMENTO ES UNA REPRESENTACIÓN IMPRESA DE UN COMPROBANTE FISCAL ELECTRÓNICO (e-CF)</p>
-            <p><strong>CUFE:</strong></p>
-            <div class="cufe-box">{{ cufe }}</div>
-            <p style="margin-top: 10px;">Código de Seguridad: <strong>{{ security_code }}</strong></p>
-            <p>Certificación DGII RD</p>
+            <p style="margin-top: 8px;">Código de Seguridad: <strong>{{ security_code }}</strong></p>
+            {% if track_id %}<p>TrackId DGII: <strong>{{ track_id }}</strong></p>{% endif %}
+            <p>Verifique en: <strong>ecf.dgii.gov.do</strong> (escanee el QR para ir directo a la consulta de timbre).</p>
+            <p style="margin-top: 5px; color: #9ca3af;">Renace e-CF · Certificado DGII RD</p>
         </div>
     </div>
 </body>
 </html>
 """
+
 
 class ECFPDFService:
     def __init__(self):
@@ -143,19 +142,20 @@ class ECFPDFService:
 
     def generar_pdf_html(self, data: dict) -> str:
         """Genera el HTML final con los datos inyectados."""
-        # Generar QR para validación DGII
-        # URL formato DGII: https://dgii.gov.do/verify?rnc=...&ncf=...&cufe=...
-        qr_url = f"https://dgii.gov.do/verificaeCF?RncEmisor={data['emisor_rnc']}&ncf={data['ncf']}&FechaEmision={data['fecha_emision']}&MontoTotal={data['total']}&CUFE={data['cufe']}"
-        data['qr_base64'] = self.generar_qr(qr_url)
-        
+        qr_url = generar_qr_url(
+            ambiente=data.get("ambiente", "certificacion"),
+            rnc_emisor=data["emisor_rnc"],
+            ncf=data["ncf"],
+            total=str(data["total"]),
+            fecha_firma=data.get("fecha_firma", data.get("fecha_emision", "")),
+            security_code=data.get("security_code", ""),
+            rnc_comprador=data.get("receptor_rnc", ""),
+            tipo_ecf=data.get("tipo_ecf", 31),
+        )
+        data["qr_base64"] = self.generar_qr(qr_url)
         return self.template.render(**data)
 
     async def exportar_a_pdf(self, data: dict) -> bytes:
-        """
-        Exporta el HTML a PDF. 
-        Nota: En un entorno real usaríamos weasyprint o similar.
-        Por ahora retornamos el HTML para visualización o usamos una herramienta mock.
-        """
+        """Genera el PDF de la representación impresa usando WeasyPrint."""
         html_content = self.generar_pdf_html(data)
-        # Mock de PDF (en un sistema real se llamaría a una librería de PDF)
-        return html_content.encode('utf-8')
+        return HTML(string=html_content).write_pdf()

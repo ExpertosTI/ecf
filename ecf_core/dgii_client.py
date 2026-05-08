@@ -23,7 +23,6 @@ import re
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 import httpx
 from cryptography.hazmat.primitives import hashes, serialization
@@ -34,7 +33,7 @@ from lxml import etree
 logger = logging.getLogger(__name__)
 
 
-class EstadoDGII(str, Enum):
+class EstadoDGII(str, Enum):  # noqa: UP042 — usa str-Enum por compat con json.dumps
     ACEPTADO     = "Aceptado"
     RECHAZADO    = "Rechazado"
     CONDICIONADO = "AceptadoCondicional"
@@ -45,10 +44,10 @@ class EstadoDGII(str, Enum):
 @dataclass
 class RespuestaDGII:
     estado:         EstadoDGII
-    track_id:       Optional[str]
+    track_id:       str | None
     mensaje:        str
-    cufe:           Optional[str]
-    qr_code:        Optional[str]
+    codigo_seguridad: str | None
+    qr_code:        str | None
     detalles:       list[dict]
     raw:            dict
 
@@ -87,16 +86,18 @@ class DGIIClient:
     EP_DIR_RECEPTORES   = "/fe/consultas/api/directorioreceptores"
 
     # Token cache
-    _access_token: Optional[str] = None
+    _access_token: str | None = None
     _token_expires_at: float = 0
 
     def __init__(self, ambiente: str = "certificacion"):
         if ambiente not in self.URLS:
             raise ValueError(f"Ambiente inválido: {ambiente}. Válidos: {list(self.URLS)}")
         self.base_url = self.URLS[ambiente]
-        self._client: Optional[httpx.AsyncClient] = None
-        self._p12_data: Optional[bytes] = None
-        self._p12_password: Optional[bytes] = None
+        self._client: httpx.AsyncClient | None = None
+        self._p12_data: bytes | None = None
+        self._p12_password: bytes | None = None
+        # Lock disponible incluso si el cliente se usa sin `async with` (tests).
+        self._token_lock = asyncio.Lock()
 
     def set_certificate(self, p12_data: bytes, p12_password: bytes):
         """Configura el certificado .p12 para autenticación."""
@@ -142,7 +143,13 @@ class DGIIClient:
                 ssl_context.load_cert_chain(cert_tmp.name, key_tmp.name)
                 logger.info("mTLS configurado con certificado PSFE para DGII")
             else:
-                logger.warning("PSFE_CERT_B64/PSFE_KEY_B64 no configurados — mTLS deshabilitado")
+                _sys_ambiente = os.environ.get("ECF_AMBIENTE", "").lower()
+                if _sys_ambiente in {"ecf", "produccion"}:
+                    raise RuntimeError(
+                        "PSFE_CERT_B64/PSFE_KEY_B64 no configurados. "
+                        "mTLS es obligatorio en producción (ECF_AMBIENTE=eCF)."
+                    )
+                logger.warning("PSFE_CERT_B64/PSFE_KEY_B64 no configurados — mTLS deshabilitado (solo válido en pruebas)")
         except Exception:
             self._cleanup_tmp_files()
             raise
@@ -153,7 +160,6 @@ class DGIIClient:
             headers={"Accept": "application/json"},
             verify=ssl_context if ssl_context else True,
         )
-        self._token_lock = asyncio.Lock()
         return self
 
     def _cleanup_tmp_files(self):
@@ -456,7 +462,7 @@ class DGIIClient:
                 estado=EstadoDGII.RECIBIDO,
                 track_id=None,
                 mensaje=resp.text[:500],
-                cufe=None,
+                codigo_seguridad=None,
                 qr_code=None,
                 detalles=[],
                 raw={"raw_text": resp.text[:2000]},
@@ -502,7 +508,7 @@ class DGIIClient:
             estado   = estado,
             track_id = track_id,
             mensaje  = data.get("mensaje") or data.get("message") or "",
-            cufe     = data.get("CUFE") or data.get("cufe"),
+            codigo_seguridad = data.get("CUFE") or data.get("cufe"),
             qr_code  = data.get("codigoQR") or data.get("qr_url"),
             detalles = data.get("errores") or data.get("mensajes") or [],
             raw      = data,

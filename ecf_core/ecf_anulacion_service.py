@@ -26,7 +26,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import List
 
 from lxml import etree
 
@@ -49,7 +48,7 @@ class ECFAnulacionGenerator:
     def generar(
         self,
         rnc_emisor: str,
-        rangos: List[RangoNCF],
+        rangos: list[RangoNCF],
         fecha_hora: datetime | None = None,
     ) -> bytes:
         if not rangos:
@@ -96,7 +95,7 @@ class ECFAnulacionService:
     def generar_y_firmar(
         self,
         rnc_emisor: str,
-        rangos: List[RangoNCF],
+        rangos: list[RangoNCF],
         p12_data: bytes,
         p12_password: bytes,
         fecha_hora: datetime | None = None,

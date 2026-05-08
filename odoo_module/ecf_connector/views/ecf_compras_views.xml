@@ -51,7 +51,7 @@
                     </div>
                     <group>
                         <group string="Datos del e-CF">
-                            <field name="cufe" readonly="1"/>
+                            <field name="codigo_seguridad" readonly="1"/>
                             <field name="tipo_ecf_nombre" string="Tipo e-CF"/>
                             <field name="fecha_comprobante" readonly="1"/>
                             <field name="fecha_pago"/>
