@@ -181,9 +181,9 @@ if $DC "${COMPOSE_ARGS[@]}" ps --quiet 2>/dev/null | head -1 | grep -q .; then
     $DC "${COMPOSE_ARGS[@]}" down --timeout 30
 fi
 
-# Levantar infraestructura primero (PostgreSQL, Redis)
-log "Levantando infraestructura (PostgreSQL, Redis)..."
-$DC "${COMPOSE_ARGS[@]}" up -d postgres redis
+# Levantar infraestructura primero (PostgreSQL, Redis, Traefik)
+log "Levantando infraestructura (PostgreSQL, Redis, Traefik)..."
+$DC "${COMPOSE_ARGS[@]}" up -d postgres redis traefik
 
 # Esperar a que DB y Redis esten saludables
 for i in $(seq 1 30); do
