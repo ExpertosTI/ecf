@@ -48,6 +48,7 @@ Seguridad:
         'views/report_ecf_summary.xml',
         'report/ecf_invoice_report.xml',
         'wizard/ecf_anular_wizard_views.xml',
+        'wizard/ecf_homologacion_wizard_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

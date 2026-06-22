@@ -2,3 +2,6 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_ecf_tipo_user,ecf.tipo.user,model_ecf_tipo,account.group_account_invoice,1,0,0,0
 access_ecf_log_user,ecf.log.user,model_ecf_log,account.group_account_invoice,1,0,0,0
 access_ecf_compra_recibida_user,ecf.compra.recibida.user,model_ecf_compra_recibida,account.group_account_invoice,1,1,1,0
+access_ecf_anular_wizard_user,ecf.anular.wizard.user,model_ecf_anular_wizard,account.group_account_invoice,1,1,1,1
+access_ecf_homologacion_wizard_user,ecf.homologacion.wizard.user,model_ecf_homologacion_wizard,account.group_account_invoice,1,1,1,1
+
