@@ -30,7 +30,7 @@
 
     <record id="action_ecf_homologacion_wizard" model="ir.actions.act_window">
         <field name="name">Cargar Set de Pruebas DGII</field>
-        <field name="model">ecf.homologacion.wizard</field>
+        <field name="res_model">ecf.homologacion.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>
     </record>
