@@ -22,7 +22,7 @@
             </div>
         </xpath>
 
-        <xpath expr="//h2" position="before">
+        <xpath expr="//div[@id='informations']" position="before">
             <!-- ═══════════════════════════════════════════════════
                  ENCABEZADO DGII — Inyectado al inicio del documento
                  ═══════════════════════════════════════════════════ -->
