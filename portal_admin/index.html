@@ -777,7 +777,7 @@
             <div id="tab-certs" style="display:none;">
                 <div style="margin-bottom:16px;">
                     <button class="btn btn-primary btn-sm" onclick="openUploadCertModal()">📄 Subir Certificado .p12</button>
-                    <button class="btn btn-secondary btn-sm" style="margin-left:8px;" onclick="openPostulacionModal()">📝 Generar XML Postulación DGII</button>
+                    <button class="btn btn-secondary btn-sm" style="margin-left:8px;" onclick="openPostulacionModal()">📝 Firmar XML Postulación DGII</button>
                 </div>
                 <div class="table-wrap">
                     <table>
@@ -816,115 +816,21 @@
 
 <!-- Postulacion Modal -->
 <div id="postulacionModal" class="modal-overlay">
-    <div class="modal" style="max-width: 600px;">
+    <div class="modal" style="max-width: 500px;">
         <div class="modal-header">
-            <h2>Generar XML Postulación DGII</h2>
+            <h2>Firmar XML Postulación DGII</h2>
             <button class="btn btn-ghost btn-sm" onclick="closeModal('postulacionModal')">✕</button>
         </div>
         <form id="postulacionForm" onsubmit="generatePostulacion(event)">
-            <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>ID Postulación DGII *</label>
-                        <input type="number" id="postId" required placeholder="58327">
-                        <div class="hint">Entregado por DGII</div>
-                    </div>
-                    <div class="form-group">
-                        <label>Actividad Económica *</label>
-                        <input type="text" id="postActividad" required placeholder="515922">
-                        <div class="hint">Código de actividad principal</div>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Provincia Contribuyente *</label>
-                        <input type="text" id="postProvincia" required placeholder="SANTO DOMINGO">
-                    </div>
-                    <div class="form-group">
-                        <label>Municipio Contribuyente *</label>
-                        <input type="text" id="postMunicipio" required placeholder="SANTO DOMINGO OESTE">
-                    </div>
-                </div>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                <p style="margin-bottom: 15px; font-size: 0.9rem; color: var(--text-muted);">
+                    Selecciona el archivo XML de postulación que descargaste desde el portal de la DGII. 
+                    El sistema le agregará la firma digital utilizando el certificado activo del tenant actual y lo descargará con el mismo nombre.
+                </p>
                 <div class="form-group">
-                    <label>Sector Contribuyente *</label>
-                    <input type="text" id="postSector" required placeholder="LOS ALCARRIZOS">
-                </div>
-
-                <div style="border-top: 1px solid var(--border); margin: 20px 0; padding-top: 10px;">
-                    <h3 style="font-size: 0.9rem; color: var(--accent); margin-bottom: 12px;">Datos del Representante Legal</h3>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Cédula/RNC Representante *</label>
-                        <input type="text" id="repRnc" required placeholder="22400563809">
-                    </div>
-                    <div class="form-group">
-                        <label>Nombre Completo *</label>
-                        <input type="text" id="repNombre" required placeholder="ADDERLY MARTE">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Teléfono *</label>
-                        <input type="text" id="repTelefono" required placeholder="8093487921">
-                    </div>
-                    <div class="form-group">
-                        <label>Celular *</label>
-                        <input type="text" id="repCelular" required placeholder="8494577463">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Dirección Completa *</label>
-                    <input type="text" id="repDireccion" required placeholder="DUARTE, No. 144, SAVICA">
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Provincia *</label>
-                        <input type="text" id="repProvincia" required placeholder="SANTO DOMINGO">
-                    </div>
-                    <div class="form-group">
-                        <label>Municipio *</label>
-                        <input type="text" id="repMunicipio" required placeholder="SANTO DOMINGO OESTE">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Sector *</label>
-                        <input type="text" id="repSector" required placeholder="SAVICA">
-                    </div>
-                    <div class="form-group">
-                        <label>Correo Electrónico *</label>
-                        <input type="email" id="repEmail" required placeholder="adderlymarte@hotmail.com">
-                    </div>
-                </div>
-
-                <div style="border-top: 1px solid var(--border); margin: 20px 0; padding-top: 10px;">
-                    <h3 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 12px;">Parámetros del Software (Defaults)</h3>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Nombre del Software</label>
-                        <input type="text" id="softNombre" value="RENECF">
-                    </div>
-                    <div class="form-group">
-                        <label>Versión</label>
-                        <input type="text" id="softVersion" value="2.5">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>URL Recepción</label>
-                        <input type="text" id="urlRecepcion" value="ecf.renace.tech">
-                    </div>
-                    <div class="form-group">
-                        <label>Tipo Desarrollo</label>
-                        <select id="softTipo">
-                            <option value="1">Propio (1)</option>
-                            <option value="2">Terceros (2)</option>
-                        </select>
-                    </div>
+                    <label>Archivo XML de Postulación (DGII) *</label>
+                    <input type="file" id="postXmlFile" accept=".xml" required>
+                    <div class="hint">Debe ser el archivo original sin modificar (ej. 202606225704499.xml)</div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1641,42 +1547,28 @@ function openPostulacionModal() {
 
 async function generatePostulacion(e) {
     e.preventDefault();
-    const payload = {
-        postulacion_id: parseInt(document.getElementById('postId').value, 10),
-        actividad_economica: document.getElementById('postActividad').value,
-        provincia: document.getElementById('postProvincia').value,
-        municipio: document.getElementById('postMunicipio').value,
-        sector: document.getElementById('postSector').value,
-        representante_rnc: document.getElementById('repRnc').value,
-        representante_nombre: document.getElementById('repNombre').value,
-        representante_telefono: document.getElementById('repTelefono').value,
-        representante_celular: document.getElementById('repCelular').value,
-        representante_direccion: document.getElementById('repDireccion').value,
-        representante_provincia: document.getElementById('repProvincia').value,
-        representante_municipio: document.getElementById('repMunicipio').value,
-        representante_sector: document.getElementById('repSector').value,
-        representante_email: document.getElementById('repEmail').value,
-        tipo_desarrollo: parseInt(document.getElementById('softTipo').value, 10),
-        software_nombre: document.getElementById('softNombre').value,
-        software_version: document.getElementById('softVersion').value,
-        url_recepcion: document.getElementById('urlRecepcion').value,
-        url_aprobacion_comercial: document.getElementById('urlRecepcion').value,
-        url_autenticacion: document.getElementById('urlRecepcion').value
-    };
+    const fileInput = document.getElementById('postXmlFile');
+    if (!fileInput.files || fileInput.files.length === 0) {
+        toast('Por favor, selecciona un archivo XML', 'error');
+        return;
+    }
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('xml_file', file);
 
     try {
-        toast('Generando y firmando XML...');
+        toast('Firmando XML de Postulación...');
         const res = await fetch(`${API_URL}/v1/admin/tenants/${currentTenantId}/postulacion`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${ADMIN_KEY}`,
-                'Content-Type': 'application/json'
+                'Authorization': `Bearer ${ADMIN_KEY}`
+                // Content-Type is set automatically by the browser with correct boundary when sending FormData
             },
-            body: JSON.stringify(payload)
+            body: formData
         });
 
         if (!res.ok) {
-            let detail = 'Error al generar postulación';
+            let detail = 'Error al firmar postulación';
             try {
                 const data = await res.json();
                 detail = data.detail || detail;
@@ -1688,14 +1580,15 @@ async function generatePostulacion(e) {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `postulacion_firmada.xml`;
+        a.download = file.name; // Preservar el nombre de archivo original
         document.body.appendChild(a);
         a.click();
         a.remove();
         window.URL.revokeObjectURL(url);
 
         closeModal('postulacionModal');
-        toast('XML de Postulación descargado correctamente');
+        fileInput.value = '';
+        toast('XML de Postulación firmado y descargado correctamente');
     } catch (err) {
         toast(err.message, 'error');
     }
