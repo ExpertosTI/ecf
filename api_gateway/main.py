@@ -135,6 +135,19 @@ async def apple_touch_icon():
         return FileResponse(str(icon_file), media_type="image/png")
     return Response(status_code=404)
 
+# ── Endpoints de homologación DGII mock (evitan 404 en el portal DGII) ──
+@app.post("/fe/aprobacioncomercial/api/ecf", include_in_schema=False)
+async def recibir_aprobacion_comercial_mock():
+    return JSONResponse(status_code=200, content={"status": "received"})
+
+@app.get("/fe/autenticacion/api/semilla", include_in_schema=False)
+async def semilla_mock():
+    return Response(status_code=200, content="<Semilla>MockSeed</Semilla>", media_type="application/xml")
+
+@app.post("/fe/autenticacion/api/validacioncertificado", include_in_schema=False)
+async def validacion_certificado_mock():
+    return JSONResponse(status_code=200, content={"token": "mock_token"})
+
 # ── Portal Admin (static SPA) ──
 _portal_dir = pathlib.Path(__file__).resolve().parent.parent / "portal_admin"
 if _portal_dir.is_dir():

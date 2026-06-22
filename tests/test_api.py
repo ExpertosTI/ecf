@@ -529,7 +529,7 @@ class TestErpAgnostic:
         assert data["odoo_webhook_url"] == "https://citrus-erp.com/webhook"
 
 
-# ── Tests: Static Assets ──────────────────────────────
+# ── Tests: Static Assets and DGII Mocks ─────────────────
 
 class TestStaticAssets:
     def test_logo_retrieval(self, client):
@@ -541,3 +541,17 @@ class TestStaticAssets:
         resp = client.get("/apple-touch-icon.png")
         assert resp.status_code == 200
         assert "image/png" in resp.headers["content-type"]
+
+    def test_dgii_mock_endpoints(self, client):
+        resp_aprobacion = client.post("/fe/aprobacioncomercial/api/ecf")
+        assert resp_aprobacion.status_code == 200
+        assert resp_aprobacion.json()["status"] == "received"
+
+        resp_semilla = client.get("/fe/autenticacion/api/semilla")
+        assert resp_semilla.status_code == 200
+        assert "application/xml" in resp_semilla.headers["content-type"]
+        assert "MockSeed" in resp_semilla.text
+
+        resp_val_cert = client.post("/fe/autenticacion/api/validacioncertificado")
+        assert resp_val_cert.status_code == 200
+        assert resp_val_cert.json()["token"] == "mock_token"
