@@ -49,7 +49,7 @@ HTML_TEMPLATE = """
     <div class="header">
         <div class="company-info">
             <div class="logo">{{ emisor_nombre }}</div>
-            <p><strong>Renace e-CF</strong></p>
+            <p><strong>RENECF</strong></p>
             <p>RNC: {{ emisor_rnc }}</p>
             <p>{{ emisor_direccion }}</p>
             <p>Tel: {{ emisor_telefono }}</p>
@@ -90,6 +90,7 @@ HTML_TEMPLATE = """
             </tr>
             {% endfor %}
         </tbody>
+
     </table>
 
     <div class="totals">
@@ -118,7 +119,7 @@ HTML_TEMPLATE = """
             <p style="margin-top: 8px;">Código de Seguridad: <strong>{{ security_code }}</strong></p>
             {% if track_id %}<p>TrackId DGII: <strong>{{ track_id }}</strong></p>{% endif %}
             <p>Verifique en: <strong>ecf.dgii.gov.do</strong> (escanee el QR para ir directo a la consulta de timbre).</p>
-            <p style="margin-top: 5px; color: #9ca3af;">Renace e-CF · Certificado DGII RD</p>
+            <p style="margin-top: 5px; color: #9ca3af;">RENECF · Certificado DGII RD</p>
         </div>
     </div>
 </body>

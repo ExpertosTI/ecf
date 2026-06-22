@@ -95,7 +95,7 @@ if not ALLOWED_ORIGINS:
     logger.warning("ALLOWED_ORIGINS no configurado — CORS deshabilitado")
 
 app = FastAPI(
-    title="Renace e-CF — DGII Gateway",
+    title="RENECF — DGII Gateway",
     version="2.5.0",
     docs_url=None,          # Deshabilitar Swagger en producción
     redoc_url=None,
@@ -119,7 +119,7 @@ _landing_file = pathlib.Path(__file__).resolve().parent.parent / "landing" / "in
 async def landing():
     if _landing_file.is_file():
         return FileResponse(str(_landing_file), media_type="text/html")
-    return JSONResponse({"service": "Renace e-CF", "status": "running"})
+    return JSONResponse({"service": "RENECF", "status": "running"})
 
 @app.get("/renacelogo.svg", include_in_schema=False)
 async def logo():
@@ -288,7 +288,7 @@ async def health_tenant(tenant: dict = Depends(get_tenant)):
         dias_para_vencer = (cert_vencimiento - date.today()).days
     return {
         "status":             "online",
-        "service":            "Renace e-CF",
+        "service":            "RENECF",
         "version":             app.version,
         "ambiente":           tenant["ambiente"],
         "rnc":                tenant["rnc"],
