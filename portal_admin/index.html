@@ -736,7 +736,18 @@
                 <h3 style="font-size:0.95rem; margin:24px 0 12px;">Editar</h3>
                 <form id="editTenantForm">
                     <div class="form-row">
+                        <div class="form-group"><label>Razón Social *</label><input type="text" id="editRazonSocial" required></div>
                         <div class="form-group"><label>Nombre Comercial</label><input type="text" id="editNombreComercial"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Email *</label><input type="email" id="editEmail" required></div>
+                        <div class="form-group"><label>Teléfono</label><input type="text" id="editTelefono"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Dirección</label>
+                        <input type="text" id="editDireccion">
+                    </div>
+                    <div class="form-row">
                         <div class="form-group">
                             <label>Webhook URL (ERP / Odoo / Citrus)</label>
                             <div style="display:flex; gap:8px;">
@@ -744,10 +755,11 @@
                                 <button type="button" class="btn btn-secondary btn-sm" onclick="testWebhook()">📡 Probar</button>
                             </div>
                         </div>
+                        <div class="form-group"><label>Plan</label><select id="editPlan"><option value="">— sin cambio —</option><option value="pyme">Pyme (200 e-CF)</option><option value="standard">Standard (1,000 e-CF)</option><option value="empresarial">Empresarial (Ilimitado)</option></select></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group"><label>Plan</label><select id="editPlan"><option value="">— sin cambio —</option><option value="pyme">Pyme (200 e-CF)</option><option value="standard">Standard (1,000 e-CF)</option><option value="empresarial">Empresarial (Ilimitado)</option></select></div>
                         <div class="form-group"><label>Límite e-CF/mes</label><input type="number" id="editMaxEcf" min="100" max="1000000"></div>
+                        <div class="form-group" style="visibility:hidden;"></div>
                     </div>
                     <button type="submit" class="btn btn-primary btn-sm">Guardar Cambios</button>
                 </form>
@@ -1283,7 +1295,11 @@ async function openTenantDetail(id) {
         `;
 
         // Prefill edit form
+        document.getElementById('editRazonSocial').value = t.razon_social || '';
         document.getElementById('editNombreComercial').value = t.nombre_comercial || '';
+        document.getElementById('editEmail').value = t.email || '';
+        document.getElementById('editTelefono').value = t.telefono || '';
+        document.getElementById('editDireccion').value = t.direccion || '';
         document.getElementById('editWebhookUrl').value = t.odoo_webhook_url || '';
         document.getElementById('editPlan').value = '';
         document.getElementById('editMaxEcf').value = t.max_ecf_mensual;
@@ -1354,14 +1370,24 @@ async function testWebhook() {
 document.getElementById('editTenantForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const updates = {};
+    const rs = document.getElementById('editRazonSocial').value.trim();
     const nc = document.getElementById('editNombreComercial').value.trim();
+    const em = document.getElementById('editEmail').value.trim();
+    const tel = document.getElementById('editTelefono').value.trim();
+    const dir = document.getElementById('editDireccion').value.trim();
     const wh = document.getElementById('editWebhookUrl').value.trim();
     const pl = document.getElementById('editPlan').value;
     const mx = document.getElementById('editMaxEcf').value;
-    if (nc) updates.nombre_comercial = nc;
+    
+    if (rs) updates.razon_social = rs;
+    updates.nombre_comercial = nc;  // Allow clearing
+    if (em) updates.email = em;
+    updates.telefono = tel;          // Allow clearing
+    updates.direccion = dir;        // Allow clearing
     if (wh) updates.odoo_webhook_url = wh;
     if (pl) updates.plan = pl;
     if (mx) updates.max_ecf_mensual = parseInt(mx);
+    
     if (!Object.keys(updates).length) { toast('No hay cambios', 'error'); return; }
     try {
         await api(`/v1/admin/tenants/${currentTenantId}`, { method: 'PATCH', body: updates });
