@@ -5,7 +5,7 @@ services:
   # Traefik — Orquestador de Tráfico y Seguridad TLS
   # Este servicio reemplaza al Nginx nativo del servidor REY
   traefik:
-    image: traefik:v3.2
+    image: traefik:v3.7
     command:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
