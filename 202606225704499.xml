@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Postulacion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <PostulacionID>58327</PostulacionID>
+  <TipoRegistro>1</TipoRegistro>
+  <GrupoComprobante>31,32,33,34,41,43,44,45,46,47</GrupoComprobante>
+  <Contribuyente>
+    <RNCContribuyente>132842316</RNCContribuyente>
+    <RazonSocial>RENACE EXPERTOS TECNOLOGIA E IDEAS SRL</RazonSocial>
+    <NombreComercial>RENACE EXPERTOS TECNOLOGIA E IDEAS</NombreComercial>
+    <ActividadEconomica>515922</ActividadEconomica>
+    <Telefono>8093487921</Telefono>
+    <Direccion>DUARTE, No. 04, APTO. EDIF 4, LOS ALCARRIZOS</Direccion>
+    <Provincia>SANTO DOMINGO</Provincia>
+    <Municipio>SANTO DOMINGO OESTE</Municipio>
+    <Sector>LOS ALCARRIZOS</Sector>
+    <CorreoElectronico>adderlymarte@hotmail.com</CorreoElectronico>
+  </Contribuyente>
+  <Representante>
+    <RNCRepresentante>22400563809</RNCRepresentante>
+    <NombreRepresentante>ADDERLY MARTE</NombreRepresentante>
+    <TelefonoRepresentante>8093487921</TelefonoRepresentante>
+    <CelularRepresentante>8494577463</CelularRepresentante>
+    <DireccionRepresentante>DUARTE, No. 144, SAVICA</DireccionRepresentante>
+    <ProvinciaRepresentante>SANTO DOMINGO</ProvinciaRepresentante>
+    <MunicipioRepresentante>SANTO DOMINGO OESTE</MunicipioRepresentante>
+    <SectorRepresentante>SAVICA</SectorRepresentante>
+    <CorreoElectronicoRepresentante>adderlymarte@hotmail.com</CorreoElectronicoRepresentante>
+  </Representante>
+  <Software>
+    <TipoDesarrollo>1</TipoDesarrollo>
+    <NombreSoftware>RENECF</NombreSoftware>
+    <UrlRecepcion>ecf.renace.tech</UrlRecepcion>
+    <UrlAprobacionComercial>ecf.renace.tech</UrlAprobacionComercial>
+    <UrlAutenticacion>ecf.renace.tech</UrlAutenticacion>
+    <VersionSoftware>2.5</VersionSoftware>
+  </Software>
+  <FechaSolicitud>2026-06-22T13:57:04.4991179-04:00</FechaSolicitud>
+</Postulacion>
