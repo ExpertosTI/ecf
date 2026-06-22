@@ -53,23 +53,23 @@
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="ecf-glass-card p-4 h-100">
+                    <div class="ecf-glass-card ecf-card-info p-4 h-100">
                         <div class="text-muted small fw-bold text-uppercase mb-2">Comprobantes</div>
-                        <div class="h2 fw-bold mb-0" style="color: #0f172a;"><t t-esc="state.stats.total_count || '0'"/></div>
+                        <div class="h2 fw-bold mb-0"><t t-esc="state.stats.total_count || '0'"/></div>
                         <div class="mt-2 small text-success fw-bold"><i class="oi oi-arrow-up me-1"></i>En tiempo real</div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="ecf-glass-card p-4 h-100">
+                    <div class="ecf-glass-card ecf-card-success p-4 h-100">
                         <div class="text-success small fw-bold text-uppercase mb-2">Aprobados</div>
-                        <div class="h2 fw-bold mb-0 text-success"><t t-esc="state.stats.stats_estado?.aprobado || '0'"/></div>
+                        <div class="h2 fw-bold mb-0"><t t-esc="state.stats.stats_estado?.aprobado || '0'"/></div>
                         <div class="mt-2 small text-muted">Aceptados por DGII</div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="ecf-glass-card p-4 h-100">
+                    <div class="ecf-glass-card ecf-card-danger p-4 h-100">
                         <div class="text-danger small fw-bold text-uppercase mb-2">Rechazados</div>
-                        <div class="h2 fw-bold mb-0 text-danger"><t t-esc="state.stats.stats_estado?.rechazado || '0'"/></div>
+                        <div class="h2 fw-bold mb-0"><t t-esc="state.stats.stats_estado?.rechazado || '0'"/></div>
                         <div class="mt-2 small text-muted">Requieren atención</div>
                     </div>
                 </div>
