@@ -119,6 +119,29 @@ class NCFSequenceCreate(BaseModel):
         return v
 
 
+class TenantPostulacion(BaseModel):
+    postulacion_id: int
+    actividad_economica: str
+    provincia: str
+    municipio: str
+    sector: str
+    representante_rnc: str
+    representante_nombre: str
+    representante_telefono: str
+    representante_celular: str
+    representante_direccion: str
+    representante_provincia: str
+    representante_municipio: str
+    representante_sector: str
+    representante_email: str
+    tipo_desarrollo: int = 1
+    software_nombre: str = "RENECF"
+    software_version: str = "2.5"
+    url_recepcion: str = "ecf.renace.tech"
+    url_aprobacion_comercial: str = "ecf.renace.tech"
+    url_autenticacion: str = "ecf.renace.tech"
+
+
 # ---------------------------------------------------------------------------
 # Tenant CRUD
 # ---------------------------------------------------------------------------
@@ -972,3 +995,98 @@ async def sync_tenant_compras(
     asyncio.create_task(service.sincronizar_tenant(dict(row)))
 
     return {"status": "accepted"}
+
+
+@router.post("/tenants/{tenant_id}/postulacion")
+async def generate_signed_postulacion(
+    tenant_id: str,
+    payload: TenantPostulacion,
+    _: None = Depends(require_admin),
+):
+    """
+    Genera y firma el XML de postulación para la DGII usando el certificado .p12 activo del tenant.
+    """
+    db = _get_pool()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM public.tenants WHERE id = $1 AND deleted_at IS NULL", uuid.UUID(tenant_id)
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Tenant no encontrado")
+
+    # 1. Obtener certificado activo del tenant
+    try:
+        vault = CertVault()
+        cert_repo = CertVaultRepository(db, vault)
+        cert_info = await cert_repo.obtener_certificado(tenant_id)
+    except CertVaultError as e:
+        raise HTTPException(status_code=400, detail=f"Error al recuperar el certificado del tenant: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error inesperado al recuperar el certificado: {e}")
+
+    p12_data = cert_info["cert_data"]
+    p12_password = cert_info["cert_password"]
+
+    if not p12_data:
+        raise HTTPException(status_code=400, detail="El tenant no tiene un certificado activo cargado en el vault")
+
+    # 2. Construir XML
+    from datetime import datetime, timezone
+    fecha_solicitud = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    xml_template = f"""<?xml version="1.0" encoding="utf-8"?>
+<Postulacion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <PostulacionID>{payload.postulacion_id}</PostulacionID>
+  <TipoRegistro>1</TipoRegistro>
+  <GrupoComprobante>31,32,33,34,41,43,44,45,46,47</GrupoComprobante>
+  <Contribuyente>
+    <RNCContribuyente>{row['rnc']}</RNCContribuyente>
+    <RazonSocial>{row['razon_social']}</RazonSocial>
+    <NombreComercial>{row['nombre_comercial'] or row['razon_social']}</NombreComercial>
+    <ActividadEconomica>{payload.actividad_economica}</ActividadEconomica>
+    <Telefono>{row['telefono'] or ""}</Telefono>
+    <Direccion>{row['direccion'] or ""}</Direccion>
+    <Provincia>{payload.provincia}</Provincia>
+    <Municipio>{payload.municipio}</Municipio>
+    <Sector>{payload.sector}</Sector>
+    <CorreoElectronico>{row['email']}</CorreoElectronico>
+  </Contribuyente>
+  <Representante>
+    <RNCRepresentante>{payload.representante_rnc}</RNCRepresentante>
+    <NombreRepresentante>{payload.representante_nombre}</NombreRepresentante>
+    <TelefonoRepresentante>{payload.representante_telefono}</TelefonoRepresentante>
+    <CelularRepresentante>{payload.representante_celular}</CelularRepresentante>
+    <DireccionRepresentante>{payload.representante_direccion}</DireccionRepresentante>
+    <ProvinciaRepresentante>{payload.representante_provincia}</ProvinciaRepresentante>
+    <MunicipioRepresentante>{payload.representante_municipio}</MunicipioRepresentante>
+    <SectorRepresentante>{payload.representante_sector}</SectorRepresentante>
+    <CorreoElectronicoRepresentante>{payload.representante_email}</CorreoElectronicoRepresentante>
+  </Representante>
+  <Software>
+    <TipoDesarrollo>{payload.tipo_desarrollo}</TipoDesarrollo>
+    <NombreSoftware>{payload.software_nombre}</NombreSoftware>
+    <UrlRecepcion>{payload.url_recepcion}</UrlRecepcion>
+    <UrlAprobacionComercial>{payload.url_aprobacion_comercial}</UrlAprobacionComercial>
+    <UrlAutenticacion>{payload.url_autenticacion}</UrlAutenticacion>
+    <VersionSoftware>{payload.software_version}</VersionSoftware>
+  </Software>
+  <FechaSolicitud>{fecha_solicitud}</FechaSolicitud>
+</Postulacion>
+"""
+    # 3. Firmar usando ECFSigner
+    from ecf_core.ecf_core_service import ECFSigner
+    try:
+        signer = ECFSigner()
+        xml_firmado = signer.firmar(xml_template.encode("utf-8"), p12_data, p12_password.encode("utf-8"))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al firmar el XML de postulación: {e}")
+
+    from fastapi.responses import Response
+    return Response(
+        content=xml_firmado,
+        media_type="application/xml",
+        headers={
+            "Content-Disposition": f"attachment; filename={row['rnc']}_postulacion_firmada.xml"
+        }
+    )
+
