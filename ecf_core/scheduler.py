@@ -33,6 +33,15 @@ RECIBIDAS_INTERVAL    = 1800   # 30 minutos para sync e-CF recibidas
 _last_recibidas_sync  = 0.0    # timestamp de la última sync
 
 
+def _send_email_sync(smtp_host: str, smtp_port: int, smtp_user: str, smtp_pass: str, msg: MIMEText):
+    """Realiza la llamada bloqueante de SMTP síncronamente."""
+    with smtplib.SMTP(smtp_host, smtp_port) as server:
+        server.starttls()
+        if smtp_user and smtp_pass:
+            server.login(smtp_user, smtp_pass)
+        server.send_message(msg)
+
+
 async def alertar_vencimientos(db_pool: asyncpg.Pool):
     """Envía alertas por email a tenants con certificados por vencer (< 30 días)."""
     vault = CertVault()
@@ -71,10 +80,7 @@ async def alertar_vencimientos(db_pool: asyncpg.Pool):
             msg["From"] = from_email
             msg["To"] = t["email"]
 
-            with smtplib.SMTP(smtp_host, smtp_port) as server:
-                server.starttls()
-                server.login(smtp_user, smtp_pass)
-                server.send_message(msg)
+            await asyncio.to_thread(_send_email_sync, smtp_host, smtp_port, smtp_user, smtp_pass, msg)
 
             async with db_pool.acquire() as conn:
                 await conn.execute(
@@ -83,13 +89,10 @@ async def alertar_vencimientos(db_pool: asyncpg.Pool):
                 )
             logger.info("Alerta enviada a %s (%s)", t["razon_social"], t["email"])
 
-        except smtplib.SMTPException as e:
-            logger.error("SMTP error enviando alerta a %s (reintentando 1 vez): %s", t["email"], e)
+        except Exception as e:
+            logger.error("Error enviando alerta a %s (reintentando 1 vez): %s", t["email"], e)
             try:
-                with smtplib.SMTP(smtp_host, smtp_port) as server:
-                    server.starttls()
-                    server.login(smtp_user, smtp_pass)
-                    server.send_message(msg)
+                await asyncio.to_thread(_send_email_sync, smtp_host, smtp_port, smtp_user, smtp_pass, msg)
                 async with db_pool.acquire() as conn:
                     await conn.execute(
                         "UPDATE public.tenants SET cert_alerta_enviada = TRUE WHERE id = $1",

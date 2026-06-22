@@ -322,9 +322,9 @@ class DGIIClient:
     async def enviar_ecf(
         self,
         xml_firmado: bytes,
-        rnc_emisor: str,
-        tipo_ecf: int,
-        ncf: str,
+        rnc_emisor: str = "",
+        tipo_ecf: int = 0,
+        ncf: str = "",
     ) -> RespuestaDGII:
         """
         Envía el e-CF firmado a la DGII.
@@ -335,7 +335,10 @@ class DGIIClient:
         last_error = None
         for intento in range(1, 4):
             try:
-                logger.info("Enviando NCF %s a DGII — intento %d", ncf, intento)
+                if ncf:
+                    logger.info("Enviando NCF %s a DGII — intento %d", ncf, intento)
+                else:
+                    logger.info("Enviando XML a DGII — intento %d", intento)
                 resp = await self._client.post(
                     self.EP_RECEPCION,
                     content=xml_firmado,

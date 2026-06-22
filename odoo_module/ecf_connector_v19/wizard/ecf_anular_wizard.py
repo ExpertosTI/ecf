@@ -15,16 +15,11 @@ class ECFAnularWizard(models.TransientModel):
     move_id = fields.Many2one('account.move', string='Factura', required=True)
     ncf = fields.Char(related='move_id.ecf_ncf', string='NCF', readonly=True)
     motivo = fields.Selection([
-        ('01', 'Deterioro de factura pre-impresa'),
-        ('02', 'Errores de impresión (factura pre-impresa)'),
-        ('03', 'Impresión defectuosa'),
-        ('04', 'Duplicidad de factura'),
-        ('05', 'Corrección de la información'),
-        ('06', 'Cambio de productos'),
-        ('07', 'Devolución de productos'),
-        ('08', 'Omisión de productos'),
-        ('09', 'Errores en secuencia de NCF'),
-    ], string='Motivo de anulación', required=True, default='05')
+        ('01', 'Deterioro del comprobante'),
+        ('02', 'Errores en la información del e-CF'),
+        ('03', 'Devolución de mercancía o servicios'),
+        ('04', 'Otra modificación (especificar en nota)'),
+    ], string='Motivo de anulación', required=True, default='02')
     nota = fields.Text(string='Observaciones')
 
     def action_anular(self):

@@ -194,11 +194,11 @@ async def create_tenant(
                     """
                     INSERT INTO public.tenants
                         (id, rnc, razon_social, nombre_comercial, direccion,
-                         telefono, email, api_key, api_key_hash,
+                         telefono, email, api_key,
                          plan, estado, schema_name, ambiente,
                          odoo_webhook_url, odoo_webhook_secret,
                          max_ecf_mensual)
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'activo',$11,$12,$13,$14,$15)
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'activo',$10,$11,$12,$13,$14)
                 """,
                     uuid.UUID(tenant_id),
                     payload.rnc,
@@ -208,7 +208,6 @@ async def create_tenant(
                     payload.telefono,
                     payload.email,
                     api_key_hash,  # api_key column stores the SHA-256 hash
-                    api_key_hash,  # api_key_hash column (bcrypt would be better, same for now)
                     payload.plan,
                     schema_name,
                     payload.ambiente,
@@ -400,7 +399,7 @@ async def rotate_api_key(
 
     async with db.acquire() as conn:
         await conn.execute(
-            "UPDATE public.tenants SET api_key = $1, api_key_hash = $1, updated_at = NOW() WHERE id = $2",
+            "UPDATE public.tenants SET api_key = $1, updated_at = NOW() WHERE id = $2",
             new_hash,
             uuid.UUID(tenant_id),
         )
@@ -668,13 +667,20 @@ async def remove_dlq_message(
 ):
     """Remove a specific message from the DLQ by replaying or discarding."""
     redis_client = _get_redis()
-
-    messages = await redis_client.lrange("ecf:dlq", 0, -1)
-    if index < 0 or index >= len(messages):
+    sentinel = f"__REMOVED__:{uuid.uuid4().hex}"
+    lua_script = """
+    local key = KEYS[1]
+    local index = tonumber(ARGV[1])
+    local sentinel = ARGV[2]
+    local msg = redis.call('LINDEX', key, index)
+    if not msg then return nil end
+    redis.call('LSET', key, index, sentinel)
+    redis.call('LREM', key, 1, sentinel)
+    return msg
+    """
+    msg = await redis_client.eval(lua_script, 1, "ecf:dlq", index, sentinel)
+    if msg is None:
         raise HTTPException(status_code=404, detail="Índice fuera de rango")
-    sentinel = "__REMOVED__"
-    await redis_client.lset("ecf:dlq", index, sentinel)
-    await redis_client.lrem("ecf:dlq", 0, sentinel)
     return {"removed": True}
 
 
@@ -687,12 +693,21 @@ async def retry_dlq_message(
     import json
 
     redis_client = _get_redis()
-
-    messages = await redis_client.lrange("ecf:dlq", 0, -1)
-    if index < 0 or index >= len(messages):
+    sentinel = f"__REMOVED__:{uuid.uuid4().hex}"
+    lua_script = """
+    local key = KEYS[1]
+    local index = tonumber(ARGV[1])
+    local sentinel = ARGV[2]
+    local msg = redis.call('LINDEX', key, index)
+    if not msg then return nil end
+    redis.call('LSET', key, index, sentinel)
+    redis.call('LREM', key, 1, sentinel)
+    return msg
+    """
+    msg = await redis_client.eval(lua_script, 1, "ecf:dlq", index, sentinel)
+    if msg is None:
         raise HTTPException(status_code=404, detail="Índice fuera de rango")
 
-    msg = messages[index]
     try:
         parsed = json.loads(msg)
         parsed["intento"] = 1
@@ -702,10 +717,6 @@ async def retry_dlq_message(
         pass
 
     await redis_client.rpush("ecf:pending", msg)
-
-    sentinel = "__REMOVED__"
-    await redis_client.lset("ecf:dlq", index, sentinel)
-    await redis_client.lrem("ecf:dlq", 0, sentinel)
 
     return {"retried": True, "mensaje": "Mensaje movido a cola pendiente"}
 

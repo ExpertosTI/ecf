@@ -88,10 +88,8 @@ services:
       SKIP_XSD_VALIDATION: ${SKIP_XSD_VALIDATION:-false}
       TZ: America/Santo_Domingo
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - postgres
+      - redis
     networks:
       - ecf_net
     labels:
@@ -132,10 +130,8 @@ services:
       SKIP_XSD_VALIDATION: ${SKIP_XSD_VALIDATION:-false}
       TZ: America/Santo_Domingo
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - postgres
+      - redis
     networks:
       - ecf_net
     healthcheck:
@@ -165,8 +161,7 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       ALERT_FROM_EMAIL: ${ALERT_FROM_EMAIL:-}
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     networks:
       - ecf_net
     labels:

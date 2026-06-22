@@ -174,15 +174,16 @@ class RFCEService:
         vault = CertVault()
         cert_repo = CertVaultRepository(self.db_pool, vault)
         cert_info = await cert_repo.obtener_certificado(str(tenant_id))
+        cert_password_bytes = cert_info["cert_password"].encode() if isinstance(cert_info["cert_password"], str) else cert_info["cert_password"]
 
-        async with DGIIClient(
-            ambiente=tenant["ambiente"],
-            p12_data=cert_info["cert_data"],
-            p12_password=cert_info["cert_password"].encode()
-            if isinstance(cert_info["cert_password"], str)
-            else cert_info["cert_password"],
-        ) as dgii:
-            resp = await dgii.enviar_ecf(rfce_data["xml_firmado"])
+        async with DGIIClient(ambiente=tenant["ambiente"]) as dgii:
+            dgii.set_certificate(cert_info["cert_data"], cert_password_bytes)
+            resp = await dgii.enviar_ecf(
+                xml_firmado=rfce_data["xml_firmado"],
+                rnc_emisor=tenant["rnc"],
+                tipo_ecf=32,
+                ncf=f"RFCE-{tenant['rnc']}-{rfce_data['rfce_id'][:8]}",
+            )
 
         schema = rfce_data["schema"]
         estado = "aprobado" if resp.estado.value == "aceptado" else resp.estado.value
