@@ -6,6 +6,8 @@ services:
   # Este servicio reemplaza al Nginx nativo del servidor REY
   traefik:
     image: traefik:v3.1
+    environment:
+      - DOCKER_API_VERSION=1.44
     command:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
