@@ -1015,7 +1015,7 @@ async def generate_signed_postulacion(
     from ecf_core.ecf_core_service import ECFSigner
     try:
         signer = ECFSigner()
-        xml_firmado = signer.firmar(xml_bytes, p12_data, p12_password.encode("utf-8"))
+        xml_firmado = signer.firmar(xml_bytes, p12_data, p12_password.encode("utf-8"), exclusive=False)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al firmar el XML de postulación: {e}")
 

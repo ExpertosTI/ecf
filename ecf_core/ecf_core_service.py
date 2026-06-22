@@ -391,7 +391,7 @@ class ECFSigner:
        coherencia con ``xades:SigningTime``.
     """
 
-    def firmar(self, xml_bytes: bytes, p12_data: bytes, p12_password: bytes) -> bytes:
+    def firmar(self, xml_bytes: bytes, p12_data: bytes, p12_password: bytes, exclusive: bool = True) -> bytes:
         # 1. Cargar el .p12
         private_key, certificate, _ = pkcs12.load_key_and_certificates(p12_data, p12_password)
 
@@ -451,7 +451,7 @@ class ECFSigner:
         etree.SubElement(issuer_serial, f"{{{NAMESPACE_DS}}}X509SerialNumber").text = cert_serial
 
         # 7. Calcular el digest de SignedProperties con el árbol ya construido
-        signed_props_digest = self._sha256_b64(self._c14n_node(signed_props))
+        signed_props_digest = self._sha256_b64(self._c14n_node(signed_props, exclusive=exclusive))
 
         # 8. Calcular el digest del documento (transform enveloped + c14n)
         # Para "enveloped-signature": tomamos el árbol root sin <ds:Signature>
@@ -461,14 +461,18 @@ class ECFSigner:
         root_copy = deepcopy(root)
         for sig in root_copy.findall(f"{{{NAMESPACE_DS}}}Signature"):
             root_copy.remove(sig)
-        doc_digest = self._sha256_b64(self._c14n_node(root_copy))
+        doc_digest = self._sha256_b64(self._c14n_node(root_copy, exclusive=exclusive))
 
         # 9. Construir <ds:SignedInfo>
         signed_info = etree.Element(
             f"{{{NAMESPACE_DS}}}SignedInfo", nsmap={"ds": NAMESPACE_DS},
         )
         cm = etree.SubElement(signed_info, f"{{{NAMESPACE_DS}}}CanonicalizationMethod")
-        cm.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
+        if exclusive:
+            cm.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
+        else:
+            cm.set("Algorithm", "http://www.w3.org/TR/2001/REC-xml-c14n-20010315")
+
         sm = etree.SubElement(signed_info, f"{{{NAMESPACE_DS}}}SignatureMethod")
         sm.set("Algorithm", "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256")
 
@@ -477,8 +481,10 @@ class ECFSigner:
         transforms = etree.SubElement(ref_doc, f"{{{NAMESPACE_DS}}}Transforms")
         t1 = etree.SubElement(transforms, f"{{{NAMESPACE_DS}}}Transform")
         t1.set("Algorithm", "http://www.w3.org/2000/09/xmldsig#enveloped-signature")
-        t2 = etree.SubElement(transforms, f"{{{NAMESPACE_DS}}}Transform")
-        t2.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
+        if exclusive:
+            t2 = etree.SubElement(transforms, f"{{{NAMESPACE_DS}}}Transform")
+            t2.set("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#")
+
         dm_doc = etree.SubElement(ref_doc, f"{{{NAMESPACE_DS}}}DigestMethod")
         dm_doc.set("Algorithm", "http://www.w3.org/2001/04/xmlenc#sha256")
         etree.SubElement(ref_doc, f"{{{NAMESPACE_DS}}}DigestValue").text = doc_digest
@@ -492,7 +498,7 @@ class ECFSigner:
 
         # 10. Insertar SignedInfo al inicio de Signature y firmar
         sig_node.insert(0, signed_info)
-        signed_info_c14n = self._c14n_node(signed_info)
+        signed_info_c14n = self._c14n_node(signed_info, exclusive=exclusive)
         signature_value = base64.b64encode(
             private_key.sign(signed_info_c14n, padding.PKCS1v15(), hashes.SHA256()),
         ).decode()
@@ -512,9 +518,9 @@ class ECFSigner:
 
         return etree.tostring(root, xml_declaration=True, encoding="UTF-8", pretty_print=False)
 
-    def _c14n_node(self, node: _Element) -> bytes:
-        """Canonicalización exclusiva (xml-exc-c14n#) de un nodo del árbol."""
-        return etree.tostring(node, method="c14n", exclusive=True, with_comments=False)
+    def _c14n_node(self, node: _Element, exclusive: bool = True) -> bytes:
+        """Canonicalización (exclusiva o inclusive) de un nodo del árbol."""
+        return etree.tostring(node, method="c14n", exclusive=exclusive, with_comments=False)
 
     def _sha256_b64(self, data: bytes) -> str:
         return base64.b64encode(hashlib.sha256(data).digest()).decode()
