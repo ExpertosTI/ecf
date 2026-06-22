@@ -43,7 +43,7 @@ def validar_rnc_dgii(rnc: str) -> bool:
         return False
     cuerpo = rnc[:8]
     digito_check = int(rnc[8])
-    suma = sum(int(d) * w for d, w in zip(cuerpo, _RNC_WEIGHTS, strict=True))
+    suma = sum(int(d) * w for d, w in zip(cuerpo, _RNC_WEIGHTS))
     residuo = suma % 11
     if residuo == 0:
         esperado = 2

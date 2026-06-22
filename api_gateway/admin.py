@@ -14,7 +14,7 @@ from typing import Optional
 
 import asyncpg
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, AliasChoices
 
 from ecf_core.cert_vault import CertVault, CertVaultError, CertVaultRepository
 from ecf_core.utils import safe_schema as _safe_schema
@@ -53,7 +53,7 @@ class TenantCreate(BaseModel):
     email: str = Field(..., max_length=255)
     plan: str = Field(default="basico")
     ambiente: str = Field(default="certificacion")
-    odoo_webhook_url: Optional[str] = None
+    odoo_webhook_url: Optional[str] = Field(None, validation_alias=AliasChoices("webhook_url", "odoo_webhook_url"))
     max_ecf_mensual: int = Field(default=1000, ge=100, le=1000000)
 
     @field_validator("rnc")
@@ -88,7 +88,7 @@ class TenantUpdate(BaseModel):
     plan: Optional[str] = None
     estado: Optional[str] = None
     ambiente: Optional[str] = None
-    odoo_webhook_url: Optional[str] = None
+    odoo_webhook_url: Optional[str] = Field(None, validation_alias=AliasChoices("webhook_url", "odoo_webhook_url"))
     max_ecf_mensual: Optional[int] = Field(None, ge=100, le=1000000)
 
     @field_validator("plan")
@@ -323,7 +323,9 @@ async def get_tenant(
         )
     if not row:
         raise HTTPException(status_code=404, detail="Tenant no encontrado")
-    return dict(row)
+    res = dict(row)
+    res["webhook_url"] = res.get("odoo_webhook_url")
+    return res
 
 
 @router.patch("/tenants/{tenant_id}")

@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from lxml import etree
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, AliasChoices
 
 from api_gateway.admin import (
     router as admin_router,
@@ -311,8 +311,8 @@ class FacturaPayload(BaseModel):
     tipo_ingresos:      str = Field(default="01", pattern=r"^0[1-6]$")
     indicador_envio_diferido: int = Field(default=0, ge=0, le=1)
     direccion_comprador: Optional[str] = Field(None, max_length=255)
-    odoo_move_id:       Optional[str] = Field(None, max_length=64)
-    odoo_move_name:     Optional[str] = Field(None, max_length=64)
+    odoo_move_id:       Optional[str] = Field(None, max_length=64, validation_alias=AliasChoices("external_id", "odoo_move_id"))
+    odoo_move_name:     Optional[str] = Field(None, max_length=64, validation_alias=AliasChoices("external_name", "odoo_move_name"))
 
     @field_validator("tipo_ecf")
     @classmethod
@@ -792,6 +792,7 @@ async def listar_compras(
     anio:          int,
     mes:           int,
     estado_odoo:   Optional[str] = None,
+    estado_erp:    Optional[str] = None,
     rnc_proveedor: Optional[str] = None,
     formato:       ExportFormat = ExportFormat.json,
     tenant:        dict = Depends(get_tenant),
@@ -805,8 +806,9 @@ async def listar_compras(
         "EXTRACT(MONTH FROM fecha_comprobante) = $2",
     ]
     params: list = [anio, mes]
-    if estado_odoo:
-        params.append(estado_odoo)
+    estado_filtro = estado_erp or estado_odoo
+    if estado_filtro:
+        params.append(estado_filtro)
         conditions.append(f"estado_odoo = ${len(params)}")
     if rnc_proveedor:
         params.append(rnc_proveedor)
@@ -817,11 +819,14 @@ async def listar_compras(
             SELECT ncf, rnc_proveedor, nombre_proveedor, tipo_bienes,
                    fecha_comprobante, fecha_pago, monto_servicios, monto_bienes,
                    total_monto, itbis_facturado, itbis_retenido, isr_retencion,
-                   estado_odoo, codigo_seguridad, tipo_ecf, ambiente
+                   estado_odoo, odoo_bill_id, codigo_seguridad, tipo_ecf, ambiente
             FROM {schema}.compras WHERE {where}
             ORDER BY fecha_comprobante, ncf
         """, *params)
     registros = [dict(r) for r in rows]
+    for r in registros:
+        r["estado_erp"] = r.get("estado_odoo")
+        r["bill_id"] = r.get("odoo_bill_id")
     periodo = f"{anio}-{mes:02d}"
     keys = ["ncf","rnc_proveedor","nombre_proveedor","tipo_bienes",
             "fecha_comprobante","fecha_pago","monto_servicios","monto_bienes",
@@ -879,6 +884,27 @@ async def registrar_pago_compra(
     return {"ncf": ncf, "fecha_pago": fecha_pago.isoformat()}
 
 
+@app.patch("/v1/compras/{ncf}/estado-erp")
+async def actualizar_estado_erp(
+    ncf: str,
+    estado_erp: str,
+    bill_id: Optional[str] = None,
+    tenant: dict = Depends(get_tenant),
+    db:     asyncpg.Pool = Depends(get_db),
+):
+    """Actualiza el estado de procesamiento en el ERP (ej: Citrus, Odoo)."""
+    if estado_erp not in {"nueva","enviada","procesada","error"}:
+        raise HTTPException(status_code=422, detail="Estado inválido")
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        result = await conn.execute(
+            f"UPDATE {schema}.compras SET estado_odoo=$1, odoo_bill_id=$2, updated_at=NOW() WHERE ncf=$3",
+            estado_erp, bill_id, ncf)
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="NCF no encontrado")
+    return {"ncf": ncf, "estado_erp": estado_erp, "bill_id": bill_id}
+
+
 @app.patch("/v1/compras/{ncf}/estado-odoo")
 async def actualizar_estado_odoo(
     ncf: str,
@@ -887,17 +913,19 @@ async def actualizar_estado_odoo(
     tenant: dict = Depends(get_tenant),
     db:     asyncpg.Pool = Depends(get_db),
 ):
-    """Actualiza el estado de procesamiento Odoo. Llamado por ecf_connector al crear in_invoice."""
-    if estado_odoo not in {"nueva","enviada","procesada","error"}:
-        raise HTTPException(status_code=422, detail="Estado inválido")
-    schema = _safe_schema(tenant["schema_name"])
-    async with db.acquire() as conn:
-        result = await conn.execute(
-            f"UPDATE {schema}.compras SET estado_odoo=$1, odoo_bill_id=$2, updated_at=NOW() WHERE ncf=$3",
-            estado_odoo, odoo_bill_id, ncf)
-    if result == "UPDATE 0":
-        raise HTTPException(status_code=404, detail="NCF no encontrado")
-    return {"ncf": ncf, "estado_odoo": estado_odoo, "odoo_bill_id": odoo_bill_id}
+    """[DEPRECATED] Actualiza el estado de procesamiento Odoo. Use /estado-erp en su lugar."""
+    res = await actualizar_estado_erp(
+        ncf=ncf,
+        estado_erp=estado_odoo,
+        bill_id=odoo_bill_id,
+        tenant=tenant,
+        db=db
+    )
+    return {
+        "ncf": res["ncf"],
+        "estado_odoo": res["estado_erp"],
+        "odoo_bill_id": res["bill_id"],
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

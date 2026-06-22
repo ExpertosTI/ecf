@@ -475,10 +475,16 @@ class ECFRecibidasService:
             ).hexdigest()
             headers["X-ECF-Signature"] = f"sha256={sig}"
 
+        target_url = webhook_url
+        if webhook_url.endswith(("/ecf/webhook", "/ecf/webhook/")):
+            target_url = webhook_url.rstrip("/") + "/recibida"
+        elif not any(p in webhook_url for p in ("/ecf/webhook/recibida", "/webhook/recibida")) and "odoo" in webhook_url.lower():
+            target_url = webhook_url.rstrip("/") + "/ecf/webhook/recibida"
+
         notificados = 0
         try:
             async with httpx.AsyncClient(timeout=30) as http:
-                resp = await http.post(webhook_url + "/ecf/webhook/recibida", content=payload_bytes, headers=headers)
+                resp = await http.post(target_url, content=payload_bytes, headers=headers)
                 if resp.status_code in (200, 201, 202, 204):
                     # Marcar como enviadas
                     ncfs = [r["ncf"] for r in rows]
@@ -488,11 +494,11 @@ class ECFRecibidasService:
                             ncfs,
                         )
                     notificados = len(ncfs)
-                    logger.info("Webhook Odoo OK: %d compras notificadas", notificados)
+                    logger.info("Webhook ERP/Odoo OK: %d compras notificadas", notificados)
                 else:
-                    logger.warning("Webhook Odoo respondió %d: %s", resp.status_code, resp.text[:200])
+                    logger.warning("Webhook ERP/Odoo respondió %d: %s", resp.status_code, resp.text[:200])
         except httpx.RequestError as e:
-            logger.error("Error enviando webhook a Odoo: %s", e)
+            logger.error("Error enviando webhook a ERP/Odoo: %s", e)
 
         return notificados
 

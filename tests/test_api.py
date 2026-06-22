@@ -39,6 +39,13 @@ def make_record(**kwargs) -> FakeRecord:
     return FakeRecord(**kwargs)
 
 
+class FakeTransaction:
+    async def __aenter__(self):
+        return None
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        return None
+
+
 class FakePool:
     """Mock de asyncpg pool con acquire() como async context manager."""
 
@@ -48,6 +55,7 @@ class FakePool:
         self.conn.fetchval = AsyncMock(return_value=None)
         self.conn.fetch = AsyncMock(return_value=[])
         self.conn.execute = AsyncMock()
+        self.conn.transaction = lambda: FakeTransaction()
 
     def acquire(self):
         return _AsyncCtx(self.conn)
@@ -380,3 +388,142 @@ class TestRateLimiting:
         )
         # Should not be 429 on first request
         assert resp.status_code != 429
+
+
+# ── Tests: ERP-Agnostic Aliases and Endpoints ──────────
+
+class TestErpAgnostic:
+    ADMIN_HEADERS = {"Authorization": "Bearer test-admin-key-12345"}
+
+    def test_emitir_with_external_id_alias(self, client, fake_pool):
+        _setup_tenant_auth(fake_pool)
+        fake_pool.conn.fetchval.return_value = "E310000000001"
+        payload = {
+            "tipo_ecf": 31,
+            "fecha_emision": "2025-01-15",
+            "rnc_comprador": "130000001",
+            "external_id": "citrus-move-12345",
+            "external_name": "Citrus Invoice 12345",
+            "items": [
+                {
+                    "descripcion": "Servicio de consultoría",
+                    "cantidad": 1,
+                    "precio_unitario": 1000.00,
+                    "itbis_tasa": 18,
+                }
+            ],
+        }
+        resp = client.post(
+            "/v1/ecf/emitir",
+            json=payload,
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+        assert resp.status_code == 202
+        data = resp.json()
+        assert data["estado"] == "pendiente"
+        assert data["ncf"] == "E310000000001"
+
+        # Verificar que se llamó al INSERT con los valores mapeados correctos
+        args = fake_pool.conn.execute.call_args_list
+        insert_ecf_call = None
+        for call in args:
+            sql_query = call[0][0]
+            if "INSERT INTO" in sql_query and "odoo_move_id" in sql_query:
+                insert_ecf_call = call
+                break
+        
+        assert insert_ecf_call is not None
+        query_params = insert_ecf_call[0][1:]
+        # odoo_move_id es el parámetro $12 y odoo_move_name es $13
+        # En el INSERT, los parámetros son:
+        # $1: ecf_id, $2: ncf, $3: tipo_ecf, $4: rnc_comprador, $5: nombre_comprador,
+        # $6: fecha_emision, $7: subtotal, $8: total_itbis, $9: total, $10: moneda,
+        # $11: tipo_cambio, $12: odoo_move_id, $13: odoo_move_name
+        # Así que index 11 (parámetro $12) debe ser "citrus-move-12345" y index 12 (parámetro $13) es "Citrus Invoice 12345"
+        assert query_params[11] == "citrus-move-12345"
+        assert query_params[12] == "Citrus Invoice 12345"
+
+    def test_actualizar_estado_erp(self, client, fake_pool):
+        _setup_tenant_auth(fake_pool)
+        fake_pool.conn.execute.return_value = "UPDATE 1"
+        resp = client.patch(
+            "/v1/compras/E310000000001/estado-erp?estado_erp=procesada&bill_id=citrus-bill-999",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["estado_erp"] == "procesada"
+        assert data["bill_id"] == "citrus-bill-999"
+
+        # Verificar fallback legacy
+        resp_legacy = client.patch(
+            "/v1/compras/E310000000001/estado-odoo?estado_odoo=procesada&odoo_bill_id=citrus-bill-999",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+        assert resp_legacy.status_code == 200
+        data_legacy = resp_legacy.json()
+        assert data_legacy["estado_odoo"] == "procesada"
+        assert data_legacy["odoo_bill_id"] == "citrus-bill-999"
+
+    def test_listar_compras_erp_mapping(self, client, fake_pool):
+        _setup_tenant_auth(fake_pool)
+        fake_pool.conn.fetch.return_value = [
+            make_record(
+                ncf="E310000000001",
+                rnc_proveedor="101000001",
+                nombre_proveedor="Proveedor A",
+                tipo_bienes=1,
+                fecha_comprobante="2025-01-15",
+                fecha_pago=None,
+                monto_servicios=0,
+                monto_bienes=1000,
+                total_monto=1180,
+                itbis_facturado=180,
+                itbis_retenido=0,
+                isr_retencion=0,
+                estado_odoo="procesada",
+                odoo_bill_id="citrus-bill-999",
+                codigo_seguridad="XYZ",
+                tipo_ecf=31,
+                ambiente="certificacion"
+            )
+        ]
+        resp = client.get(
+            "/v1/compras?anio=2025&mes=1&estado_erp=procesada",
+            headers={"X-API-Key": TEST_API_KEY},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["registros"]) == 1
+        reg = data["registros"][0]
+        assert reg["estado_erp"] == "procesada"
+        assert reg["bill_id"] == "citrus-bill-999"
+
+    def test_get_tenant_webhook_url_alias(self, client, fake_pool):
+        fake_pool.conn.fetchrow.return_value = make_record(
+            id=TENANT_ID,
+            rnc="130000001",
+            razon_social="Empresa Test SRL",
+            nombre_comercial="Nombre Comercial",
+            direccion="Dirección",
+            telefono="809",
+            email="admin@test.com",
+            plan="basico",
+            estado="activo",
+            schema_name=TENANT_SCHEMA,
+            ambiente="certificacion",
+            odoo_webhook_url="https://citrus-erp.com/webhook",
+            ecf_emitidos_mes=0,
+            max_ecf_mensual=1000,
+            cert_vencimiento=None,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        resp = client.get(
+            f"/v1/admin/tenants/{TENANT_ID}",
+            headers=self.ADMIN_HEADERS,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["webhook_url"] == "https://citrus-erp.com/webhook"
+        assert data["odoo_webhook_url"] == "https://citrus-erp.com/webhook"

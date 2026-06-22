@@ -323,6 +323,7 @@ class ECFQueueWorker:
 
         payload = json.dumps({
             "odoo_move_id": ecf_data.get("odoo_move_id"),
+            "external_id":  ecf_data.get("odoo_move_id"),
             "ncf":          ecf_data["ncf"],
             "codigo_seguridad": respuesta.codigo_seguridad,
             "estado":       estado_local,

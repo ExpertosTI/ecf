@@ -738,7 +738,7 @@
                     <div class="form-row">
                         <div class="form-group"><label>Nombre Comercial</label><input type="text" id="editNombreComercial"></div>
                         <div class="form-group">
-                            <label>Webhook URL (Odoo)</label>
+                            <label>Webhook URL (ERP / Odoo / Citrus)</label>
                             <div style="display:flex; gap:8px;">
                                 <input type="url" id="editWebhookUrl" style="flex:1;">
                                 <button type="button" class="btn btn-secondary btn-sm" onclick="testWebhook()">📡 Probar</button>
@@ -781,7 +781,7 @@
                 </div>
                 <div class="table-wrap">
                     <table>
-                        <thead><tr><th>NCF</th><th>Proveedor</th><th>Fecha</th><th>Monto</th><th>Estado Odoo</th></tr></thead>
+                        <thead><tr><th>NCF</th><th>Proveedor</th><th>Fecha</th><th>Monto</th><th>Estado Integración (ERP)</th></tr></thead>
                         <tbody id="compraRows"><tr><td colspan="5" style="text-align:center; padding:20px;">Cargando compras...</td></tr></tbody>
                     </table>
                 </div>
@@ -863,8 +863,8 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Webhook URL (Odoo)</label>
-                    <input type="url" id="newWebhookUrl" placeholder="https://mi-odoo.com/ecf/webhook">
+                    <label>Webhook URL (ERP / Odoo / Citrus)</label>
+                    <input type="url" id="newWebhookUrl" placeholder="https://mi-sistema.com/ecf/webhook">
                     <div class="hint">URL donde se enviarán callbacks con estado de cada e-CF</div>
                 </div>
             </div>
@@ -890,13 +890,13 @@
                 <div class="label">API Key</div>
                 <code id="credApiKey">—</code>
                 <button class="copy-btn" onclick="copyText('credApiKey')">📋 Copiar</button>
-                <span class="warn">Configura esto en Odoo: Ajustes → e-CF DGII → API Key</span>
+                <span class="warn">Configura esto en tu ERP (Odoo, Citrus, etc.): API Key</span>
             </div>
             <div class="secret-box">
                 <div class="label">Webhook Secret</div>
                 <code id="credWebhookSecret">—</code>
                 <button class="copy-btn" onclick="copyText('credWebhookSecret')">📋 Copiar</button>
-                <span class="warn">Configura esto en Odoo: Ajustes → e-CF DGII → Webhook Secret</span>
+                <span class="warn">Configura esto en tu ERP (Odoo, Citrus, etc.): Webhook Secret</span>
             </div>
             <div style="margin-top:16px; padding:12px; background:var(--bg-deep); border-radius:var(--radius-sm); font-size:0.8rem; color:var(--text-muted);">
                 <strong>Próximos pasos:</strong><br>
