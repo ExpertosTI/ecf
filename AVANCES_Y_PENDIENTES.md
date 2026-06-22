@@ -198,8 +198,8 @@
 1. **`pip install pre-commit && pre-commit install`** — activa los hooks en el repo local.
 2. **Ejecutar `db/010_rename_cufe.sql`** contra todas las instancias existentes para renombrar el column `cufe → codigo_seguridad` en los schemas de tenant.
 3. **Actualizar Odoo** con el módulo `ecf_connector` v18.0.5.0 (o v19 v19.0.3.0): `odoo -u ecf_connector` — la migración `pre-migrate.py` renombrará las columnas Odoo automáticamente.
-4. **Firmar Postulación**: Se ha firmado exitosamente la postulación con la contraseña `JustWork2027` del certificado `20260527-105000-BG2NLAXGZ.p12`, generando `202606225704499_firmado.xml`. Este archivo ya fue comiteado y pusheado al repositorio.
-5. **Subir al Portal de la DGII**: Subir el archivo `202606225704499_firmado.xml` en la pantalla "Envío de archivo de postulación firmado" de la DGII.
+4. **Firmar Postulación**: Se ha integrado la firma de postulación directamente en el Panel de Administración del SaaS. El administrador puede subir el XML original descargado de la DGII, y el SaaS lo firmará con el certificado `.p12` activo utilizando canonicalización inclusiva (como exige la DGII) y lo descargará con el mismo nombre de forma automatizada.
+5. **Subir al Portal de la DGII**: Subir el archivo firmado obtenido del SaaS en la pantalla de la DGII.
 6. **Smoke test post-migración**:
    ```bash
    # Verificar que los campos se renombraron en PostgreSQL
