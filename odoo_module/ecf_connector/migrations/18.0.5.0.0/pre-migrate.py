@@ -26,7 +26,8 @@ def migrate(cr, version):
 def _column_exists(cr, table, column):
     cr.execute(
         "SELECT 1 FROM information_schema.columns "
-        "WHERE table_name = %s AND column_name = %s",
+        "WHERE table_name = %s AND column_name = %s AND table_schema = current_schema()",
         (table, column),
     )
     return bool(cr.fetchone())
+
