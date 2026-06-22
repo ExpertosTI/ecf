@@ -77,7 +77,6 @@ services:
         condition: on-failure
       resources:
         limits:
-          cpus: "0.50"
           memory: 512M
       labels:
         - "traefik.enable=true"
@@ -110,7 +109,6 @@ services:
         condition: on-failure
       resources:
         limits:
-          cpus: "0.30"
           memory: 256M
 
   # Scheduler
