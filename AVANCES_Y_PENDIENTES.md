@@ -198,17 +198,20 @@
 1. **`pip install pre-commit && pre-commit install`** — activa los hooks en el repo local.
 2. **Ejecutar `db/010_rename_cufe.sql`** contra todas las instancias existentes para renombrar el column `cufe → codigo_seguridad` en los schemas de tenant.
 3. **Actualizar Odoo** con el módulo `ecf_connector` v18.0.5.0 (o v19 v19.0.3.0): `odoo -u ecf_connector` — la migración `pre-migrate.py` renombrará las columnas Odoo automáticamente.
-4. **Smoke test post-migración**:
+4. **Firmar Postulación**: Se ha firmado exitosamente la postulación con la contraseña `JustWork2027` del certificado `20260527-105000-BG2NLAXGZ.p12`, generando `202606225704499_firmado.xml`. Este archivo ya fue comiteado y pusheado al repositorio.
+5. **Subir al Portal de la DGII**: Subir el archivo `202606225704499_firmado.xml` en la pantalla "Envío de archivo de postulación firmado" de la DGII.
+6. **Smoke test post-migración**:
    ```bash
    # Verificar que los campos se renombraron en PostgreSQL
    psql -c "SELECT ncf, codigo_seguridad FROM <schema>.ecf LIMIT 3;"
    # Verificar que los campos existen en Odoo
    psql -c "SELECT ecf_codigo_seguridad FROM account_move LIMIT 1;"
    ```
-5. **Smoke test ARECF**: enviar un e-CF de prueba al endpoint `/fe/recepcion/api/ecf` y verificar en los logs que el ARECF Estado=0 se envía a la DGII.
-6. **Iniciar proceso de certificación DGII**: seguir el flujo documentado en `README.md` → sección "Flujo de certificación DGII — paso a paso".
-7. **Plan de contingencia**: revisar `docs/contingencia.md` con el responsable técnico del contribuyente antes de la fase 1 DGII.
+7. **Smoke test ARECF**: enviar un e-CF de prueba al endpoint `/fe/recepcion/api/ecf` y verificar en los logs que el ARECF Estado=0 se envía a la DGII.
+8. **Iniciar proceso de certificación DGII**: seguir el flujo documentado en `README.md` → sección "Flujo de certificación DGII — paso a paso".
+9. **Plan de contingencia**: revisar `docs/contingencia.md` con el responsable técnico del contribuyente antes de la fase 1 DGII.
 
 ---
 
-*Documento actualizado al 2026-04-30 — sesión 3 de remediación. Todos los hallazgos resueltos.*
+*Documento actualizado al 2026-06-22 — postulación firmada y lista.*
+
