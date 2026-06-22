@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- ══════════════════════════════════════════════════════════════
+         Acción del Reporte Consolidado e-CF (Odoo 19)
+         Disponible desde: Facturas → Imprimir → Reporte Consolidado e-CF
+         ══════════════════════════════════════════════════════════════ -->
     <record id="action_report_ecf_summary" model="ir.actions.report">
         <field name="name">Reporte Consolidado e-CF</field>
         <field name="model">account.move</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">ecf_connector_v19.report_ecf_summary_template</field>
         <field name="report_file">ecf_connector_v19.report_ecf_summary_template</field>
-        <field name="print_report_name">'Reporte_eCF'</field>
+        <field name="print_report_name">'Reporte_eCF_%s' % object.company_id.name</field>
+        <field name="binding_model_id" ref="account.model_account_move"/>
+        <field name="binding_type">report</field>
     </record>
 
     <template id="report_ecf_summary_template">
@@ -14,68 +20,124 @@
             <t t-set="total_untaxed" t-value="0.0"/>
             <t t-set="total_tax" t-value="0.0"/>
             <t t-set="total_all" t-value="0.0"/>
-            
+
             <t t-call="web.external_layout">
-                <div class="page" style="font-family: 'Helvetica';">
+                <div class="page" style="font-family: 'Helvetica'; font-size: 9pt;">
+
+                    <!-- Encabezado del reporte -->
                     <div class="row mb-4 align-items-center">
                         <div class="col-4">
-                            <img t-if="res_company.logo" t-att-src="image_data_uri(res_company.logo)" style="max-height: 80px;" alt="Logo"/>
+                            <img t-if="res_company.logo"
+                                 t-att-src="image_data_uri(res_company.logo)"
+                                 style="max-height: 70px;"
+                                 alt="Logo"/>
                         </div>
                         <div class="col-8 text-end">
-                            <h2 style="color: #0087ff; font-weight: bold; margin: 0;">Reporte Consolidado e-CF</h2>
-                            <p class="text-muted mb-0">Resumen Fiscal DGII - Auditoría Premium</p>
+                            <h2 style="color: #0087ff; font-weight: bold; margin: 0; font-size: 14pt;">
+                                Reporte Consolidado e-CF
+                            </h2>
+                            <p class="text-muted mb-0" style="font-size: 8pt;">
+                                Resumen Fiscal DGII · RNC: <t t-esc="res_company.vat or 'N/D'"/>
+                            </p>
+                            <p class="text-muted mb-0" style="font-size: 8pt;">
+                                Generado: <t t-esc="datetime.datetime.now().strftime('%d/%m/%Y %H:%M')"/>
+                            </p>
                         </div>
                     </div>
 
-                    <table class="table table-sm mt-4">
+                    <div style="border-top: 2px solid #0087ff; margin-bottom: 16px;"/>
+
+                    <!-- Tabla principal de comprobantes -->
+                    <table class="table table-sm mt-2" style="font-size: 8pt; width: 100%; border-collapse: collapse;">
                         <thead style="background-color: #0f172a; color: white;">
                             <tr>
-                                <th class="p-2">NCF / Documento</th>
-                                <th class="p-2">Fecha</th>
-                                <th class="p-2">Cliente / Proveedor</th>
-                                <th class="p-2 text-end">Base Imponible</th>
-                                <th class="p-2 text-end">ITBIS</th>
-                                <th class="p-2 text-end">Total</th>
+                                <th class="p-2" style="width: 14%;">NCF / e-NCF</th>
+                                <th class="p-2" style="width: 10%;">Fecha</th>
+                                <th class="p-2" style="width: 22%;">Cliente / Proveedor</th>
+                                <th class="p-2 text-end" style="width: 12%;">Base Imponible</th>
+                                <th class="p-2 text-end" style="width: 10%;">ITBIS</th>
+                                <th class="p-2 text-end" style="width: 12%;">Total</th>
+                                <th class="p-2 text-center" style="width: 10%;">Estado e-CF</th>
+                                <th class="p-2 text-center" style="width: 10%;">Tipo</th>
                             </tr>
                         </thead>
                         <tbody>
                             <t t-foreach="docs" t-as="o">
                                 <t t-set="total_untaxed" t-value="total_untaxed + (o.amount_untaxed or 0.0)"/>
-                                <t t-set="total_tax" t-value="total_tax + (o.amount_tax or 0.0)"/>
-                                <t t-set="total_all" t-value="total_all + (o.amount_total or 0.0)"/>
-                                <tr>
-                                    <td class="p-2 fw-bold"><span t-esc="o.l10n_latam_document_number or o.name"/></td>
-                                    <td class="p-2"><span t-field="o.invoice_date"/></td>
-                                    <td class="p-2"><span t-field="o.partner_id.name"/></td>
-                                    <td class="p-2 text-end"><span t-esc="'{:,.2f}'.format(o.amount_untaxed)"/></td>
-                                    <td class="p-2 text-end"><span t-esc="'{:,.2f}'.format(o.amount_tax)"/></td>
-                                    <td class="p-2 text-end fw-bold">RD$ <span t-esc="'{:,.2f}'.format(o.amount_total)"/></td>
+                                <t t-set="total_tax"     t-value="total_tax     + (o.amount_tax     or 0.0)"/>
+                                <t t-set="total_all"     t-value="total_all     + (o.amount_total   or 0.0)"/>
+                                <tr style="border-bottom: 1px solid #e5e7eb;">
+                                    <td class="p-2 fw-bold" style="font-family: monospace; color: #0087ff;">
+                                        <t t-esc="o.ecf_ncf or o.name or '—'"/>
+                                    </td>
+                                    <td class="p-2">
+                                        <t t-esc="o.invoice_date and o.invoice_date.strftime('%d/%m/%Y') or '—'"/>
+                                    </td>
+                                    <td class="p-2">
+                                        <t t-esc="o.partner_id.name or '—'"/>
+                                        <t t-if="o.partner_id.vat">
+                                            <br/><span style="color: #6b7280; font-size: 7pt;">RNC: <t t-esc="o.partner_id.vat"/></span>
+                                        </t>
+                                    </td>
+                                    <td class="p-2 text-end">
+                                        RD$ <t t-esc="'{:,.2f}'.format(o.amount_untaxed or 0.0)"/>
+                                    </td>
+                                    <td class="p-2 text-end">
+                                        RD$ <t t-esc="'{:,.2f}'.format(o.amount_tax or 0.0)"/>
+                                    </td>
+                                    <td class="p-2 text-end fw-bold">
+                                        RD$ <t t-esc="'{:,.2f}'.format(o.amount_total or 0.0)"/>
+                                    </td>
+                                    <td class="p-2 text-center">
+                                        <t t-if="o.ecf_estado">
+                                            <span t-attf-style="
+                                                font-size: 7pt; padding: 2px 6px; border-radius: 4px; font-weight: 600;
+                                                #{o.ecf_estado == 'aprobado' and 'background:#d1fae5;color:#065f46;' or
+                                                  o.ecf_estado == 'rechazado' and 'background:#fee2e2;color:#991b1b;' or
+                                                  o.ecf_estado == 'condicionado' and 'background:#fef3c7;color:#92400e;' or
+                                                  'background:#f3f4f6;color:#374151;'}">
+                                                <t t-esc="(o.ecf_estado or '').upper()"/>
+                                            </span>
+                                        </t>
+                                        <t t-else="">
+                                            <span style="font-size: 7pt; color: #9ca3af;">Sin e-CF</span>
+                                        </t>
+                                    </td>
+                                    <td class="p-2 text-center" style="font-size: 7pt; color: #6b7280;">
+                                        <t t-if="o.ecf_tipo_id">
+                                            <t t-esc="o.ecf_tipo_id.prefijo"/>
+                                        </t>
+                                        <t t-else="">—</t>
+                                    </td>
                                 </tr>
                             </t>
                         </tbody>
                     </table>
 
+                    <!-- Totales finales -->
                     <div class="row justify-content-end mt-4">
                         <div class="col-5">
-                            <table class="table table-sm border">
+                            <table class="table table-sm border" style="font-size: 9pt;">
                                 <tr>
                                     <td class="p-2"><strong>Total Base Imponible:</strong></td>
                                     <td class="p-2 text-end">RD$ <t t-esc="'{:,.2f}'.format(total_untaxed)"/></td>
                                 </tr>
                                 <tr>
                                     <td class="p-2"><strong>Total ITBIS:</strong></td>
-                                    <td class="p-2 text-end text-success">RD$ <t t-esc="'{:,.2f}'.format(total_tax)"/></td>
+                                    <td class="p-2 text-end" style="color: #065f46;">RD$ <t t-esc="'{:,.2f}'.format(total_tax)"/></td>
                                 </tr>
                                 <tr style="background-color: #0f172a; color: white;">
                                     <td class="p-2"><strong>TOTAL GENERAL:</strong></td>
-                                    <td class="p-2 text-end fw-bold" style="font-size: 1.2rem;">RD$ <t t-esc="'{:,.2f}'.format(total_all)"/></td>
+                                    <td class="p-2 text-end fw-bold" style="font-size: 1.1rem;">RD$ <t t-esc="'{:,.2f}'.format(total_all)"/></td>
                                 </tr>
                             </table>
                         </div>
                     </div>
 
-                    <div class="footer text-center small text-muted mt-5" style="border-top: 1px solid #dee2e6; padding-top: 10px;">
-                        Reporte Generado Automáticamente por Renace e-CF Connector
+                    <!-- Pie del reporte -->
+                    <div class="text-center small text-muted mt-4" style="border-top: 1px solid #dee2e6; padding-top: 10px; font-size: 7pt;">
+                        Reporte generado automáticamente por <strong>RENECF</strong> · Renace.tech
+                        — Software de Facturación Electrónica registrado en ONAPI (República Dominicana)
                     </div>
                 </div>
             </t>

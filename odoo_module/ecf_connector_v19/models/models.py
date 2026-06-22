@@ -373,45 +373,65 @@ class ECFLog(models.Model):
 
     @api.model
     def get_fiscal_summary(self, period='month'):
-        """
-        Retorna un resumen amigable para reportes 606/607
+        """Resumen fiscal 606/607 usando read_group — apto para grandes volúmenes.
+
+        Evita cargar todos los registros en memoria con search()+sum().
+        Retorna totales de ventas (607) y compras (606) para el período indicado.
         """
         company_id = self.env.company.id
         today = date.today()
-        
+
         if period == 'month':
             start_date = today.replace(day=1)
         else:
             start_date = today.replace(month=1, day=1)
 
-        # 607 - Ventas (Out Invoices con e-CF)
-        ventas = self.env['account.move'].search([
+        # 607 — Ventas: facturas publicadas
+        ventas_groups = self.env['account.move'].read_group(
+            domain=[
+                ('company_id', '=', company_id),
+                ('move_type', '=', 'out_invoice'),
+                ('invoice_date', '>=', start_date),
+                ('state', '=', 'posted'),
+            ],
+            fields=['amount_untaxed', 'amount_tax', 'amount_total'],
+            groupby=[],
+        )
+        v = ventas_groups[0] if ventas_groups else {}
+        ventas_count_domain = [
             ('company_id', '=', company_id),
             ('move_type', '=', 'out_invoice'),
             ('invoice_date', '>=', start_date),
-            ('state', '=', 'posted')
-        ])
-        
-        # 606 - Compras (In Invoices)
-        compras = self.env['account.move'].search([
-            ('company_id', '=', company_id),
-            ('move_type', '=', 'in_invoice'),
-            ('invoice_date', '>=', start_date),
-            ('state', '=', 'posted')
-        ])
+            ('state', '=', 'posted'),
+        ]
+
+        # 606 — Compras: facturas de proveedor publicadas
+        compras_groups = self.env['account.move'].read_group(
+            domain=[
+                ('company_id', '=', company_id),
+                ('move_type', '=', 'in_invoice'),
+                ('invoice_date', '>=', start_date),
+                ('state', '=', 'posted'),
+            ],
+            fields=['amount_untaxed', 'amount_tax', 'amount_total'],
+            groupby=[],
+        )
+        c = compras_groups[0] if compras_groups else {}
 
         return {
             'ventas': {
-                'total': sum(ventas.mapped('amount_total')),
-                'itbis': sum(ventas.mapped('amount_tax')),
-                'count': len(ventas),
+                'total':  float(v.get('amount_total') or 0.0),
+                'base':   float(v.get('amount_untaxed') or 0.0),
+                'itbis':  float(v.get('amount_tax') or 0.0),
+                'count':  self.env['account.move'].search_count(ventas_count_domain),
             },
             'compras': {
-                'total': sum(compras.mapped('amount_total')),
-                'itbis': sum(compras.mapped('amount_tax')),
-                'count': len(compras),
+                'total': float(c.get('amount_total') or 0.0),
+                'base':  float(c.get('amount_untaxed') or 0.0),
+                'itbis': float(c.get('amount_tax') or 0.0),
+                'count': int(c.get('account_move_count') or 0),
             },
-            'periodo': start_date.strftime('%B %Y')
+            'periodo': start_date.strftime('%B %Y'),
         }
 
     @api.model
