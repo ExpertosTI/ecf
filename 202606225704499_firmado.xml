@@ -1,0 +1,78 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Postulacion xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <PostulacionID>58327</PostulacionID>
+  <TipoRegistro>1</TipoRegistro>
+  <GrupoComprobante>31,32,33,34,41,43,44,45,46,47</GrupoComprobante>
+  <Contribuyente>
+    <RNCContribuyente>132842316</RNCContribuyente>
+    <RazonSocial>RENACE EXPERTOS TECNOLOGIA E IDEAS SRL</RazonSocial>
+    <NombreComercial>RENACE EXPERTOS TECNOLOGIA E IDEAS</NombreComercial>
+    <ActividadEconomica>515922</ActividadEconomica>
+    <Telefono>8093487921</Telefono>
+    <Direccion>DUARTE, No. 04, APTO. EDIF 4, LOS ALCARRIZOS</Direccion>
+    <Provincia>SANTO DOMINGO</Provincia>
+    <Municipio>SANTO DOMINGO OESTE</Municipio>
+    <Sector>LOS ALCARRIZOS</Sector>
+    <CorreoElectronico>adderlymarte@hotmail.com</CorreoElectronico>
+  </Contribuyente>
+  <Representante>
+    <RNCRepresentante>22400563809</RNCRepresentante>
+    <NombreRepresentante>ADDERLY MARTE</NombreRepresentante>
+    <TelefonoRepresentante>8093487921</TelefonoRepresentante>
+    <CelularRepresentante>8494577463</CelularRepresentante>
+    <DireccionRepresentante>DUARTE, No. 144, SAVICA</DireccionRepresentante>
+    <ProvinciaRepresentante>SANTO DOMINGO</ProvinciaRepresentante>
+    <MunicipioRepresentante>SANTO DOMINGO OESTE</MunicipioRepresentante>
+    <SectorRepresentante>SAVICA</SectorRepresentante>
+    <CorreoElectronicoRepresentante>adderlymarte@hotmail.com</CorreoElectronicoRepresentante>
+  </Representante>
+  <Software>
+    <TipoDesarrollo>1</TipoDesarrollo>
+    <NombreSoftware>RENECF</NombreSoftware>
+    <UrlRecepcion>ecf.renace.tech</UrlRecepcion>
+    <UrlAprobacionComercial>ecf.renace.tech</UrlAprobacionComercial>
+    <UrlAutenticacion>ecf.renace.tech</UrlAutenticacion>
+    <VersionSoftware>2.5.0</VersionSoftware>
+  </Software>
+  <FechaSolicitud>2026-06-22T13:57:04.4991179-04:00</FechaSolicitud>
+  <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Signature-7d8acf8d-8839-4ae0-98e4-656b6d615795">
+    <ds:SignedInfo>
+      <ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+      <ds:Reference URI="">
+        <ds:Transforms>
+          <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+        </ds:Transforms>
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>WV8h4tImTCdWxGuZWhQAmUkKFX221vg6CwBCIN2Yrtw=</ds:DigestValue>
+      </ds:Reference>
+    </ds:SignedInfo>
+    <ds:Object>
+      <xades:QualifyingProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Target="#Signature-7d8acf8d-8839-4ae0-98e4-656b6d615795">
+        <xades:SignedProperties Id="SignedProperties-17be5216-7994-48bb-8eee-0aa7f436d756">
+          <xades:SignedSignatureProperties>
+            <xades:SigningTime>2026-06-22T18:13:18Z</xades:SigningTime>
+            <xades:SigningCertificate>
+              <xades:Cert>
+                <xades:CertDigest>
+                  <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+                  <ds:DigestValue>SOZVH//JVAdAYGcEs1/+AQfvz+pcK1u3P4PBwu7zE44=</ds:DigestValue>
+                </xades:CertDigest>
+                <xades:IssuerSerial>
+                  <ds:X509IssuerName>CN=VIAFIRMA QUALIFIED CERTIFICATES,2.5.4.5=VATDO-130222509,OU=VIAFIRMA DOMINICANA,O=VIAFIRMA,C=DO</ds:X509IssuerName>
+                  <ds:X509SerialNumber>122806770631919044019851711438604131383109829100</ds:X509SerialNumber>
+                </xades:IssuerSerial>
+              </xades:Cert>
+            </xades:SigningCertificate>
+          </xades:SignedSignatureProperties>
+        </xades:SignedProperties>
+      </xades:QualifyingProperties>
+    </ds:Object>
+    <ds:SignatureValue>tP7SisjvhqnkSs8q/ZgO9/Ykq6GPeCE9/63wVIjOalr2nS34RT199mufr/vq2zWgU+mvn/PgcStJ/g1ZgayQ3pl+qGNWuSgF9tjyFdo4H3xVhioSmD+nFbkrJVi1QBpd3qHWHPrZaZsu+2Zhmd2nDLqYOiUHP7CSLofCUd76LIcLRrB6HGLAgl44pi5AAF90UTMFyJqnXPf1S8DmBQT0s31vHo4SFT+I3J5yzqXl7Y+2lGrgKdgspXHzDXRMZ/nYD0c4Ni+MxO0yvhu2oJHfzGI2E7rijVXzeaMRLOFULw0ZF4S7YP0wo3bq+bzkhT77K9zsERBpod866m09ouJgfw==</ds:SignatureValue>
+    <ds:KeyInfo>
+      <ds:X509Data>
+        <ds:X509Certificate>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</ds:X509Certificate>
+      </ds:X509Data>
+    </ds:KeyInfo>
+  </ds:Signature>
+</Postulacion>
