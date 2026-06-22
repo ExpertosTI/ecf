@@ -527,3 +527,17 @@ class TestErpAgnostic:
         data = resp.json()
         assert data["webhook_url"] == "https://citrus-erp.com/webhook"
         assert data["odoo_webhook_url"] == "https://citrus-erp.com/webhook"
+
+
+# ── Tests: Static Assets ──────────────────────────────
+
+class TestStaticAssets:
+    def test_logo_retrieval(self, client):
+        resp = client.get("/renacelogo.svg")
+        assert resp.status_code == 200
+        assert "image/svg+xml" in resp.headers["content-type"]
+
+    def test_apple_touch_icon_retrieval(self, client):
+        resp = client.get("/apple-touch-icon.png")
+        assert resp.status_code == 200
+        assert "image/png" in resp.headers["content-type"]

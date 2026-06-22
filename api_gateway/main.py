@@ -121,6 +121,20 @@ async def landing():
         return FileResponse(str(_landing_file), media_type="text/html")
     return JSONResponse({"service": "Renace e-CF", "status": "running"})
 
+@app.get("/renacelogo.svg", include_in_schema=False)
+async def logo():
+    logo_file = pathlib.Path(__file__).resolve().parent.parent / "landing" / "renacelogo.svg"
+    if logo_file.is_file():
+        return FileResponse(str(logo_file), media_type="image/svg+xml")
+    return Response(status_code=404)
+
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+async def apple_touch_icon():
+    icon_file = pathlib.Path(__file__).resolve().parent.parent / "landing" / "apple-touch-icon.png"
+    if icon_file.is_file():
+        return FileResponse(str(icon_file), media_type="image/png")
+    return Response(status_code=404)
+
 # ── Portal Admin (static SPA) ──
 _portal_dir = pathlib.Path(__file__).resolve().parent.parent / "portal_admin"
 if _portal_dir.is_dir():
