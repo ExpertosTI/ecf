@@ -4,45 +4,53 @@
         <div class="ecf-dashboard-container p-4 h-100 overflow-auto ecf-dashboard-bg" style="font-family: 'Inter', sans-serif;">
             <div class="ecf-dashboard-content">
             <!-- Header Premium Rediseñado -->
-            <div class="d-flex justify-content-between align-items-center mb-5 pb-3 border-bottom">
-                <div>
-                    <h1 class="fw-bold mb-1" style="color: #0f172a; font-size: 2.2rem; letter-spacing: -0.02em;">
-                        Panel de Control e-CF
-                        <span t-if="state.saas_status === 'online'" class="ms-3 badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fw-semibold align-middle" style="font-size: 0.85rem;">
-                            <i class="oi oi-check-circle me-1"></i> SaaS Conectado
-                        </span>
-                        <span t-if="state.saas_status === 'warning'" class="ms-3 badge bg-warning-subtle text-warning border border-warning-subtle px-3 py-2 fw-semibold align-middle" style="font-size: 0.85rem;">
-                            <i class="oi oi-warning me-1"></i> Configuración Pendiente
-                        </span>
-                        <span t-if="state.saas_status === 'offline'" class="ms-3 badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 fw-semibold align-middle" style="font-size: 0.85rem;">
-                            <i class="oi oi-circle-x me-1"></i> SaaS Desconectado
-                        </span>
-                    </h1>
-                    <p class="text-secondary mb-0" style="font-size: 1.05rem; font-weight: 500;">Administración centralizada y monitoreo fiscal en tiempo real</p>
+            <div class="d-flex flex-column mb-5 pb-3 border-bottom">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h1 class="fw-bold mb-1" style="color: #0f172a; font-size: 2.2rem; letter-spacing: -0.02em; font-family: 'Outfit', 'Inter', sans-serif;">
+                            Panel de Control e-CF
+                            <span t-if="state.saas_status === 'online'" class="ms-3 badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fw-semibold align-middle" style="font-size: 0.85rem;">
+                                <i class="oi oi-check-circle me-1"></i> SaaS Conectado
+                            </span>
+                            <span t-if="state.saas_status === 'warning'" class="ms-3 badge bg-warning-subtle text-warning border border-warning-subtle px-3 py-2 fw-semibold align-middle" style="font-size: 0.85rem;">
+                                <i class="oi oi-warning me-1"></i> Configuración Pendiente
+                            </span>
+                            <span t-if="state.saas_status === 'offline'" class="ms-3 badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 fw-semibold align-middle" style="font-size: 0.85rem;">
+                                <i class="oi oi-circle-x me-1"></i> SaaS Desconectado
+                            </span>
+                        </h1>
+                        <p class="text-secondary mb-0" style="font-size: 1.05rem; font-weight: 500;">Administración centralizada y monitoreo fiscal en tiempo real</p>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-3">
+                        <!-- Buscador de Rango de Fechas Elegante -->
+                        <div class="d-flex align-items-center bg-white border border-secondary-subtle rounded-3 px-3 py-2 shadow-sm">
+                            <i class="oi oi-calendar me-3 text-secondary" style="font-size: 1.1rem;"></i>
+                            <div class="d-flex flex-column">
+                                <span class="text-uppercase text-muted fw-bold" style="font-size: 0.65rem; letter-spacing: 0.05em;">Desde</span>
+                                <input type="date" class="border-0 p-0 fw-semibold text-dark" t-model="state.date_from" t-on-change="loadData" style="outline: none; font-size: 0.9rem; width: 130px; background: transparent;"/>
+                            </div>
+                            <div class="vr mx-3 text-secondary-subtle" style="height: 25px;"></div>
+                            <div class="d-flex flex-column">
+                                <span class="text-uppercase text-muted fw-bold" style="font-size: 0.65rem; letter-spacing: 0.05em;">Hasta</span>
+                                <input type="date" class="border-0 p-0 fw-semibold text-dark" t-model="state.date_to" t-on-change="loadData" style="outline: none; font-size: 0.9rem; width: 130px; background: transparent;"/>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-dark rounded-3 px-4 py-2 fw-bold d-flex align-items-center gap-2" t-on-click="openHistory">
+                                <i class="oi oi-view-list"></i> Historial e-CF
+                            </button>
+                            <button class="btn btn-outline-secondary rounded-3 px-3 py-2 d-flex align-items-center justify-content-center" t-on-click="loadData">
+                                <i class="oi oi-reload"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
- 
-                <div class="d-flex align-items-center gap-3">
-                    <!-- Buscador de Rango de Fechas Elegante -->
-                    <div class="d-flex align-items-center bg-white border border-secondary-subtle rounded-3 px-3 py-2 shadow-sm">
-                        <i class="oi oi-calendar me-3 text-secondary" style="font-size: 1.1rem;"></i>
-                        <div class="d-flex flex-column">
-                            <span class="text-uppercase text-muted fw-bold" style="font-size: 0.65rem; letter-spacing: 0.05em;">Desde</span>
-                            <input type="date" class="border-0 p-0 fw-semibold text-dark" t-model="state.date_from" t-on-change="loadData" style="outline: none; font-size: 0.9rem; width: 130px; background: transparent;"/>
-                        </div>
-                        <div class="vr mx-3 text-secondary-subtle" style="height: 25px;"></div>
-                        <div class="d-flex flex-column">
-                            <span class="text-uppercase text-muted fw-bold" style="font-size: 0.65rem; letter-spacing: 0.05em;">Hasta</span>
-                            <input type="date" class="border-0 p-0 fw-semibold text-dark" t-model="state.date_to" t-on-change="loadData" style="outline: none; font-size: 0.9rem; width: 130px; background: transparent;"/>
-                        </div>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-dark rounded-3 px-4 py-2 fw-bold d-flex align-items-center gap-2" t-on-click="openHistory">
-                            <i class="oi oi-view-list"></i> Historial e-CF
-                        </button>
-                        <button class="btn btn-outline-secondary rounded-3 px-3 py-2 d-flex align-items-center justify-content-center" t-on-click="loadData">
-                            <i class="oi oi-reload"></i>
-                        </button>
-                    </div>
+                <!-- Botones de Filtro Rápido -->
+                <div class="d-flex gap-2 mt-2">
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 fw-bold text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.05em;" t-on-click="() => this.setQuickDate('today')">Hoy</button>
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 fw-bold text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.05em;" t-on-click="() => this.setQuickDate('week')">Esta Semana</button>
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 fw-bold text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.05em;" t-on-click="() => this.setQuickDate('month')">Este Mes</button>
                 </div>
             </div>
 

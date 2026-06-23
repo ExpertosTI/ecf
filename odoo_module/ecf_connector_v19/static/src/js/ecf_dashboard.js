@@ -42,6 +42,28 @@ export class EcfDashboard extends Component {
         });
     }
 
+    setQuickDate(filter) {
+        const today = new Date();
+        let fromDate = new Date();
+        
+        if (filter === 'today') {
+            fromDate = today;
+        } else if (filter === 'week') {
+            const day = today.getDay();
+            const diff = today.getDate() - day + (day === 0 ? -6 : 1); // lunes
+            fromDate = new Date(today.setDate(diff));
+        } else if (filter === 'month') {
+            fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        }
+        
+        const pad = (n) => String(n).padStart(2, '0');
+        const formatDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        
+        this.state.date_from = formatDate(fromDate);
+        this.state.date_to = formatDate(new Date());
+        this.loadData();
+    }
+
     async loadData() {
         this.state.loading = true;
         try {
