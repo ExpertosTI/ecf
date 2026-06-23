@@ -47,6 +47,43 @@
         <field name="prefijo">E34</field>
     </record>
 
+    <record id="ecf_tipo_41" model="ecf.tipo">
+        <field name="codigo">41</field>
+        <field name="nombre">Factura de Compras Electrónica</field>
+        <field name="prefijo">E41</field>
+    </record>
+
+    <record id="ecf_tipo_43" model="ecf.tipo">
+        <field name="codigo">43</field>
+        <field name="nombre">Gastos Menores Electrónico</field>
+        <field name="prefijo">E43</field>
+        <field name="consumidor_final">True</field>
+    </record>
+
+    <record id="ecf_tipo_44" model="ecf.tipo">
+        <field name="codigo">44</field>
+        <field name="nombre">Regímenes Especiales Electrónico</field>
+        <field name="prefijo">E44</field>
+    </record>
+
+    <record id="ecf_tipo_45" model="ecf.tipo">
+        <field name="codigo">45</field>
+        <field name="nombre">Gubernamental Electrónico</field>
+        <field name="prefijo">E45</field>
+    </record>
+
+    <record id="ecf_tipo_46" model="ecf.tipo">
+        <field name="codigo">46</field>
+        <field name="nombre">Comprobante para Exportaciones Electrónico</field>
+        <field name="prefijo">E46</field>
+    </record>
+
+    <record id="ecf_tipo_47" model="ecf.tipo">
+        <field name="codigo">47</field>
+        <field name="nombre">Comprobante para Pagos al Exterior Electrónico</field>
+        <field name="prefijo">E47</field>
+    </record>
+
     <!-- 4. ACLs (Odoo 19 XML pattern) -->
     <record id="access_ecf_tipo_manager_xml" model="ir.model.access">
         <field name="name">ecf.tipo.manager.xml</field>
