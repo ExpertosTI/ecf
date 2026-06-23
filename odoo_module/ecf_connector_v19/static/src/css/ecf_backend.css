@@ -48,11 +48,43 @@
 
 /* ── Dashboard Premium Glassmorphism con Mesh Gradient ── */
 .ecf-dashboard-bg {
-    background: radial-gradient(at 0% 0%, rgba(219, 234, 254, 0.4) 0px, transparent 50%),
-                radial-gradient(at 50% 0%, rgba(243, 232, 255, 0.4) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(220, 252, 231, 0.4) 0px, transparent 50%),
+    background: radial-gradient(at 0% 0%, rgba(219, 234, 254, 0.45) 0px, transparent 50%),
+                radial-gradient(at 50% 0%, rgba(243, 232, 255, 0.45) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(220, 252, 231, 0.45) 0px, transparent 50%),
                 #f8fafc;
     position: relative;
+}
+
+/* Estilos de Contraste Superior para Textos y Subtítulos */
+.ecf-dashboard-content h1 {
+    color: #0f172a !important; /* Slate Oscuro */
+}
+
+.ecf-dashboard-content .text-secondary {
+    color: #475569 !important; /* Gris Oscuro/Slate-600 para perfecto contraste */
+    font-weight: 600 !important;
+}
+
+/* Rediseño de Badges de Estado */
+.badge.bg-danger-subtle {
+    background-color: #fef2f2 !important;
+    color: #991b1b !important;
+    border: 1px solid #fee2e2 !important;
+    font-weight: 700 !important;
+}
+
+.badge.bg-success-subtle {
+    background-color: #f0fdf4 !important;
+    color: #166534 !important;
+    border: 1px solid #d1fae5 !important;
+    font-weight: 700 !important;
+}
+
+.badge.bg-warning-subtle {
+    background-color: #fffbeb !important;
+    color: #92400e !important;
+    border: 1px solid #fef3c7 !important;
+    font-weight: 700 !important;
 }
 
 .ecf-dashboard-content {
@@ -62,10 +94,10 @@
 
 /* Tarjeta de Vidrio Estándar */
 .ecf-glass-card {
-    background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
     box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05),
                 0 1px 3px rgba(15, 23, 42, 0.02);
     border-radius: 20px !important;
@@ -75,7 +107,7 @@
 .ecf-glass-card:hover {
     transform: translateY(-4px) scale(1.01);
     box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.12);
-    background: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.95);
 }
 
 /* Variaciones de Tarjetas KPI con Degradado de Acento Inferior */
