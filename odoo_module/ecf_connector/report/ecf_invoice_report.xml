@@ -16,9 +16,6 @@
                     NCF: <strong><t t-esc="o.ecf_ncf"/></strong> |
                     Cód. Seguridad: <span style="font-family: monospace; font-size: 8pt;"><t t-esc="o.ecf_codigo_seguridad or ''"/></span>
                 </p>
-                <p style="font-size: 7pt; color: #94a3b8;">
-                    Tecnología de Facturación Electrónica por <strong>RENECF · Renace.tech</strong> — Software registrado en ONAPI
-                </p>
             </div>
         </xpath>
 

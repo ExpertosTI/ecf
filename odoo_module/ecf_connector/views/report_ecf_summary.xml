@@ -137,8 +137,7 @@
 
                     <!-- Pie del reporte -->
                     <div class="text-center small text-muted mt-4" style="border-top: 1px solid #dee2e6; padding-top: 10px; font-size: 7pt;">
-                        Reporte generado automáticamente por <strong>RENECF</strong> · Renace.tech
-                        — Software de Facturación Electrónica registrado en ONAPI (República Dominicana)
+                        Reporte Consolidado de Facturación Electrónica (e-CF)
                     </div>
                 </div>
             </t>
