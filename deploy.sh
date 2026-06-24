@@ -190,10 +190,11 @@ check_port_free "$TRAEFIK_HTTPS_PORT" "Traefik HTTPS"
 log "Construyendo imagenes Docker..."
 $DC "${COMPOSE_ARGS[@]}" build --no-cache api
 
-# Detener servicios actuales con gracia
+# Detener servicios actuales sin eliminar red compartida
 if $DC "${COMPOSE_ARGS[@]}" ps --quiet 2>/dev/null | head -1 | grep -q .; then
-    log "Deteniendo servicios actuales..."
-    $DC "${COMPOSE_ARGS[@]}" down --timeout 30
+    log "Deteniendo servicios actuales (sin borrar red ecf_network)..."
+    $DC "${COMPOSE_ARGS[@]}" stop api worker scheduler traefik postgres redis || true
+    $DC "${COMPOSE_ARGS[@]}" rm -f api worker scheduler traefik postgres redis || true
 fi
 
 # Levantar infraestructura primero (PostgreSQL, Redis, Traefik)

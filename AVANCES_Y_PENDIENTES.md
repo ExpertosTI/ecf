@@ -173,6 +173,13 @@
 - `.env.example`: se agregan ambas variables para evitar hardcode operacional.
 - `deploy.sh`: pre-check de puertos antes de `up -d ... traefik` para fallar rápido con mensaje claro cuando hay colisión.
 
+### 27. Hotfix deploy: red compartida `ecf_network` con `pruecf` ✅
+**Archivo:** `deploy.sh`
+
+- Se elimina `down --timeout 30` en ciclo de redeploy para evitar error al remover red compartida.
+- Nuevo flujo seguro: `stop` + `rm -f` solo de servicios del proyecto (`api`, `worker`, `scheduler`, `traefik`, `postgres`, `redis`).
+- Resultado: el despliegue no intenta borrar `ecf_network` cuando existen endpoints activos de `pruecf_*`.
+
 ---
 
 ## 🟡 Pendientes opcionales (bajo riesgo)
