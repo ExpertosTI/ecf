@@ -171,6 +171,21 @@ set -a
 source "$ENV_FILE"
 set +a
 
+# Verificar puertos de Traefik antes de levantar infraestructura
+TRAEFIK_HTTP_PORT="${TRAEFIK_HTTP_PORT:-8080}"
+TRAEFIK_HTTPS_PORT="${TRAEFIK_HTTPS_PORT:-8443}"
+
+check_port_free() {
+    local port="$1"
+    local label="$2"
+    if command -v ss &>/dev/null && ss -tulpn | grep -q ":${port} "; then
+        error "Puerto ${port} (${label}) ya está en uso. Configure TRAEFIK_HTTP_PORT/TRAEFIK_HTTPS_PORT en .env y reintente."
+    fi
+}
+
+check_port_free "$TRAEFIK_HTTP_PORT" "Traefik HTTP"
+check_port_free "$TRAEFIK_HTTPS_PORT" "Traefik HTTPS"
+
 # Build de imagenes
 log "Construyendo imagenes Docker..."
 $DC "${COMPOSE_ARGS[@]}" build --no-cache api

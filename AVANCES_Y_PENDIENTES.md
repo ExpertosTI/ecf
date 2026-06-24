@@ -162,6 +162,19 @@
 
 ---
 
+## ✅ Avances — Sesión 4 (2026-06-24)
+
+### 26. Hotfix deploy: conflicto de puerto Traefik (8080) ✅
+**Archivos:** `docker-compose.yml`, `.env.example`, `deploy.sh`
+
+- `docker-compose.yml`: puertos host de Traefik ahora configurables por entorno:
+   - `TRAEFIK_HTTP_PORT` (default `8080`)
+   - `TRAEFIK_HTTPS_PORT` (default `8443`)
+- `.env.example`: se agregan ambas variables para evitar hardcode operacional.
+- `deploy.sh`: pre-check de puertos antes de `up -d ... traefik` para fallar rápido con mensaje claro cuando hay colisión.
+
+---
+
 ## 🟡 Pendientes opcionales (bajo riesgo)
 
 | # | Pendiente | Notas |
