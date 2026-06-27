@@ -69,6 +69,10 @@ RNC_*.csv
 # Scratch / WIP
 scratch/
 
+# Artefactos DGII locales de prueba (no versionar)
+/*.xlsx
+/2026*.xml
+
 # Documentación interna (solo para colaboración entre IAs y equipo)
 docs/internal/
 INTERNAL*.md

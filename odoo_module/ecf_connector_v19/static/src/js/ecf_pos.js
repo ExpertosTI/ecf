@@ -20,7 +20,7 @@ patch(PosOrder.prototype, {
         const json = super.export_as_JSON(...arguments);
         json.ecf_tipo_id = this.ecf_tipo_id;
         json.ecf_ncf = this.ecf_ncf;
-        json.ecf_cufe = this.ecf_cufe;
+        json.ecf_codigo_seguridad = this.ecf_codigo_seguridad;
         json.ecf_qr = this.ecf_qr;
         return json;
     },
@@ -28,7 +28,7 @@ patch(PosOrder.prototype, {
         super.init_from_JSON(...arguments);
         this.ecf_tipo_id = json.ecf_tipo_id || null;
         this.ecf_ncf = json.ecf_ncf || null;
-        this.ecf_cufe = json.ecf_cufe || null;
+        this.ecf_codigo_seguridad = json.ecf_codigo_seguridad || json.ecf_cufe || null;
         this.ecf_qr = json.ecf_qr || null;
     }
 });

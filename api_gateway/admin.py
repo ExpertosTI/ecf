@@ -656,7 +656,10 @@ async def list_dlq(
     parsed = []
     for msg in messages:
         try:
-            parsed.append(json.loads(msg))
+            item = json.loads(msg)
+            if item.get("dlq_error") and not item.get("error"):
+                item["error"] = item["dlq_error"]
+            parsed.append(item)
         except json.JSONDecodeError:
             parsed.append({"raw": msg})
     return {"total": total, "messages": parsed}

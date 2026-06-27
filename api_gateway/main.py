@@ -141,10 +141,12 @@ async def recibir_aprobacion_comercial_mock():
     return JSONResponse(status_code=200, content={"status": "received"})
 
 @app.get("/fe/autenticacion/api/semilla", include_in_schema=False)
+@app.get("/Autenticacion/api/Autenticacion/Semilla", include_in_schema=False)
 async def semilla_mock():
     return Response(status_code=200, content="<Semilla>MockSeed</Semilla>", media_type="application/xml")
 
 @app.post("/fe/autenticacion/api/validacioncertificado", include_in_schema=False)
+@app.post("/Autenticacion/api/Autenticacion/ValidarSemilla", include_in_schema=False)
 async def validacion_certificado_mock():
     return JSONResponse(status_code=200, content={"token": "mock_token"})
 

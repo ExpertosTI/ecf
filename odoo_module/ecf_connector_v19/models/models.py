@@ -31,6 +31,47 @@ _logger = logging.getLogger(__name__)
 # Regex de validación para API Keys del SaaS (sk_cert_ o sk_prod_ + 48 hex)
 _API_KEY_RE = re.compile(r'^sk_(cert|prod)_[a-f0-9]{48}$')
 
+# Algoritmo oficial DGII para validar RNC (9 dígitos) y Cédula (11 dígitos).
+_RNC_WEIGHTS = (7, 9, 8, 6, 5, 4, 3, 2)
+_CEDULA_WEIGHTS = (1, 2, 1, 2, 1, 2, 1, 2, 1, 2)
+
+
+def _validar_rnc(rnc):
+    if not isinstance(rnc, str) or len(rnc) != 9 or not rnc.isdigit():
+        return False
+    suma = sum(int(d) * w for d, w in zip(rnc[:8], _RNC_WEIGHTS))
+    residuo = suma % 11
+    if residuo == 0:
+        esperado = 2
+    elif residuo == 1:
+        esperado = 1
+    else:
+        esperado = 11 - residuo
+    return esperado == int(rnc[8])
+
+
+def _validar_cedula(cedula):
+    if not isinstance(cedula, str) or len(cedula) != 11 or not cedula.isdigit():
+        return False
+    suma = 0
+    for i, peso in enumerate(_CEDULA_WEIGHTS[:10]):
+        producto = int(cedula[i]) * peso
+        if producto > 9:
+            producto -= 9
+        suma += producto
+    return ((10 - (suma % 10)) % 10) == int(cedula[10])
+
+
+def _validar_rnc_o_cedula(documento):
+    if not documento:
+        return False
+    clean = ''.join(filter(str.isdigit, documento))
+    if len(clean) == 9:
+        return _validar_rnc(clean)
+    if len(clean) == 11:
+        return _validar_cedula(clean)
+    return False
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Contactos (res.partner) — Validación RNC para e-CF
@@ -639,13 +680,19 @@ class AccountMove(models.Model):
         if not self.ecf_tipo_id:
             raise UserError(_('Debe seleccionar un Tipo e-CF antes de emitir'))
 
-        # E31 (Crédito Fiscal) requiere RNC del comprador
+        # E31 (Crédito Fiscal) requiere RNC del comprador con dígito verificador válido
         if self.ecf_tipo_id.codigo == 31:
-            vat = self.partner_id.vat or ''
+            vat = ''.join(filter(str.isdigit, (self.partner_id.vat or '').strip()))
             if len(vat) not in (9, 11):
                 raise UserError(_(
                     'El tipo E31 (Crédito Fiscal) requiere el RNC o Cédula del comprador. '
                     'Configure el campo "NIF/RNC" del cliente (9 u 11 dígitos).'
+                ))
+            if not _validar_rnc_o_cedula(vat):
+                raise UserError(_(
+                    'El RNC o Cédula del cliente "%s" no pasa la validación oficial DGII '
+                    '(dígito verificador mod-11 incorrecto). Verifique el dato en el partner.',
+                    vat,
                 ))
 
         # Fecha emisión no puede ser futura
@@ -661,6 +708,42 @@ class AccountMove(models.Model):
         company = self.company_id
         if not company.ecf_saas_url or not company.ecf_api_key:
             raise UserError(_('Configure la URL y API Key del Renace e-CF en Ajustes → e-CF DGII'))
+
+        # E33/E34 requieren NCF de referencia de la factura original
+        if self.ecf_tipo_id.codigo in (33, 34):
+            ref = self.reversed_entry_id
+            if not ref or not ref.ecf_ncf:
+                raise UserError(_(
+                    'El tipo E%(tipo)s requiere la factura original con e-CF emitido '
+                    '(NCF de referencia). Vincule la factura rectificada.',
+                    tipo=self.ecf_tipo_id.codigo,
+                ))
+
+    def _dgii_campos_emision(self):
+        """Campos normativos DGII para el payload de emisión (Norma 06-2018)."""
+        self.ensure_one()
+        partner = self.partner_id
+        direccion = ', '.join(
+            p for p in (
+                partner.street,
+                partner.street2,
+                partner.city,
+                partner.state_id.name if partner.state_id else None,
+            ) if p
+        )[:255] or None
+
+        campos = {
+            'tipo_pago': (
+                '2' if self.payment_state in ('not_paid', 'partial', 'in_payment') else '1'
+            ),
+            'tipo_ingresos': '01',
+            'indicador_envio_diferido': 0,
+        }
+        if direccion:
+            campos['direccion_comprador'] = direccion
+        if self.ecf_tipo_id.codigo in (33, 34):
+            campos['codigo_modificacion'] = '2' if self.move_type == 'out_refund' else '4'
+        return campos
 
     # ─────────────────────────────────────────────────────────────────────────
     #  Emisión del e-CF
@@ -689,7 +772,6 @@ class AccountMove(models.Model):
         company  = self.company_id
         api_url  = company.ecf_saas_url or ''
         api_key  = company.ecf_api_key or ''
-        ambiente = company.ecf_ambiente or 'certificacion'
 
         product_lines = self.invoice_line_ids.filtered(lambda l: l.display_type == 'product')
 
@@ -750,10 +832,10 @@ class AccountMove(models.Model):
             'items':              items,
             'moneda':             self.currency_id.name,
             'tipo_cambio':        tipo_cambio,
-            'ambiente':           ambiente,
             'odoo_move_id':       str(self.id),
             'odoo_move_name':     self.name,
         }
+        payload.update(self._dgii_campos_emision())
 
         # Nota de crédito: incluir NCF de referencia
         if self.move_type == 'out_refund' and self.reversed_entry_id:
@@ -792,7 +874,7 @@ class AccountMove(models.Model):
                 'ecf_id':   data.get('ecf_id'),
                 'tipo_ecf': self.ecf_tipo_id.codigo,
                 'estado':   'pendiente',
-                'ambiente': ambiente,
+                'ambiente': company.ecf_ambiente or 'certificacion',
             })
 
             self.message_post(
@@ -954,13 +1036,18 @@ class PosOrder(models.Model):
 
     def _prepare_invoice_vals(self):
         vals = super()._prepare_invoice_vals()
-        if self.ecf_tipo_id:
-            vals['ecf_tipo_id'] = self.ecf_tipo_id.id
-            # Si el tipo es diferido (crédito/envío), forzar modo diferido
-            if self.ecf_tipo_id.codigo == 31 or self.amount_total > self.amount_paid:
-                vals['ecf_modo'] = 'diferido'
-            else:
-                vals['ecf_modo'] = 'inmediato'
+        if not self.ecf_tipo_id:
+            return vals
+
+        vals['ecf_tipo_id'] = self.ecf_tipo_id.id
+
+        partner_vat = (self.partner_id.vat or '').strip()
+        partner_tiene_rnc_valido = bool(partner_vat) and _validar_rnc_o_cedula(partner_vat)
+
+        es_credito = (self.amount_total > self.amount_paid)
+        es_e31_sin_rnc = (self.ecf_tipo_id.codigo == 31 and not partner_tiene_rnc_valido)
+
+        vals['ecf_modo'] = 'diferido' if (es_credito or es_e31_sin_rnc) else 'inmediato'
         return vals
 
     def export_for_ui(self):
@@ -973,13 +1060,18 @@ class PosOrder(models.Model):
         return result
 
     def action_pos_order_invoice(self):
+        """Emite e-CF tras facturar en POS, respetando ``ecf_emision_automatica``."""
         res = super().action_pos_order_invoice()
         for order in self:
-            if order.account_move and order.account_move.ecf_modo == 'inmediato':
-                try:
-                    order.account_move._emitir_ecf()
-                except Exception as e:
-                    _logger.error("Error emitiendo e-CF v19 desde POS: %s", str(e))
+            move = order.account_move
+            if not (move and move.ecf_modo == 'inmediato' and move.ecf_tipo_id):
+                continue
+            if not move.company_id.ecf_emision_automatica:
+                continue
+            try:
+                move._emitir_ecf()
+            except Exception as e:
+                _logger.error("Error emitiendo e-CF desde POS: %s", e)
         return res
 
 class PosSession(models.Model):

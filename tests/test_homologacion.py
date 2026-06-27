@@ -331,6 +331,31 @@ class TestCaso09MonedaExtranjera:
 
 class TestCaso10Contingencia:
     @pytest.mark.asyncio
+    async def test_autenticacion_dgii_acepta_ruta_legacy_como_fallback(self, monkeypatch):
+        """Si DGII cambia la ruta primaria, el cliente debe intentar la variante compatible."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        client = DGIIClient(ambiente="certificacion")
+        client.set_certificate(b"dummy-p12", b"dummy-pass")
+        monkeypatch.setattr(client, "_sign_seed_xml", lambda seed_xml: b"<SemillaFirmada/>")
+
+        resp_404 = MagicMock(status_code=404, text="not found")
+        resp_seed = MagicMock(status_code=200, text="<Semilla>MockSeed</Semilla>")
+        resp_token = MagicMock(status_code=200)
+        resp_token.json.return_value = {"token": "mock-token"}
+
+        client._client = MagicMock()
+        client._client.get = AsyncMock(side_effect=[resp_404, resp_seed])
+        client._client.post = AsyncMock(return_value=resp_token)
+
+        await client._authenticate()
+
+        assert client._client.get.await_args_list[0].args[0] == "/Autenticacion/api/Autenticacion/Semilla"
+        assert client._client.get.await_args_list[1].args[0] == "/fe/autenticacion/api/semilla"
+        assert client._client.post.await_args.args[0] == "/Autenticacion/api/Autenticacion/ValidarSemilla"
+        assert client._access_token == "mock-token"
+
+    @pytest.mark.asyncio
     async def test_reintento_en_timeout(self, monkeypatch):
         """El sistema debe reintentar hasta 3 veces ante timeouts."""
         from unittest.mock import MagicMock

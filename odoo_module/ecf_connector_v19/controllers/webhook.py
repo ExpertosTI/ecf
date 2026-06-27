@@ -156,7 +156,7 @@ class ECFWebhookController(http.Controller):
         error_text = f" — Error: {error_msg}" if error_msg else ""
         move.message_post(
             body=f"{icono} e-CF {estado.upper()}. NCF: <strong>{ncf}</strong>"
-                 + (f" — CUFE: {cufe[:20]}..." if cufe else "")
+                 + (f" — Cód. Seguridad: <strong>{codigo_seguridad}</strong>" if codigo_seguridad else "")
                  + error_text,
             message_type='comment',
         )

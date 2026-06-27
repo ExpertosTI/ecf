@@ -4,9 +4,9 @@ Implementa autenticación por semilla (seed), firma del seed, token Bearer,
 y envío con los endpoints reales de la DGII.
 
 Flujo de autenticación DGII:
-1. GET  /fe/autenticacion/api/semilla         → XML seed
+1. GET  semilla                               → XML seed
 2. Firmar el XML seed con .p12 del tenant
-3. POST /fe/autenticacion/api/validacioncertificado  → access token
+3. POST semilla firmada                       → access token
 4. Usar Authorization: Bearer {token} en los envíos posteriores
 
 Referencia: https://github.com/victors1681/dgii-ecf
@@ -77,8 +77,14 @@ class DGIIClient:
     }
 
     # Endpoints de la API DGII
-    EP_SEMILLA          = "/fe/autenticacion/api/semilla"
-    EP_VALIDACION_CERT  = "/fe/autenticacion/api/validacioncertificado"
+    EP_SEMILLA = (
+        "/Autenticacion/api/Autenticacion/Semilla",
+        "/fe/autenticacion/api/semilla",
+    )
+    EP_VALIDACION_CERT = (
+        "/Autenticacion/api/Autenticacion/ValidarSemilla",
+        "/fe/autenticacion/api/validacioncertificado",
+    )
     EP_RECEPCION        = "/fe/recepcion/api/ecf"
     EP_CONSULTA_RESULT  = "/fe/recepcion/api/consultaresultado/{track_id}"
     EP_CONSULTA_TIMBRE  = "/fe/consultas/api/consultatimbre"
@@ -207,7 +213,7 @@ class DGIIClient:
             logger.info("Autenticando con DGII (flujo semilla)...")
 
             # Paso 1: Obtener semilla
-            resp = await self._client.get(self.EP_SEMILLA)
+            resp = await self._request_first_available("get", self.EP_SEMILLA)
             if resp.status_code != 200:
                 raise DGIIClientError(f"Error obteniendo semilla DGII: HTTP {resp.status_code} — {resp.text}")
 
@@ -217,7 +223,8 @@ class DGIIClient:
             signed_seed = self._sign_seed_xml(seed_xml)
 
             # Paso 3: Validar certificado con semilla firmada
-            resp = await self._client.post(
+            resp = await self._request_first_available(
+                "post",
                 self.EP_VALIDACION_CERT,
                 content=signed_seed,
                 headers={"Content-Type": "application/xml"},
@@ -236,6 +243,18 @@ class DGIIClient:
             # Tokens DGII típicamente duran 24h, usamos 23h para margen
             self._token_expires_at = time.time() + 82800
             logger.info("Autenticación DGII exitosa. Token válido por ~23h.")
+
+    async def _request_first_available(self, method: str, paths: tuple[str, ...], **kwargs):
+        """Try current DGII route variants, falling back when an older/newer path is missing."""
+        request = getattr(self._client, method)
+        last_response = None
+        for path in paths:
+            resp = await request(path, **kwargs)
+            if resp.status_code != 404:
+                return resp
+            last_response = resp
+            logger.debug("DGII endpoint no disponible para %s %s", method.upper(), path)
+        return last_response
 
     def _sign_seed_xml(self, seed_xml: str) -> bytes:
         """Firma el XML de semilla con el certificado .p12 del tenant."""
@@ -511,7 +530,13 @@ class DGIIClient:
             estado   = estado,
             track_id = track_id,
             mensaje  = data.get("mensaje") or data.get("message") or "",
-            codigo_seguridad = data.get("CUFE") or data.get("cufe"),
+            codigo_seguridad=(
+                data.get("codigoSeguridad")
+                or data.get("CodigoSeguridad")
+                or data.get("codigo_seguridad")
+                or data.get("CUFE")
+                or data.get("cufe")
+            ),
             qr_code  = data.get("codigoQR") or data.get("qr_url"),
             detalles = data.get("errores") or data.get("mensajes") or [],
             raw      = data,

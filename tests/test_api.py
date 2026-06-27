@@ -370,6 +370,24 @@ class TestAdminAPI:
         )
         assert resp.status_code == 200
 
+    def test_admin_get_dlq_normalizes_dlq_error(self, client, fake_redis):
+        async def fake_lrange(key, start, end):
+            return ['{"ecf_id":"1","tenant_id":"2","dlq_error":"fallo auth"}']
+
+        async def fake_llen(key):
+            return 1
+
+        fake_redis.lrange = fake_lrange
+        fake_redis.llen = fake_llen
+
+        resp = client.get(
+            "/v1/admin/dlq",
+            headers=self.ADMIN_HEADERS,
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["messages"][0]["error"] == "fallo auth"
+
 
 # ── Tests: Rate Limiting ──────────────────────────────
 
@@ -555,3 +573,11 @@ class TestStaticAssets:
         resp_val_cert = client.post("/fe/autenticacion/api/validacioncertificado")
         assert resp_val_cert.status_code == 200
         assert resp_val_cert.json()["token"] == "mock_token"
+
+        resp_semilla_nueva = client.get("/Autenticacion/api/Autenticacion/Semilla")
+        assert resp_semilla_nueva.status_code == 200
+        assert "MockSeed" in resp_semilla_nueva.text
+
+        resp_val_cert_nuevo = client.post("/Autenticacion/api/Autenticacion/ValidarSemilla")
+        assert resp_val_cert_nuevo.status_code == 200
+        assert resp_val_cert_nuevo.json()["token"] == "mock_token"

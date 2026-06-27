@@ -121,7 +121,9 @@ def _parse_recibidas_xml(xml_text: str) -> list[ECFRecibida]:
                 total_monto=_decimal(_get(node, "MontoTotal", "Total")),
                 itbis_facturado=_decimal(_get(node, "ITBIS", "Itbis")),
                 subtotal=_decimal(_get(node, "Subtotal", "MontoSinImpuesto")),
-                codigo_seguridad=_get(node, "CUFE") or None,
+                codigo_seguridad=(
+                    _get(node, "CodigoSeguridad", "codigoSeguridad", "CUFE") or None
+                ),
             ))
 
     except etree.XMLSyntaxError as e:

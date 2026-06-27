@@ -182,6 +182,39 @@
 
 ---
 
+## ✅ Avances — Sesión 5 (2026-06-27)
+
+### 28. Webhook Odoo: NameError en callback DGII ✅
+**Archivos:** `odoo_module/ecf_connector/controllers/webhook.py`, `ecf_connector_v19/controllers/webhook.py`
+
+- Corregido `NameError: cufe` en `_procesar_callback` — variable inexistente tras renombrar a `codigo_seguridad`
+- Mensaje del chatter ahora muestra "Cód. Seguridad" conforme a nomenclatura DGII RD
+
+### 29. POS: sincronización `ecf_codigo_seguridad` ✅
+**Archivos:** `ecf_connector/static/src/js/ecf_pos.js`, `ecf_connector_v19/static/src/js/ecf_pos.js`
+
+- `export_as_JSON` / `init_from_JSON` usan `ecf_codigo_seguridad` (alineado con `export_for_ui` y recibo POS)
+- Compatibilidad con sesiones antiguas vía fallback `json.ecf_cufe`
+
+### 30. Payload Odoo con campos normativos DGII ✅
+**Archivos:** `ecf_connector/models/models.py`, `ecf_connector_v19/models/models.py`
+
+- Nuevo `_dgii_campos_emision()`: `tipo_pago`, `tipo_ingresos`, `direccion_comprador`, `codigo_modificacion` (E33/E34)
+- Validación E33/E34 exige factura original con `ecf_ncf`
+- Eliminado campo fantasma `ambiente` del payload (el tenant se resuelve por API Key en el gateway)
+- v19: validación mod-11 RNC/cédula, algoritmo RNC inline, POS diferido alineado con v18
+
+### 31. Parser `codigo_seguridad` en respuestas DGII ✅
+**Archivos:** `ecf_core/dgii_client.py`, `ecf_core/ecf_recibidas_service.py`
+
+- `_parsear_respuesta` acepta `CodigoSeguridad` / `codigoSeguridad` además de alias legacy `CUFE`
+- Parser XML de compras recibidas busca `CodigoSeguridad` antes que `CUFE`
+
+### 32. `.gitignore` — artefactos locales de prueba ✅
+- Excluye `/*.xlsx` y `/2026*.xml` en la raíz del repo (postulaciones, XML de prueba DGII)
+
+---
+
 ## 🟡 Pendientes opcionales (bajo riesgo)
 
 | # | Pendiente | Notas |

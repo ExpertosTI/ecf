@@ -658,7 +658,7 @@ class AccountMove(models.Model):
 
         # E31 (Crédito Fiscal) requiere RNC del comprador con dígito verificador válido
         if self.ecf_tipo_id.codigo == 31:
-            vat = (self.partner_id.vat or '').strip()
+            vat = ''.join(filter(str.isdigit, (self.partner_id.vat or '').strip()))
             if len(vat) not in (9, 11):
                 raise UserError(_(
                     'El tipo E31 (Crédito Fiscal) requiere el RNC o Cédula del comprador. '
@@ -684,6 +684,42 @@ class AccountMove(models.Model):
         company = self.company_id
         if not company.ecf_saas_url or not company.ecf_api_key:
             raise UserError(_('Configure la URL y API Key de Renace e-CF en Ajustes → e-CF DGII'))
+
+        # E33/E34 requieren NCF de referencia de la factura original
+        if self.ecf_tipo_id.codigo in (33, 34):
+            ref = self.reversed_entry_id
+            if not ref or not ref.ecf_ncf:
+                raise UserError(_(
+                    'El tipo E%(tipo)s requiere la factura original con e-CF emitido '
+                    '(NCF de referencia). Vincule la factura rectificada.',
+                    tipo=self.ecf_tipo_id.codigo,
+                ))
+
+    def _dgii_campos_emision(self):
+        """Campos normativos DGII para el payload de emisión (Norma 06-2018)."""
+        self.ensure_one()
+        partner = self.partner_id
+        direccion = ', '.join(
+            p for p in (
+                partner.street,
+                partner.street2,
+                partner.city,
+                partner.state_id.name if partner.state_id else None,
+            ) if p
+        )[:255] or None
+
+        campos = {
+            'tipo_pago': (
+                '2' if self.payment_state in ('not_paid', 'partial', 'in_payment') else '1'
+            ),
+            'tipo_ingresos': '01',
+            'indicador_envio_diferido': 0,
+        }
+        if direccion:
+            campos['direccion_comprador'] = direccion
+        if self.ecf_tipo_id.codigo in (33, 34):
+            campos['codigo_modificacion'] = '2' if self.move_type == 'out_refund' else '4'
+        return campos
 
     # ─────────────────────────────────────────────────────────────────────────
     #  Emisión del e-CF
@@ -712,7 +748,6 @@ class AccountMove(models.Model):
         company  = self.company_id
         api_url  = company.ecf_saas_url or ''
         api_key  = company.ecf_api_key or ''
-        ambiente = company.ecf_ambiente or 'certificacion'
 
         product_lines = self.invoice_line_ids.filtered(lambda l: l.display_type == 'product')
 
@@ -773,10 +808,10 @@ class AccountMove(models.Model):
             'items':              items,
             'moneda':             self.currency_id.name,
             'tipo_cambio':        tipo_cambio,
-            'ambiente':           ambiente,
             'odoo_move_id':       str(self.id),
             'odoo_move_name':     self.name,
         }
+        payload.update(self._dgii_campos_emision())
 
         # Nota de crédito: incluir NCF de referencia
         if self.move_type == 'out_refund' and self.reversed_entry_id:
@@ -815,7 +850,7 @@ class AccountMove(models.Model):
                 'ecf_id':   data.get('ecf_id'),
                 'tipo_ecf': self.ecf_tipo_id.codigo,
                 'estado':   'pendiente',
-                'ambiente': ambiente,
+                'ambiente': company.ecf_ambiente or 'certificacion',
             })
 
             self.message_post(
