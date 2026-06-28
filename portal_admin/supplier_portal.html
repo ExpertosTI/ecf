@@ -8,10 +8,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body { font-family: 'Outfit', sans-serif; background-color: #09090b; color: #fafafa; }
-        .glass { background: rgba(24, 24, 27, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(63, 63, 70, 0.3); }
-        .emerald-glow { box-shadow: 0 0 20px rgba(16, 185, 129, 0.1); }
-        .gradient-text { background: linear-gradient(135deg, #10b981 0%, #34d399 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        body { font-family: 'Outfit', sans-serif; background: #0a0f1c; color: #f1f5f9; }
+        .glass { background: rgba(17, 24, 40, 0.85); backdrop-filter: blur(16px); border: 1px solid rgba(0, 229, 160, 0.12); }
+        .renace-glow { box-shadow: 0 4px 24px rgba(0, 229, 160, 0.2); }
+        .gradient-text { background: linear-gradient(135deg, #00e5a0 0%, #6c63ff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .btn-renace { background: linear-gradient(135deg, #00e5a0, #00c488); color: #041510; font-weight: 700; transition: transform 0.15s, box-shadow 0.15s; }
+        .btn-renace:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0, 229, 160, 0.35); }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -37,7 +39,7 @@
                     placeholder="sk_cert_... (lo entrega el comprador)">
                 <p class="text-[11px] text-zinc-500 mt-1">Clave que el cliente configuró al registrar su empresa en Renace e-CF.</p>
             </div>
-            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-semibold emerald-glow">
+            <button type="submit" class="w-full btn-renace py-3 rounded-full renace-glow">
                 Entrar
             </button>
             <p id="loginError" class="text-rose-400 text-sm text-center hidden"></p>
@@ -49,10 +51,10 @@
 <div id="appScreen" class="hidden min-h-screen flex flex-col">
     <nav class="glass sticky top-0 z-50 px-6 py-4 flex justify-between items-center">
         <div class="flex items-center gap-2">
-            <div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
-                <i data-lucide="gem" class="text-white w-5 h-5"></i>
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: linear-gradient(135deg, #00e5a0, #6c63ff);">
+                <i data-lucide="gem" class="text-slate-900 w-5 h-5"></i>
             </div>
-            <span class="text-xl font-bold tracking-tight uppercase">RENACE <span class="text-emerald-500">ECF</span></span>
+            <span class="text-xl font-bold tracking-tight uppercase">RENACE <span class="gradient-text">ECF</span></span>
         </div>
         <div class="flex items-center gap-4">
             <div class="text-right hidden md:block">
@@ -69,7 +71,7 @@
                 <h1 class="text-4xl font-bold mb-2">Mis e-CF <span class="gradient-text">Enviados</span></h1>
                 <p class="text-zinc-400 max-w-xl">Facturas electrónicas que usted emitió hacia <strong id="clienteNombre">su cliente</strong>. Los e-CF se envían vía DGII; aquí ve el estado de recepción en el ERP del comprador.</p>
             </div>
-            <button id="refreshBtn" class="bg-zinc-800 hover:bg-zinc-700 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2">
+            <button id="refreshBtn" class="btn-renace px-6 py-3 rounded-full flex items-center gap-2 renace-glow">
                 <i data-lucide="refresh-cw" class="w-4 h-4"></i> Actualizar
             </button>
         </div>

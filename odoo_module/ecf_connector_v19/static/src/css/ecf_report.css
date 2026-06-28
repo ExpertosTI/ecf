@@ -152,8 +152,57 @@
 }
 
 .ecf-footer-legal a {
-    color: #0087ff;
+    color: #00c488;
     text-decoration: none;
     font-weight: 600;
 }
+
+.ecf-summary-hero {
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #0a0f1c 0%, #162032 100%);
+    color: white;
+    position: relative;
+    overflow: hidden;
+}
+
+.ecf-summary-hero::after {
+    content: "";
+    position: absolute;
+    top: 0; right: 0;
+    width: 120px; height: 120px;
+    background: radial-gradient(circle, rgba(0, 229, 160, 0.25), transparent 70%);
+}
+
+.ecf-summary-title {
+    font-size: 16pt;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.02em;
+}
+
+.ecf-summary-sub { font-size: 8pt; opacity: 0.75; margin-top: 4px; }
+
+.ecf-summary-table thead tr {
+    background: #0f172a !important;
+    color: white !important;
+}
+
+.ecf-summary-totals {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+}
+
+.ecf-summary-totals tr:last-child {
+    background: linear-gradient(135deg, #0f172a, #1e293b) !important;
+    color: white !important;
+}
+
+.ecf-dgii-header::before {
+    background: linear-gradient(90deg, #00e5a0, #6c63ff);
+}
+
+.ecf-ncf-value { color: #00c488; }
 

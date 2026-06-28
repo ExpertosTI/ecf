@@ -22,34 +22,26 @@
             <t t-set="total_all" t-value="0.0"/>
 
             <t t-call="web.external_layout">
-                <div class="page" style="font-family: 'Helvetica'; font-size: 9pt;">
+                <div class="page" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 9pt;">
 
-                    <!-- Encabezado del reporte -->
-                    <div class="row mb-4 align-items-center">
+                    <div class="ecf-summary-hero row mb-3 align-items-center">
                         <div class="col-4">
                             <img t-if="res_company.logo"
                                  t-att-src="image_data_uri(res_company.logo)"
-                                 style="max-height: 70px;"
+                                 style="max-height: 64px; border-radius: 8px;"
                                  alt="Logo"/>
                         </div>
                         <div class="col-8 text-end">
-                            <h2 style="color: #0087ff; font-weight: bold; margin: 0; font-size: 14pt;">
-                                Reporte Consolidado e-CF
-                            </h2>
-                            <p class="text-muted mb-0" style="font-size: 8pt;">
-                                Resumen Fiscal DGII · RNC: <t t-esc="res_company.vat or 'N/D'"/>
-                            </p>
-                            <p class="text-muted mb-0" style="font-size: 8pt;">
-                                Generado: <t t-esc="datetime.datetime.now().strftime('%d/%m/%Y %H:%M')"/>
+                            <h2 class="ecf-summary-title">Reporte Consolidado e-CF</h2>
+                            <p class="ecf-summary-sub mb-0">
+                                RNC <t t-esc="res_company.vat or 'N/D'"/> ·
+                                <t t-esc="datetime.datetime.now().strftime('%d/%m/%Y %H:%M')"/>
                             </p>
                         </div>
                     </div>
 
-                    <div style="border-top: 2px solid #0087ff; margin-bottom: 16px;"/>
-
-                    <!-- Tabla principal de comprobantes -->
-                    <table class="table table-sm mt-2" style="font-size: 8pt; width: 100%; border-collapse: collapse;">
-                        <thead style="background-color: #0f172a; color: white;">
+                    <table class="table table-sm ecf-summary-table mt-2" style="font-size: 8pt; width: 100%; border-collapse: collapse;">
+                        <thead>
                             <tr>
                                 <th class="p-2" style="width: 14%;">NCF / e-NCF</th>
                                 <th class="p-2" style="width: 10%;">Fecha</th>
@@ -57,7 +49,7 @@
                                 <th class="p-2 text-end" style="width: 12%;">Base Imponible</th>
                                 <th class="p-2 text-end" style="width: 10%;">ITBIS</th>
                                 <th class="p-2 text-end" style="width: 12%;">Total</th>
-                                <th class="p-2 text-center" style="width: 10%;">Estado e-CF</th>
+                                <th class="p-2 text-center" style="width: 10%;">Estado</th>
                                 <th class="p-2 text-center" style="width: 10%;">Tipo</th>
                             </tr>
                         </thead>
@@ -114,29 +106,27 @@
                         </tbody>
                     </table>
 
-                    <!-- Totales finales -->
                     <div class="row justify-content-end mt-4">
                         <div class="col-5">
-                            <table class="table table-sm border" style="font-size: 9pt;">
+                            <table class="table table-sm ecf-summary-totals" style="font-size: 9pt;">
                                 <tr>
-                                    <td class="p-2"><strong>Total Base Imponible:</strong></td>
+                                    <td class="p-2"><strong>Total Base Imponible</strong></td>
                                     <td class="p-2 text-end">RD$ <t t-esc="'{:,.2f}'.format(total_untaxed)"/></td>
                                 </tr>
                                 <tr>
-                                    <td class="p-2"><strong>Total ITBIS:</strong></td>
-                                    <td class="p-2 text-end" style="color: #065f46;">RD$ <t t-esc="'{:,.2f}'.format(total_tax)"/></td>
+                                    <td class="p-2"><strong>Total ITBIS</strong></td>
+                                    <td class="p-2 text-end" style="color: #059669;">RD$ <t t-esc="'{:,.2f}'.format(total_tax)"/></td>
                                 </tr>
-                                <tr style="background-color: #0f172a; color: white;">
-                                    <td class="p-2"><strong>TOTAL GENERAL:</strong></td>
+                                <tr>
+                                    <td class="p-2"><strong>TOTAL GENERAL</strong></td>
                                     <td class="p-2 text-end fw-bold" style="font-size: 1.1rem;">RD$ <t t-esc="'{:,.2f}'.format(total_all)"/></td>
                                 </tr>
                             </table>
                         </div>
                     </div>
 
-                    <!-- Pie del reporte -->
-                    <div class="text-center small text-muted mt-4" style="border-top: 1px solid #dee2e6; padding-top: 10px; font-size: 7pt;">
-                        Reporte Consolidado de Facturación Electrónica (e-CF)
+                    <div class="text-center small text-muted mt-4 ecf-footer-legal" style="padding-top: 10px; font-size: 7pt;">
+                        Renace e-CF · Reporte Consolidado DGII · Documento generado automáticamente
                     </div>
                 </div>
             </t>

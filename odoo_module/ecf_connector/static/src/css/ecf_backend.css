@@ -203,3 +203,141 @@
     background-color: rgba(59, 130, 246, 0.05) !important;
     color: #2563eb !important;
 }
+
+/* ── Renace Brand (teal + violet) ── */
+.ecf-dashboard-bg {
+    background: radial-gradient(at 0% 0%, rgba(0, 229, 160, 0.12) 0px, transparent 45%),
+                radial-gradient(at 100% 0%, rgba(108, 99, 255, 0.1) 0px, transparent 40%),
+                radial-gradient(at 50% 100%, rgba(0, 229, 160, 0.06) 0px, transparent 50%),
+                #f1f5f9 !important;
+}
+
+.ecf-glass-card-primary {
+    background: linear-gradient(135deg, #0a0f1c 0%, #162032 55%, #0f172a 100%) !important;
+    border: 1px solid rgba(0, 229, 160, 0.2) !important;
+    box-shadow: 0 16px 40px -12px rgba(0, 229, 160, 0.15) !important;
+}
+
+.ecf-dashboard-content .btn-primary {
+    background: linear-gradient(135deg, #00e5a0 0%, #00c488 100%) !important;
+    color: #041510 !important;
+    box-shadow: 0 4px 14px rgba(0, 229, 160, 0.35) !important;
+}
+
+.ecf-dashboard-content .btn-success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+}
+
+/* ── Tarjetas de reportes fiscales ── */
+.ecf-report-card {
+    border-radius: 20px !important;
+    border: 1px solid rgba(226, 232, 240, 0.8) !important;
+    background: rgba(255, 255, 255, 0.92) !important;
+    backdrop-filter: blur(8px);
+    transition: transform 0.25s ease, box-shadow 0.25s ease !important;
+    overflow: hidden;
+    position: relative;
+}
+
+.ecf-report-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #00e5a0, #6c63ff);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+.ecf-report-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.12) !important;
+}
+
+.ecf-report-card:hover::before { opacity: 1; }
+
+.ecf-report-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+
+.ecf-report-icon--606 { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
+.ecf-report-icon--607 { background: rgba(0, 229, 160, 0.15); color: #059669; }
+.ecf-report-icon--608 { background: rgba(244, 63, 94, 0.12); color: #e11d48; }
+
+.ecf-export-group {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.ecf-btn-export {
+    flex: 1;
+    border-radius: 999px !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 8px 4px !important;
+    border: 1px solid #e2e8f0 !important;
+    background: #f8fafc !important;
+    color: #64748b !important;
+    transition: all 0.15s ease !important;
+}
+
+.ecf-btn-export:hover {
+    background: #0f172a !important;
+    color: white !important;
+    border-color: #0f172a !important;
+    transform: translateY(-1px);
+}
+
+.ecf-btn-view {
+    border-radius: 999px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em;
+    padding: 10px 16px !important;
+}
+
+/* ── Visor fiscal (modal) ── */
+.ecf-report-viewer-backdrop {
+    background: rgba(10, 15, 28, 0.88) !important;
+    backdrop-filter: blur(16px) !important;
+}
+
+.ecf-report-viewer-panel {
+    border-radius: 28px !important;
+    border: 1px solid rgba(0, 229, 160, 0.15) !important;
+    box-shadow: 0 32px 64px rgba(0, 0, 0, 0.35) !important;
+    overflow: hidden;
+}
+
+.ecf-report-viewer-header {
+    background: linear-gradient(135deg, #0f172a 0%, #162032 100%) !important;
+    color: white !important;
+    border: none !important;
+}
+
+.ecf-report-viewer-header h3 { color: white !important; }
+.ecf-report-viewer-header p { color: rgba(255,255,255,0.65) !important; }
+
+.ecf-report-viewer-table thead {
+    background: linear-gradient(135deg, #0f172a, #1e293b) !important;
+}
+
+.ecf-report-viewer-footer .btn-dark {
+    background: linear-gradient(135deg, #00e5a0, #00c488) !important;
+    color: #041510 !important;
+    border: none !important;
+    border-radius: 999px !important;
+}
+
+.ecf-report-viewer-footer .btn-outline-dark {
+    border-radius: 999px !important;
+    border-width: 2px !important;
+}

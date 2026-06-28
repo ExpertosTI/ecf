@@ -97,61 +97,62 @@
                         <div class="row g-4">
                             <!-- Tarjeta 606 -->
                             <div class="col-md-4">
-                                <div class="card border-0 shadow-sm p-3 bg-white" style="border-radius: 16px;">
+                                <div class="card border-0 shadow-sm p-4 ecf-report-card h-100">
                                     <div class="d-flex align-items-center mb-3">
-                                        <div class="bg-primary bg-opacity-10 p-2 rounded me-3 text-primary"><i class="oi oi-cart h4 mb-0"></i></div>
-                                        <div class="fw-bold">Reporte 606</div>
+                                        <div class="ecf-report-icon ecf-report-icon--606 me-3"><i class="oi oi-cart"></i></div>
+                                        <div>
+                                            <div class="fw-bold">Reporte 606</div>
+                                            <div class="small text-muted">Compras · DGII</div>
+                                        </div>
                                     </div>
-                                    <div class="h4 fw-bold text-primary mb-1">RD$ <t t-esc="state.fiscal.compras?.total.toLocaleString() || '0'"/></div>
-                                    <div class="small text-muted mb-3"><t t-esc="state.fiscal.compras?.count || 0"/> Compras registradas</div>
-                                    
-                                    <!-- Botones de Acción Premium -->
-                                    <div class="d-flex gap-1 mb-2">
-                                        <button class="btn btn-primary btn-sm flex-fill rounded-pill py-2 fw-bold" t-on-click="() => this.openReportDetail('606')">
-                                            <i class="oi oi-view-list me-1"></i> VER DATOS
-                                        </button>
-                                    </div>
-                                    <div class="d-flex gap-1">
-                                        <button class="btn btn-outline-secondary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('606', 'txt')">TXT</button>
-                                        <button class="btn btn-outline-secondary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('606', 'excel')">Excel</button>
-                                        <button class="btn btn-outline-secondary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('606', 'pdf')">PDF</button>
+                                    <div class="h3 fw-bold text-primary mb-1">RD$ <t t-esc="state.fiscal.compras?.total.toLocaleString() || '0'"/></div>
+                                    <div class="small text-muted mb-4"><t t-esc="state.fiscal.compras?.count || 0"/> registros en el periodo</div>
+                                    <button class="btn btn-primary btn-sm w-100 ecf-btn-view mb-2" t-on-click="() => this.openReportDetail('606')">
+                                        <i class="oi oi-view-list me-1"></i> Ver detalle
+                                    </button>
+                                    <div class="ecf-export-group">
+                                        <button class="btn ecf-btn-export" t-on-click="() => this.exportReport('606', 'txt')">TXT</button>
+                                        <button class="btn ecf-btn-export" t-on-click="() => this.exportReport('606', 'excel')">Excel</button>
+                                        <button class="btn ecf-btn-export" t-on-click="() => this.exportReport('606', 'pdf')">PDF</button>
                                     </div>
                                 </div>
                             </div>
                             <!-- Tarjeta 607 -->
                             <div class="col-md-4">
-                                <div class="card border-0 shadow-sm p-3 bg-white" style="border-radius: 16px;">
+                                <div class="card border-0 shadow-sm p-4 ecf-report-card h-100">
                                     <div class="d-flex align-items-center mb-3">
-                                        <div class="bg-success bg-opacity-10 p-2 rounded me-3 text-success"><i class="oi oi-tag h4 mb-0"></i></div>
-                                        <div class="fw-bold">Reporte 607</div>
+                                        <div class="ecf-report-icon ecf-report-icon--607 me-3"><i class="oi oi-tag"></i></div>
+                                        <div>
+                                            <div class="fw-bold">Reporte 607</div>
+                                            <div class="small text-muted">Ventas · e-CF</div>
+                                        </div>
                                     </div>
-                                    <div class="h4 fw-bold text-success mb-1">RD$ <t t-esc="state.fiscal.ventas?.total.toLocaleString() || '0'"/></div>
-                                    <div class="small text-muted mb-3"><t t-esc="state.fiscal.ventas?.count || 0"/> Ventas con e-CF</div>
-
-                                    <!-- Botones de Acción Premium -->
-                                    <div class="d-flex gap-1 mb-2">
-                                        <button class="btn btn-success btn-sm flex-fill rounded-pill py-2 fw-bold" t-on-click="() => this.openReportDetail('607')">
-                                            <i class="oi oi-view-list me-1"></i> VER DATOS
-                                        </button>
-                                    </div>
-                                    <div class="d-flex gap-1">
-                                        <button class="btn btn-outline-secondary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('607', 'txt')">TXT</button>
-                                        <button class="btn btn-outline-secondary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('607', 'excel')">Excel</button>
-                                        <button class="btn btn-outline-secondary btn-sm flex-fill rounded-pill" t-on-click="() => this.exportReport('607', 'pdf')">PDF</button>
+                                    <div class="h3 fw-bold text-success mb-1">RD$ <t t-esc="state.fiscal.ventas?.total.toLocaleString() || '0'"/></div>
+                                    <div class="small text-muted mb-4"><t t-esc="state.fiscal.ventas?.count || 0"/> comprobantes emitidos</div>
+                                    <button class="btn btn-success btn-sm w-100 ecf-btn-view mb-2" t-on-click="() => this.openReportDetail('607')">
+                                        <i class="oi oi-view-list me-1"></i> Ver detalle
+                                    </button>
+                                    <div class="ecf-export-group">
+                                        <button class="btn ecf-btn-export" t-on-click="() => this.exportReport('607', 'txt')">TXT</button>
+                                        <button class="btn ecf-btn-export" t-on-click="() => this.exportReport('607', 'excel')">Excel</button>
+                                        <button class="btn ecf-btn-export" t-on-click="() => this.exportReport('607', 'pdf')">PDF</button>
                                     </div>
                                 </div>
                             </div>
                             <!-- Tarjeta 608 -->
                             <div class="col-md-4">
-                                <div class="card border-0 shadow-sm p-3 bg-white" style="border-radius: 16px;">
+                                <div class="card border-0 shadow-sm p-4 ecf-report-card h-100">
                                     <div class="d-flex align-items-center mb-3">
-                                        <div class="bg-danger bg-opacity-10 p-2 rounded me-3 text-danger"><i class="oi oi-circle-x h4 mb-0"></i></div>
-                                        <div class="fw-bold">Reporte 608</div>
+                                        <div class="ecf-report-icon ecf-report-icon--608 me-3"><i class="oi oi-circle-x"></i></div>
+                                        <div>
+                                            <div class="fw-bold">Reporte 608</div>
+                                            <div class="small text-muted">Anulaciones</div>
+                                        </div>
                                     </div>
-                                    <div class="h4 fw-bold text-danger mb-1"><t t-esc="state.stats.stats_estado?.rechazado || 0"/></div>
-                                    <div class="small text-muted mb-3">Comprobantes Anulados</div>
-                                    <button class="btn btn-outline-danger btn-sm w-100 rounded-pill py-2 fw-bold" t-on-click="printReport608">
-                                        <i class="oi oi-view-list me-1"></i> Ver Anulaciones
+                                    <div class="h3 fw-bold text-danger mb-1"><t t-esc="state.stats.stats_estado?.rechazado || 0"/></div>
+                                    <div class="small text-muted mb-4">Comprobantes anulados / rechazados</div>
+                                    <button class="btn btn-outline-danger btn-sm w-100 ecf-btn-view" t-on-click="printReport608">
+                                        <i class="oi oi-view-list me-1"></i> Ver anulaciones
                                     </button>
                                 </div>
                             </div>
@@ -160,21 +161,21 @@
                 </div>
             </div>
 
-            <!-- VISOR DE REPORTES PREMIUM (Overlay) -->
-            <div t-if="state.show_report_viewer" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background: rgba(15, 23, 42, 0.85); z-index: 9999; backdrop-filter: blur(10px);">
-                <div class="card border-0 shadow-lg w-75 h-75 overflow-hidden" style="border-radius: 32px;">
-                    <div class="card-header bg-white p-4 border-0 d-flex justify-content-between align-items-center shadow-sm">
+            <!-- VISOR DE REPORTES (Overlay) -->
+            <div t-if="state.show_report_viewer" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center ecf-report-viewer-backdrop" style="z-index: 9999;">
+                <div class="card border-0 w-75 h-75 overflow-hidden ecf-report-viewer-panel">
+                    <div class="card-header p-4 border-0 d-flex justify-content-between align-items-center ecf-report-viewer-header">
                         <div>
-                            <h3 class="fw-bold mb-0">Visor Fiscal Premium: Reporte <t t-esc="state.current_report_type"/></h3>
-                            <p class="text-muted mb-0 small">Análisis detallado de registros fiscales</p>
+                            <h3 class="fw-bold mb-0">Reporte <t t-esc="state.current_report_type"/> · DGII</h3>
+                            <p class="mb-0 small">Detalle fiscal del periodo seleccionado</p>
                         </div>
-                        <button class="btn btn-light rounded-pill p-3" t-on-click="() => state.show_report_viewer = false">
-                            <i class="oi oi-close h4 mb-0"></i>
+                        <button class="btn btn-light rounded-circle p-2" style="width:44px;height:44px;" t-on-click="() => state.show_report_viewer = false">
+                            <i class="oi oi-close"></i>
                         </button>
                     </div>
                     <div class="card-body bg-light overflow-auto p-4">
-                        <table class="table table-hover bg-white shadow-sm border-0" style="border-radius: 16px; overflow: hidden;">
-                            <thead class="bg-primary text-white text-uppercase small fw-bold">
+                        <table class="table table-hover bg-white shadow-sm border-0 ecf-report-viewer-table" style="border-radius: 16px; overflow: hidden;">
+                            <thead class="text-white text-uppercase small fw-bold">
                                 <tr>
                                     <th class="p-3">RNC / Cédula</th>
                                     <th class="p-3">NCF / e-NCF</th>
@@ -207,12 +208,12 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="card-footer bg-white p-4 border-0 d-flex gap-3 shadow-lg-top">
-                        <button class="btn btn-dark rounded-pill px-5 py-3 fw-bold flex-fill" t-on-click="() => this.exportReport(state.current_report_type, 'excel')">
+                    <div class="card-footer bg-white p-4 border-0 d-flex gap-3 ecf-report-viewer-footer">
+                        <button class="btn btn-dark px-5 py-3 fw-bold flex-fill" t-on-click="() => this.exportReport(state.current_report_type, 'excel')">
                             <i class="oi oi-spreadsheet me-2"></i>Exportar Excel
                         </button>
-                        <button class="btn btn-outline-dark rounded-pill px-5 py-3 fw-bold flex-fill" t-on-click="() => this.exportReport(state.current_report_type, 'pdf')">
-                            <i class="oi oi-printer me-2"></i>Imprimir Reporte
+                        <button class="btn btn-outline-dark px-5 py-3 fw-bold flex-fill" t-on-click="() => this.exportReport(state.current_report_type, 'pdf')">
+                            <i class="oi oi-printer me-2"></i>Imprimir PDF
                         </button>
                     </div>
                 </div>
