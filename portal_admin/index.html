@@ -573,6 +573,88 @@
             font-style: italic;
             color: var(--text-dim);
         }
+        .alert-banner {
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            border-radius: var(--radius);
+            padding: 14px 18px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            font-size: 0.88rem;
+        }
+        .alert-banner.ok {
+            background: var(--accent-glow);
+            border-color: var(--border-accent);
+        }
+        .check-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-card-alt);
+            margin-bottom: 8px;
+            border-left: 3px solid var(--text-dim);
+        }
+        .check-item.ok { border-left-color: var(--accent); }
+        .check-item.fail { border-left-color: var(--warning); }
+        .check-icon { font-size: 1rem; width: 22px; flex-shrink: 0; }
+        .odoo-steps { font-size: 0.82rem; color: var(--text-muted); margin-top: 20px; padding-left: 20px; }
+        .odoo-steps li { margin: 8px 0; }
+        .readiness-score {
+            font-family: var(--font-mono);
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        .cert-wizard-step {
+            display: flex;
+            gap: 14px;
+            padding: 16px;
+            margin-bottom: 10px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-card-alt);
+            border: 1px solid var(--border);
+        }
+        .cert-wizard-step.done { border-color: var(--border-accent); }
+        .cert-wizard-step.pending { opacity: 0.92; }
+        .cert-step-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            flex-shrink: 0;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+        }
+        .cert-wizard-step.done .cert-step-num {
+            background: var(--accent);
+            color: var(--bg-deep);
+            border-color: var(--accent);
+        }
+        .cert-step-body { flex: 1; min-width: 0; }
+        .cert-step-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+        .cert-step-desc { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; }
+        .cert-step-ref { font-size: 0.72rem; color: var(--text-dim); font-family: var(--font-mono); }
+        .homolog-table { width: 100%; font-size: 0.82rem; margin-top: 12px; border-collapse: collapse; }
+        .homolog-table th, .homolog-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+        .odoo-config-box {
+            margin-top: 16px;
+            padding: 14px;
+            background: var(--bg-deep);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            font-size: 0.82rem;
+        }
+        .odoo-config-box code { font-family: var(--font-mono); color: var(--accent); word-break: break-all; }
     </style>
 </head>
 <body>
@@ -614,6 +696,10 @@
         <div class="nav-item active" data-page="dashboard">
             <span class="icon">📊</span> Dashboard
         </div>
+        <div class="nav-item" data-page="plataforma">
+            <span class="icon">⚙️</span> Plataforma
+            <span style="font-size:0.65rem;color:var(--text-dim);display:block;padding-left:28px;">PSFE mTLS + estado certificación</span>
+        </div>
         <div class="sidebar-section">Gestión</div>
         <div class="nav-item" data-page="tenants">
             <span class="icon">🏢</span> Empresas
@@ -641,6 +727,10 @@
                 <h1 class="page-title">Dashboard</h1>
                 <button class="btn btn-secondary btn-sm" onclick="loadDashboard()">↻ Actualizar</button>
             </div>
+            <div id="psfeBanner" class="alert-banner" style="display:none;">
+                <span id="psfeBannerText">PSFE no configurado — la plataforma no puede comunicarse con DGII.</span>
+                <button class="btn btn-primary btn-sm" onclick="showPage('plataforma')">Configurar PSFE →</button>
+            </div>
             <div class="stats-grid" id="statsGrid">
                 <div class="stat-card"><div class="stat-label">Empresas Activas</div><div class="stat-value" id="statActivos">—</div></div>
                 <div class="stat-card"><div class="stat-label">Total Registradas</div><div class="stat-value neutral" id="statTotal">—</div></div>
@@ -656,26 +746,16 @@
                     <h2 style="font-size:1.1rem; font-weight:700; display:flex; align-items:center; gap:0.5rem;">
                         <span style="color:var(--accent);">🏆</span> Progreso de Certificación DGII
                     </h2>
-                    <span class="badge badge-certificacion">1 / 15 Completado</span>
+                    <span class="badge badge-certificacion" id="certFlowBadge">—</span>
                 </div>
-                <div class="flow-container">
-                    <div class="flow-step active">
-                        <div class="step-num">1</div> Registrado
-                    </div>
+                <div class="flow-container" id="certFlowSteps">
+                    <div class="flow-step" data-step="psfe"><div class="step-num">1</div> PSFE Plataforma</div>
                     <div class="flow-divider"></div>
-                    <div class="flow-step">
-                        <div class="step-num">2</div> Pruebas Datos
-                    </div>
+                    <div class="flow-step" data-step="tenant"><div class="step-num">2</div> Empresa + .p12</div>
                     <div class="flow-divider"></div>
-                    <div class="flow-step">
-                        <div class="step-num">3</div> Aprobación Com.
-                    </div>
+                    <div class="flow-step" data-step="odoo"><div class="step-num">3</div> Set Pruebas Odoo</div>
                     <div class="flow-divider"></div>
-                    <div class="flow-step">
-                        <div class="step-num">4</div> Simulación e-CF
-                    </div>
-                    <div class="flow-divider"></div>
-                    <div class="flow-more">... 11 pasos restantes</div>
+                    <div class="flow-step" data-step="emit"><div class="step-num">4</div> Emisión CerteCF</div>
                 </div>
             </div>
             <div class="page-header" style="margin-top:8px;">
@@ -687,6 +767,56 @@
                         <th>RNC</th><th>Razón Social</th><th>Plan</th><th>Ambiente</th><th>Estado</th><th>e-CF / mes</th>
                     </tr></thead>
                     <tbody id="dashTenantRows"><tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-dim);">Cargando...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Plataforma (PSFE + multi-tenant readiness) -->
+        <div id="page-plataforma" class="page" style="display:none;">
+            <div class="page-header">
+                <h1 class="page-title">Plataforma Renace</h1>
+                <button class="btn btn-secondary btn-sm" onclick="loadPlatform()">↻ Actualizar</button>
+            </div>
+            <div id="platformPsfeCard" class="glass-panel">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:1rem;">
+                    <div>
+                        <h2 style="font-size:1.05rem; font-weight:700;">Certificado PSFE (mTLS DGII)</h2>
+                        <p style="font-size:0.85rem; color:var(--text-muted); margin-top:6px;">
+                            Un solo PSFE para Renace como proveedor autorizado. Cada cliente usa su propio .p12 de contribuyente.
+                        </p>
+                    </div>
+                    <span id="platformPsfeBadge" class="badge badge-suspendido">No configurado</span>
+                </div>
+                <div id="platformPsfeMeta" style="font-size:0.82rem; color:var(--text-dim); margin-bottom:1rem;"></div>
+                <form id="psfeUploadForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Certificado cliente PSFE (.pem)</label>
+                            <input type="file" id="psfeCert" accept=".pem,.crt" required style="padding:8px; background:var(--bg-deep); border:1px solid var(--border); border-radius:var(--radius-sm); width:100%; color:var(--text-primary);">
+                        </div>
+                        <div class="form-group">
+                            <label>Llave privada PSFE (.pem)</label>
+                            <input type="file" id="psfeKey" accept=".pem,.key" required style="padding:8px; background:var(--bg-deep); border:1px solid var(--border); border-radius:var(--radius-sm); width:100%; color:var(--text-primary);">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>CA raíz DGII (.pem)</label>
+                        <input type="file" id="psfeCa" accept=".pem,.crt" required style="padding:8px; background:var(--bg-deep); border:1px solid var(--border); border-radius:var(--radius-sm); width:100%; color:var(--text-primary);">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">Guardar PSFE cifrado</button>
+                    <button type="button" class="btn btn-secondary btn-sm" style="margin-left:8px;" onclick="testPlatformDgii()">🔌 Probar CerteCF</button>
+                </form>
+            </div>
+            <div class="page-header" style="margin-top:8px;">
+                <h2 style="font-size:1.1rem;">Empresas — preparación certificación</h2>
+                <span id="platformSummary" class="badge badge-certificacion">—</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr>
+                        <th>RNC</th><th>Razón Social</th><th>Ambiente</th><th>Progreso</th><th>Estado</th><th></th>
+                    </tr></thead>
+                    <tbody id="platformTenantRows"><tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-dim);">Cargando...</td></tr></tbody>
                 </table>
             </div>
         </div>
@@ -727,6 +857,7 @@
             </div>
             <div class="tabs">
                 <div class="tab active" data-tab="info">Información</div>
+                <div class="tab" data-tab="certificacion">Certificación DGII</div>
                 <div class="tab" data-tab="sequences">Secuencias NCF</div>
                 <div class="tab" data-tab="certs">Certificados</div>
                 <div class="tab" data-tab="compras">Compras Recibidas</div>
@@ -764,6 +895,26 @@
                     </div>
                     <button type="submit" class="btn btn-primary btn-sm">Guardar Cambios</button>
                 </form>
+            </div>
+            <!-- Certificación Tab -->
+            <div id="tab-certificacion" style="display:none;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+                    <div>
+                        <h3 style="font-size:0.95rem;">Asistente de certificación DGII</h3>
+                        <p style="font-size:0.82rem; color:var(--text-muted);">
+                            CerteCF · Manual Técnico e-CF v2.1 · Renace primero, luego cada cliente
+                        </p>
+                        <p id="certDgiiUrl" style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono); margin-top:4px;"></p>
+                    </div>
+                    <div class="readiness-score" id="certScore">—</div>
+                </div>
+                <div id="certWizard"></div>
+                <div id="certHomologacion" style="margin-top:16px;"></div>
+                <div id="odooConfigBox" class="odoo-config-box" style="display:none;"></div>
+                <h4 style="font-size:0.88rem; margin:20px 0 8px;">Checklist técnico</h4>
+                <div id="certChecklist"></div>
+                <h4 style="font-size:0.88rem; margin:20px 0 8px;">En Odoo (ecf_connector)</h4>
+                <ol class="odoo-steps" id="odooPasos"></ol>
             </div>
             <!-- Sequences Tab -->
             <div id="tab-sequences" style="display:none;">
@@ -908,6 +1059,10 @@
                     <input type="url" id="newWebhookUrl" placeholder="https://mi-sistema.com/ecf/webhook">
                     <div class="hint">URL donde se enviarán callbacks con estado de cada e-CF</div>
                 </div>
+                <div style="padding:12px; background:var(--bg-deep); border-radius:var(--radius-sm); font-size:0.8rem; color:var(--text-muted);">
+                    Al crear la empresa se generan schema DB, secuencias NCF (E31–E47) y API Key.
+                    Luego: subir .p12 en Certificación DGII y conectar Odoo con el Set de Pruebas.
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('newTenantModal')">Cancelar</button>
@@ -942,8 +1097,8 @@
             <div style="margin-top:16px; padding:12px; background:var(--bg-deep); border-radius:var(--radius-sm); font-size:0.8rem; color:var(--text-muted);">
                 <strong>Próximos pasos:</strong><br>
                 1. Comparte el API Key y Webhook Secret con el contador/desarrollador<br>
-                2. Sube el certificado .p12 del contribuyente<br>
-                El sistema las descarga automáticamente de Renace e-CF y te permite crear la factura de proveedor en un clic.
+                2. Pestaña <strong>Certificación DGII</strong>: revisa el checklist y sube el .p12<br>
+                3. En Odoo: Set de Pruebas DGII → confirmar facturas → emisión a CerteCF
             </div>
         </div>
         <div class="modal-footer">
@@ -1069,6 +1224,7 @@ function showPage(page) {
     if (nav) nav.classList.add('active');
 
     if (page === 'dashboard') loadDashboard();
+    else if (page === 'plataforma') loadPlatform();
     else if (page === 'tenants') loadTenants();
     else if (page === 'dlq') loadDLQ();
 }
@@ -1091,6 +1247,7 @@ function handleTabChange(tab) {
     if (tabName === 'sequences') loadSequences(currentTenantId);
     if (tabName === 'certs') loadCerts(currentTenantId);
     if (tabName === 'compras') loadCompras(currentTenantId);
+    if (tabName === 'certificacion') loadCertificacionReadiness(currentTenantId);
 }
 
 document.querySelectorAll('.tab[data-tab]').forEach(tab => {
@@ -1111,9 +1268,10 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 // ═══════════════════════════════════════════
 async function loadDashboard() {
     try {
-        const [stats, list] = await Promise.all([
+        const [stats, list, readiness] = await Promise.all([
             api('/v1/admin/stats'),
             api('/v1/admin/tenants'),
+            api('/v1/admin/platform/readiness'),
         ]);
         document.getElementById('statActivos').textContent = stats.tenants.activos;
         document.getElementById('statTotal').textContent = stats.tenants.total;
@@ -1122,16 +1280,43 @@ async function loadDashboard() {
         document.getElementById('statRetry').textContent = stats.queues.retry;
         document.getElementById('statDlq').textContent = stats.queues.dlq;
 
+        const psfeOk = readiness.psfe.configured;
+        const banner = document.getElementById('psfeBanner');
+        if (psfeOk) {
+            banner.style.display = 'none';
+        } else {
+            banner.style.display = 'flex';
+            document.getElementById('psfeBannerText').textContent =
+                'PSFE no configurado — sube certificado, llave y CA DGII antes de emitir a CerteCF.';
+        }
+
+        const readyTenants = readiness.tenants.filter(t => t.ready);
+        const firstReady = readyTenants[0];
+        document.getElementById('certFlowBadge').textContent =
+            `${readiness.summary.listos} / ${readiness.summary.total} empresas listas`;
+
+        document.querySelectorAll('#certFlowSteps .flow-step').forEach(step => {
+            step.classList.remove('active');
+            const name = step.dataset.step;
+            if (name === 'psfe' && psfeOk) step.classList.add('active');
+            if (name === 'tenant' && firstReady) step.classList.add('active');
+            if (name === 'odoo' && firstReady) step.classList.add('active');
+        });
+
         const rows = list.tenants.slice(0, 8);
         document.getElementById('dashTenantRows').innerHTML = rows.length
-            ? rows.map(t => `<tr class="clickable" onclick="openTenantDetail('${t.id}')">
+            ? rows.map(t => {
+                const rt = readiness.tenants.find(r => r.id === t.id);
+                const prog = rt ? `${rt.score}/${rt.total}` : '—';
+                return `<tr class="clickable" onclick="openTenantDetail('${t.id}')">
                 <td class="mono">${esc(t.rnc)}</td>
                 <td>${esc(t.razon_social)}</td>
                 <td>${esc(t.plan)}</td>
                 <td><span class="badge badge-${t.ambiente}">${esc(t.ambiente)}</span></td>
                 <td><span class="badge badge-${t.estado}">${esc(t.estado)}</span></td>
-                <td class="mono">${t.ecf_emitidos_mes} / ${t.max_ecf_mensual}</td>
-              </tr>`).join('')
+                <td class="mono">${t.ecf_emitidos_mes} / ${t.max_ecf_mensual} · cert ${prog}</td>
+              </tr>`;
+            }).join('')
             : '<tr><td colspan="6" class="empty-state"><p>Aún no hay empresas registradas</p></td></tr>';
     } catch (err) {
         toast('Error cargando dashboard: ' + err.message, 'error');
@@ -1362,6 +1547,176 @@ document.getElementById('newTenantForm').addEventListener('submit', async (e) =>
 });
 
 // ═══════════════════════════════════════════
+// PLATAFORMA (PSFE + readiness multi-tenant)
+// ═══════════════════════════════════════════
+async function loadPlatform() {
+    try {
+        const data = await api('/v1/admin/platform/readiness');
+        const psfe = data.psfe;
+        const badge = document.getElementById('platformPsfeBadge');
+        badge.textContent = psfe.configured ? 'Configurado' : 'No configurado';
+        badge.className = 'badge ' + (psfe.configured ? 'badge-activo' : 'badge-suspendido');
+
+        const meta = [];
+        if (psfe.source) meta.push(`Origen: ${psfe.source}`);
+        if (psfe.updated_at) meta.push(`Actualizado: ${fmtDate(psfe.updated_at)}`);
+        document.getElementById('platformPsfeMeta').textContent = meta.join(' · ') || 'Sin PSFE en base de datos ni .env';
+
+        document.getElementById('platformSummary').textContent =
+            `${data.summary.listos} listas · ${data.summary.pendientes} pendientes`;
+
+        const tbody = document.getElementById('platformTenantRows');
+        if (!data.tenants.length) {
+            tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>No hay empresas. Registra Renace (132842316) primero.</p></div></td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.tenants.map(t => `
+            <tr class="clickable" onclick="openTenantDetail('${t.id}')">
+                <td class="mono">${esc(t.rnc)}</td>
+                <td><strong>${esc(t.razon_social)}</strong></td>
+                <td><span class="badge badge-${t.ambiente}">${esc(t.ambiente)}</span></td>
+                <td class="mono">${t.score} / ${t.total}</td>
+                <td><span class="badge ${t.ready ? 'badge-activo' : 'badge-certificacion'}">${t.ready ? 'Lista' : 'Pendiente'}</span></td>
+                <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openTenantDetail('${t.id}')">Checklist →</button></td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        toast('Error cargando plataforma: ' + err.message, 'error');
+    }
+}
+
+document.getElementById('psfeUploadForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const cert = document.getElementById('psfeCert').files[0];
+    const key = document.getElementById('psfeKey').files[0];
+    const ca = document.getElementById('psfeCa').files[0];
+    if (!cert || !key || !ca) return;
+
+    const formData = new FormData();
+    formData.append('cert_file', cert);
+    formData.append('key_file', key);
+    formData.append('ca_file', ca);
+
+    try {
+        const res = await fetch(`${API_URL}/v1/admin/platform/psfe`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${ADMIN_KEY}` },
+            body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error subiendo PSFE');
+        document.getElementById('psfeUploadForm').reset();
+        toast(data.mensaje || 'PSFE guardado correctamente');
+        loadPlatform();
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+});
+
+async function loadCertificacionReadiness(id) {
+    if (!id) return;
+    try {
+        const data = await api(`/v1/admin/tenants/${id}/certificacion`);
+        document.getElementById('certScore').textContent = `${data.score} / ${data.total}`;
+        document.getElementById('certDgiiUrl').textContent =
+            data.dgii ? `DGII ${data.dgii.ambiente} → ${data.dgii.url}` : '';
+
+        const actionBtn = (accion) => {
+            const map = {
+                plataforma: `<button class="btn btn-secondary btn-sm" onclick="showPage('plataforma')">Ir a Plataforma</button>`,
+                upload_cert: `<button class="btn btn-primary btn-sm" onclick="openUploadCertModal()">Subir .p12</button>`,
+                postulacion: `<button class="btn btn-secondary btn-sm" onclick="openPostulacionModal()">Firmar postulación</button>`,
+                test_dgii: `<button class="btn btn-secondary btn-sm" onclick="testTenantDgii()">Probar CerteCF</button>`,
+                odoo_config: `<button class="btn btn-secondary btn-sm" onclick="toggleOdooConfig()">Ver config Odoo</button>`,
+            };
+            return accion && map[accion] ? map[accion] : '';
+        };
+
+        document.getElementById('certWizard').innerHTML = (data.pasos || []).map(p => `
+            <div class="cert-wizard-step ${p.ok ? 'done' : 'pending'}">
+                <div class="cert-step-num">${p.ok ? '✓' : p.orden}</div>
+                <div class="cert-step-body">
+                    <div class="cert-step-title">${esc(p.titulo)}</div>
+                    <div class="cert-step-desc">${esc(p.descripcion)}</div>
+                    <div class="cert-step-ref">${esc(p.ref_dgii || '')}</div>
+                    <div style="margin-top:8px;">${actionBtn(p.accion)}</div>
+                </div>
+            </div>
+        `).join('');
+
+        if (data.dgii && data.dgii.homologacion) {
+            const rows = Object.entries(data.dgii.homologacion).map(([tipo, h]) => `
+                <tr>
+                    <td class="mono">${esc(tipo)}</td>
+                    <td>${h.aprobados} aprobado(s)</td>
+                    <td><span class="badge ${h.ok ? 'badge-activo' : 'badge-certificacion'}">${h.ok ? 'OK' : 'Pendiente'}</span></td>
+                </tr>
+            `).join('');
+            document.getElementById('certHomologacion').innerHTML = `
+                <h4 style="font-size:0.88rem; margin-bottom:8px;">Set de Pruebas DGII (e-CF aprobados en CerteCF)</h4>
+                <div class="table-wrap"><table class="homolog-table"><thead><tr><th>Tipo</th><th>Emisiones</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>
+                <p style="font-size:0.78rem; color:var(--text-dim); margin-top:8px;">Total aprobados: ${data.dgii.emisiones_aprobadas || 0}</p>
+            `;
+        }
+
+        if (data.config_odoo) {
+            const c = data.config_odoo;
+            document.getElementById('odooConfigBox').innerHTML = `
+                <strong>Configuración Odoo → Ajustes → e-CF DGII</strong><br><br>
+                URL SaaS: <code id="odooCfgUrl">${esc(API_URL)}</code>
+                <button class="copy-btn btn btn-ghost btn-sm" onclick="copyText('odooCfgUrl')">📋</button><br>
+                RNC emisor: <code>${esc(c.rnc)}</code><br>
+                Ambiente: <code>certificacion</code> (CerteCF)<br>
+                Webhook: <code>${esc(c.webhook_url || '— configurar en pestaña Información —')}</code><br>
+                <span style="color:var(--warning); font-size:0.78rem;">${esc(c.nota_api_key)}</span>
+            `;
+        }
+
+        document.getElementById('certChecklist').innerHTML = data.checks.map(c => `
+            <div class="check-item ${c.ok ? 'ok' : 'fail'}">
+                <span class="check-icon">${c.ok ? '✅' : '⬜'}</span>
+                <div>
+                    <strong>${esc(c.label)}</strong>${c.optional ? ' <span style="font-size:0.75rem;color:var(--text-dim);">(opcional)</span>' : ''}
+                    ${c.hint && !c.ok ? `<div class="hint" style="margin-top:4px;">${esc(c.hint)}</div>` : ''}
+                </div>
+            </div>
+        `).join('');
+        document.getElementById('odooPasos').innerHTML = (data.odoo_pasos || []).map(s => `<li>${esc(s)}</li>`).join('');
+    } catch (err) {
+        document.getElementById('certWizard').innerHTML =
+            `<p style="color:var(--danger);">Error: ${esc(err.message)}</p>`;
+    }
+}
+
+function toggleOdooConfig() {
+    const el = document.getElementById('odooConfigBox');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function testPlatformDgii() {
+    toast('Probando mTLS PSFE → CerteCF...');
+    try {
+        const data = await api('/v1/admin/platform/test-dgii', { method: 'POST' });
+        toast(`✅ ${data.mensaje || 'Conexión OK'} (HTTP ${data.status_code})`);
+        loadPlatform();
+    } catch (err) {
+        toast('CerteCF: ' + err.message, 'error');
+    }
+}
+
+async function testTenantDgii() {
+    if (!currentTenantId) return;
+    toast('Probando autenticación DGII (semilla + .p12)...');
+    try {
+        const data = await api(`/v1/admin/tenants/${currentTenantId}/test-dgii`, { method: 'POST' });
+        toast(`✅ ${data.mensaje} — RNC ${data.rnc}`);
+        loadCertificacionReadiness(currentTenantId);
+    } catch (err) {
+        toast('DGII: ' + err.message, 'error');
+    }
+}
+
+// ═══════════════════════════════════════════
 // UPLOAD CERT
 // ═══════════════════════════════════════════
 function openUploadCertModal() { openModal('uploadCertModal'); }
@@ -1388,6 +1743,7 @@ document.getElementById('uploadCertForm').addEventListener('submit', async (e) =
         document.getElementById('uploadCertForm').reset();
         toast(`Certificado subido — vence ${data.valid_to}`);
         loadCerts(currentTenantId);
+        loadCertificacionReadiness(currentTenantId);
     } catch (err) {
         toast(err.message, 'error');
     }
@@ -1606,7 +1962,7 @@ document.addEventListener('click', e => {
         tab.classList.add('active');
         
         const tabName = tab.dataset.tab;
-        ['info', 'sequences', 'certs', 'compras'].forEach(name => {
+        ['info', 'certificacion', 'sequences', 'certs', 'compras'].forEach(name => {
             const el = document.getElementById(`tab-${name}`);
             if (el) el.style.display = (name === tabName) ? 'block' : 'none';
         });
@@ -1614,6 +1970,7 @@ document.addEventListener('click', e => {
         if (tabName === 'sequences') loadSequences(currentTenantId);
         if (tabName === 'certs') loadCerts(currentTenantId);
         if (tabName === 'compras') loadCompras(currentTenantId);
+        if (tabName === 'certificacion') loadCertificacionReadiness(currentTenantId);
     }
 });
 

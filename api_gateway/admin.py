@@ -9,7 +9,7 @@ import logging
 import os
 import secrets
 import uuid
-from datetime import timezone
+from datetime import date, timezone
 from typing import Optional
 
 import asyncpg
@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Uploa
 from pydantic import BaseModel, Field, field_validator, AliasChoices
 
 from ecf_core.cert_vault import CertVault, CertVaultError, CertVaultRepository
+from ecf_core.dgii_client import DGIIClient, DGIIClientError
 from ecf_core.utils import safe_schema as _safe_schema
 
 logger = logging.getLogger(__name__)
@@ -1030,4 +1031,472 @@ async def generate_signed_postulacion(
             "Content-Disposition": f"attachment; filename={xml_file.filename}"
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Plataforma PSFE + checklist certificación (multi-tenant)
+# ---------------------------------------------------------------------------
+
+
+# Tipos NCF exigidos por DGII (Manual Técnico e-CF v2.1)
+_DGII_TIPOS_NCF = (31, 32, 33, 34, 41, 43, 44, 45, 46, 47)
+_DGII_HOMOLOGACION_TIPOS = (31, 32, 33, 34)  # Set de Pruebas obligatorio
+_DGII_URLS = {
+    "certificacion": "https://ecf.dgii.gov.do/CerteCF",
+    "produccion": "https://ecf.dgii.gov.do/eCF",
+    "simulacion": "mock local",
+}
+
+
+def _validate_pem_file(data: bytes, kind: str) -> None:
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=422, detail=f"Archivo {kind} no es texto PEM") from exc
+    if kind == "cert" and "BEGIN CERTIFICATE" not in text:
+        raise HTTPException(status_code=422, detail="Certificado PSFE inválido (se espera PEM)")
+    if kind == "key" and "PRIVATE KEY" not in text:
+        raise HTTPException(status_code=422, detail="Llave PSFE inválida (se espera PEM)")
+    if kind == "ca" and "BEGIN CERTIFICATE" not in text:
+        raise HTTPException(status_code=422, detail="CA DGII inválida (se espera PEM)")
+
+
+async def _emisiones_homologacion(conn, schema_name: str) -> dict:
+    """Conteo de e-CF aprobados por tipo en el schema del tenant."""
+    try:
+        schema = _safe_schema(schema_name)
+    except ValueError:
+        return {"por_tipo": {}, "total_aprobados": 0, "codigo_seguridad_ok": 0}
+
+    rows = await conn.fetch(
+        f"""
+        SELECT tipo_ecf, COUNT(*) AS cnt
+        FROM {schema}.ecf
+        WHERE estado = 'aprobado'
+        GROUP BY tipo_ecf
+        """
+    )
+    por_tipo = {int(r["tipo_ecf"]): int(r["cnt"]) for r in rows}
+    codigo_ok = await conn.fetchval(
+        f"""
+        SELECT COUNT(*) FROM {schema}.ecf
+        WHERE estado = 'aprobado'
+          AND security_code IS NOT NULL
+          AND LENGTH(security_code) = 6
+        """
+    )
+    return {
+        "por_tipo": por_tipo,
+        "total_aprobados": sum(por_tipo.values()),
+        "codigo_seguridad_ok": int(codigo_ok or 0),
+    }
+
+
+async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
+    tenant_id = tenant_row["id"]
+    schema_name = tenant_row.get("schema_name") or f"tenant_{tenant_row['rnc']}"
+    ambiente = tenant_row.get("ambiente", "certificacion")
+
+    cert_row = await conn.fetchrow(
+        """
+        SELECT valid_to FROM public.tenant_certs
+        WHERE tenant_id = $1 AND activo = TRUE
+        ORDER BY valid_to DESC
+        LIMIT 1
+        """,
+        tenant_id,
+    )
+    cert_cargado = cert_row is not None
+    hoy = date.today()
+    cert_vigente = bool(cert_row and cert_row["valid_to"] and cert_row["valid_to"] >= hoy)
+
+    seq_rows = await conn.fetch(
+        """
+        SELECT tipo_ecf FROM public.ncf_sequences
+        WHERE tenant_id = $1 AND activo = TRUE
+        """,
+        tenant_id,
+    )
+    tipos_ncf = {int(r["tipo_ecf"]) for r in seq_rows}
+    ncf_completo = all(t in tipos_ncf for t in _DGII_TIPOS_NCF)
+
+    emisiones = await _emisiones_homologacion(conn, schema_name)
+    por_tipo = emisiones["por_tipo"]
+    homologacion_tipos_ok = all(por_tipo.get(t, 0) >= 1 for t in _DGII_HOMOLOGACION_TIPOS)
+    homologacion_detalle = {
+        f"E{t}": {"requerido": True, "aprobados": por_tipo.get(t, 0), "ok": por_tipo.get(t, 0) >= 1}
+        for t in _DGII_HOMOLOGACION_TIPOS
+    }
+
+    webhook_ok = bool(tenant_row.get("odoo_webhook_url"))
+    ambiente_ok = ambiente == "certificacion"
+    activo_ok = tenant_row["estado"] == "activo"
+
+    checks = [
+        {
+            "id": "psfe",
+            "label": "PSFE plataforma (mTLS → CerteCF)",
+            "ok": psfe_ok,
+            "hint": "Menú Plataforma — certificado cliente Renace (Manual Técnico §2.1)",
+        },
+        {
+            "id": "activo",
+            "label": "Empresa activa en Renace e-CF",
+            "ok": activo_ok,
+        },
+        {
+            "id": "ambiente",
+            "label": "Ambiente CerteCF (certificación DGII)",
+            "ok": ambiente_ok,
+            "hint": "Homologación usa https://ecf.dgii.gov.do/CerteCF",
+        },
+        {
+            "id": "cert_p12",
+            "label": "Certificado .p12 del contribuyente (vigente)",
+            "ok": cert_cargado and cert_vigente,
+            "hint": "Certificado emitido por DGII — pestaña Certificados",
+        },
+        {
+            "id": "ncf",
+            "label": "Secuencias NCF E31–E47 (10 tipos)",
+            "ok": ncf_completo,
+            "hint": "Automático al registrar empresa",
+        },
+        {
+            "id": "homologacion",
+            "label": "Set de Pruebas: E31, E32, E33, E34 aprobados",
+            "ok": homologacion_tipos_ok,
+            "hint": "Odoo → Set de Pruebas DGII → confirmar y emitir",
+        },
+        {
+            "id": "codigo_seguridad",
+            "label": "Código de Seguridad (6 caracteres DGII)",
+            "ok": emisiones["codigo_seguridad_ok"] >= 1,
+            "hint": "Generado automáticamente al aprobar e-CF",
+        },
+        {
+            "id": "webhook",
+            "label": "Webhook ERP (Odoo / Citrus)",
+            "ok": webhook_ok,
+            "optional": True,
+            "hint": "Recomendado para recibir estado de cada e-CF",
+        },
+    ]
+
+    required = [c for c in checks if not c.get("optional")]
+    score = sum(1 for c in required if c["ok"])
+    total = len(required)
+
+    pasos = [
+        {
+            "orden": 1,
+            "id": "psfe",
+            "titulo": "Configurar PSFE (mTLS plataforma)",
+            "descripcion": "Sube cert.pem, key.pem y ca.pem que entrega la DGII al registrar Renace como PSFE.",
+            "ref_dgii": "Manual Técnico e-CF — Autenticación mTLS",
+            "ok": psfe_ok,
+            "accion": "plataforma",
+        },
+        {
+            "orden": 2,
+            "id": "empresa",
+            "titulo": "Empresa registrada con secuencias NCF",
+            "descripcion": f"RNC {tenant_row['rnc']} — schema {schema_name} con prefijos E31–E47.",
+            "ref_dgii": "Formato NCF DGII (13 caracteres, prefijo E + tipo)",
+            "ok": activo_ok and ncf_completo,
+            "accion": None,
+        },
+        {
+            "orden": 3,
+            "id": "cert_p12",
+            "titulo": "Subir certificado .p12 del contribuyente",
+            "descripcion": "Certificado digital del emisor para firmar XML (XAdES-BES RSA-SHA256).",
+            "ref_dgii": "Manual Técnico e-CF — Firma digital",
+            "ok": cert_cargado and cert_vigente,
+            "accion": "upload_cert",
+        },
+        {
+            "orden": 4,
+            "id": "test_dgii",
+            "titulo": "Probar conexión con CerteCF",
+            "descripcion": "Valida mTLS PSFE y autenticación semilla con el .p12 del contribuyente.",
+            "ref_dgii": "API Autenticación — GET /fe/autenticacion/api/semilla",
+            "ok": psfe_ok and cert_cargado,
+            "accion": "test_dgii",
+        },
+        {
+            "orden": 5,
+            "id": "postulacion",
+            "titulo": "Firmar XML de postulación DGII",
+            "descripcion": "Descarga el XML en portal DGII, fírmalo aquí con el .p12 y súbelo de vuelta a dgii.gov.do.",
+            "ref_dgii": "Portal DGII → Facturación Electrónica → Postulación",
+            "ok": cert_cargado,
+            "accion": "postulacion",
+        },
+        {
+            "orden": 6,
+            "id": "odoo",
+            "titulo": "Conectar Odoo (ecf_connector)",
+            "descripcion": "URL SaaS, API Key, Webhook Secret y ambiente certificacion en Ajustes → e-CF DGII.",
+            "ref_dgii": "Integración ERP — callbacks HMAC-SHA256",
+            "ok": webhook_ok,
+            "accion": "odoo_config",
+        },
+        {
+            "orden": 7,
+            "id": "set_pruebas",
+            "titulo": "Set de Pruebas DGII en Odoo",
+            "descripcion": "Importar Excel de homologación, confirmar facturas; emisión automática a CerteCF.",
+            "ref_dgii": "Casos obligatorios E31, E32, E33, E34 + ITBIS exento + USD",
+            "ok": homologacion_tipos_ok,
+            "accion": None,
+        },
+        {
+            "orden": 8,
+            "id": "presentar",
+            "titulo": "Presentar evidencia a la DGII",
+            "descripcion": "Formulario PSFE, capturas de e-CF aprobados, plan de contingencia y SLA 99.5%.",
+            "ref_dgii": "dgii.gov.do/ecf — Área de Tecnología",
+            "ok": homologacion_tipos_ok and emisiones["codigo_seguridad_ok"] >= 4,
+            "accion": None,
+        },
+    ]
+
+    return {
+        "ready": score == total,
+        "score": score,
+        "total": total,
+        "checks": checks,
+        "pasos": pasos,
+        "dgii": {
+            "ambiente": ambiente,
+            "url": _DGII_URLS.get(ambiente, _DGII_URLS["certificacion"]),
+            "homologacion": homologacion_detalle,
+            "emisiones_aprobadas": emisiones["total_aprobados"],
+        },
+        "config_odoo": {
+            "rnc": tenant_row["rnc"],
+            "razon_social": tenant_row["razon_social"],
+            "ambiente": ambiente,
+            "webhook_url": tenant_row.get("odoo_webhook_url") or "",
+            "nota_api_key": "El API Key se muestra solo al crear o rotar la empresa.",
+        },
+        "odoo_pasos": [
+            "Apps → Renace e-CF Connector → Instalar (v18 o v19 según tu Odoo)",
+            "Ajustes → e-CF DGII: URL del SaaS, API Key, Webhook Secret, ambiente certificacion",
+            "Activar emisión automática (ecf_emision_automatica)",
+            "Contabilidad → Set de Pruebas DGII: importar Excel de homologación de la DGII",
+            "Confirmar cada factura de prueba → el worker envía a CerteCF y Odoo recibe el webhook",
+        ],
+    }
+
+
+@router.get("/platform/psfe")
+async def get_platform_psfe(_: None = Depends(require_admin)):
+    """Estado del certificado PSFE (sin exponer secretos)."""
+    from ecf_core.platform_config import psfe_status
+
+    db = _get_pool()
+    return await psfe_status(db)
+
+
+@router.post("/platform/psfe")
+async def upload_platform_psfe(
+    cert_file: UploadFile = File(..., description="Certificado cliente PSFE (.pem)"),
+    key_file: UploadFile = File(..., description="Llave privada PSFE (.pem)"),
+    ca_file: UploadFile = File(..., description="CA raíz DGII (.pem)"),
+    _: None = Depends(require_admin),
+):
+    """Sube certificados PSFE de la plataforma (cifrados en DB)."""
+    from ecf_core.platform_config import save_psfe_to_db, psfe_status
+
+    cert_pem = await cert_file.read()
+    key_pem = await key_file.read()
+    ca_pem = await ca_file.read()
+
+    for data, kind in ((cert_pem, "cert"), (key_pem, "key"), (ca_pem, "ca")):
+        if len(data) > 100_000:
+            raise HTTPException(status_code=422, detail=f"Archivo {kind} demasiado grande")
+        if len(data) < 50:
+            raise HTTPException(status_code=422, detail=f"Archivo {kind} vacío o inválido")
+        _validate_pem_file(data, kind)
+
+    db = _get_pool()
+    try:
+        await save_psfe_to_db(db, cert_pem, key_pem, ca_pem)
+    except CertVaultError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    logger.info("PSFE plataforma actualizado desde panel admin")
+    status = await psfe_status(db)
+    return {
+        **status,
+        "mensaje": "PSFE guardado cifrado. Los workers usarán estos certificados al reiniciar o en la próxima emisión.",
+    }
+
+
+@router.get("/platform/readiness")
+async def platform_readiness(_: None = Depends(require_admin)):
+    """Estado global: PSFE + resumen de certificación por empresa."""
+    from ecf_core.platform_config import psfe_status
+
+    db = _get_pool()
+    psfe = await psfe_status(db)
+    psfe_ok = psfe["configured"]
+
+    async with db.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, rnc, razon_social, ambiente, estado, odoo_webhook_url, schema_name
+            FROM public.tenants
+            WHERE deleted_at IS NULL
+            ORDER BY created_at ASC
+            """
+        )
+        tenants = []
+        for row in rows:
+            readiness = await _certificacion_readiness(conn, row, psfe_ok)
+            tenants.append(
+                {
+                    "id": str(row["id"]),
+                    "rnc": row["rnc"],
+                    "razon_social": row["razon_social"],
+                    "ambiente": row["ambiente"],
+                    "estado": row["estado"],
+                    "ready": readiness["ready"],
+                    "score": readiness["score"],
+                    "total": readiness["total"],
+                }
+            )
+
+    ready_count = sum(1 for t in tenants if t["ready"])
+    return {
+        "psfe": psfe,
+        "tenants": tenants,
+        "summary": {
+            "total": len(tenants),
+            "listos": ready_count,
+            "pendientes": len(tenants) - ready_count,
+        },
+    }
+
+
+@router.get("/tenants/{tenant_id}/certificacion")
+async def tenant_certificacion_readiness(
+    tenant_id: str,
+    _: None = Depends(require_admin),
+):
+    """Checklist de certificación DGII para una empresa."""
+    from ecf_core.platform_config import psfe_status
+
+    db = _get_pool()
+    psfe = await psfe_status(db)
+
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, rnc, razon_social, ambiente, estado, odoo_webhook_url, schema_name
+            FROM public.tenants
+            WHERE id = $1 AND deleted_at IS NULL
+            """,
+            uuid.UUID(tenant_id),
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Tenant no encontrado")
+        readiness = await _certificacion_readiness(conn, row, psfe["configured"])
+
+    return {
+        "tenant_id": tenant_id,
+        "rnc": row["rnc"],
+        "razon_social": row["razon_social"],
+        **readiness,
+    }
+
+
+@router.post("/platform/test-dgii")
+async def test_platform_dgii_connection(_: None = Depends(require_admin)):
+    """Prueba mTLS PSFE contra semilla CerteCF (sin .p12 del contribuyente)."""
+    from ecf_core.platform_config import psfe_status
+
+    db = _get_pool()
+    psfe = await psfe_status(db)
+    if not psfe["configured"]:
+        raise HTTPException(
+            status_code=422,
+            detail="PSFE no configurado. Sube certificado, llave y CA en Plataforma.",
+        )
+
+    try:
+        async with DGIIClient("certificacion") as client:
+            result = await client.probar_conexion_mtls()
+    except DGIIClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if not result["ok"]:
+        raise HTTPException(
+            status_code=502,
+            detail=f"CerteCF respondió HTTP {result['status_code']}: {result.get('detalle', '')}",
+        )
+    return {**result, "mensaje": "Conexión mTLS PSFE → CerteCF OK (semilla DGII recibida)"}
+
+
+@router.post("/tenants/{tenant_id}/test-dgii")
+async def test_tenant_dgii_auth(
+    tenant_id: str,
+    _: None = Depends(require_admin),
+):
+    """Prueba autenticación completa DGII (semilla + firma .p12 → token)."""
+    from ecf_core.platform_config import psfe_status
+
+    db = _get_pool()
+    psfe = await psfe_status(db)
+    if not psfe["configured"]:
+        raise HTTPException(status_code=422, detail="PSFE no configurado en Plataforma")
+
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, ambiente, rnc FROM public.tenants
+            WHERE id = $1 AND deleted_at IS NULL
+            """,
+            uuid.UUID(tenant_id),
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Tenant no encontrado")
+
+    if row["ambiente"] not in ("certificacion", "produccion"):
+        raise HTTPException(
+            status_code=422,
+            detail="Prueba DGII solo aplica en ambiente certificacion o produccion",
+        )
+
+    try:
+        vault = CertVault()
+        cert_repo = CertVaultRepository(db, vault)
+        cert_info = await cert_repo.obtener_certificado(tenant_id)
+    except CertVaultError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not cert_info.get("cert_data"):
+        raise HTTPException(status_code=400, detail="Sube el certificado .p12 del contribuyente primero")
+
+    try:
+        async with DGIIClient(ambiente=row["ambiente"]) as client:
+            client.set_certificate(cert_info["cert_data"], cert_info["cert_password"].encode("utf-8"))
+            mtls = await client.probar_conexion_mtls()
+            if not mtls["ok"]:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"mTLS falló: HTTP {mtls['status_code']}",
+                )
+            auth = await client.probar_autenticacion_contribuyente()
+    except DGIIClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return {
+        **auth,
+        "rnc": row["rnc"],
+        "ambiente": row["ambiente"],
+        "mtls": mtls,
+    }
 

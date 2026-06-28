@@ -10,8 +10,8 @@ from __future__ import annotations
 import hashlib
 import os
 import uuid
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock
+from datetime import datetime, timezone, date
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -387,6 +387,79 @@ class TestAdminAPI:
 
         assert resp.status_code == 200
         assert resp.json()["messages"][0]["error"] == "fallo auth"
+
+
+class TestPlatformAdmin:
+    ADMIN_HEADERS = {"Authorization": "Bearer test-admin-key-12345"}
+
+    def test_platform_psfe_status(self, client, fake_pool):
+        fake_pool.conn.fetchval.return_value = None
+        fake_pool.conn.fetchrow.return_value = None
+        resp = client.get("/v1/admin/platform/psfe", headers=self.ADMIN_HEADERS)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "configured" in data
+        assert "source" in data
+
+    def test_platform_readiness(self, client, fake_pool):
+        tenant = make_record(
+            id=TENANT_ID,
+            rnc="132842316",
+            razon_social="RENACE SRL",
+            ambiente="certificacion",
+            estado="activo",
+            odoo_webhook_url="https://odoo.test/webhook",
+            schema_name="tenant_132842316",
+        )
+        seq_tipos = [make_record(tipo_ecf=t) for t in (31, 32, 33, 34, 41, 43, 44, 45, 46, 47)]
+        fake_pool.conn.fetch.side_effect = [
+            [tenant],
+            seq_tipos,
+            [],
+        ]
+        fake_pool.conn.fetchrow.return_value = None
+        fake_pool.conn.fetchval.return_value = 0
+
+        psfe_mock = AsyncMock(return_value={"configured": True, "source": "env", "updated_at": None})
+        with patch("ecf_core.platform_config.psfe_status", psfe_mock):
+            resp = client.get("/v1/admin/platform/readiness", headers=self.ADMIN_HEADERS)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["summary"]["total"] == 1
+
+    def test_tenant_certificacion_readiness(self, client, fake_pool):
+        tenant = make_record(
+            id=TENANT_ID,
+            rnc="132842316",
+            razon_social="RENACE SRL",
+            ambiente="certificacion",
+            estado="activo",
+            odoo_webhook_url=None,
+            schema_name="tenant_132842316",
+        )
+        fake_pool.conn.fetchrow.side_effect = [
+            tenant,
+            make_record(valid_to=date(2027, 5, 27)),
+        ]
+        fake_pool.conn.fetch.side_effect = [
+            [make_record(tipo_ecf=t) for t in (31, 32, 33, 34, 41, 43, 44, 45, 46, 47)],
+            [],
+        ]
+        fake_pool.conn.fetchval.return_value = 0
+
+        psfe_mock = AsyncMock(return_value={"configured": True, "source": "env", "updated_at": None})
+        with patch("ecf_core.platform_config.psfe_status", psfe_mock):
+            resp = client.get(
+                f"/v1/admin/tenants/{TENANT_ID}/certificacion",
+                headers=self.ADMIN_HEADERS,
+            )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["rnc"] == "132842316"
+        assert len(data["pasos"]) == 8
+        assert "dgii" in data
 
 
 # ── Tests: Rate Limiting ──────────────────────────────

@@ -124,6 +124,15 @@ class DGIIClient:
         dgii_ca_b64 = os.environ.get("DGII_CA_B64", "")
 
         try:
+            from ecf_core.platform_config import get_psfe_credentials
+
+            _psfe = get_psfe_credentials()
+            if _psfe.configured:
+                psfe_cert_b64, psfe_key_b64, dgii_ca_b64 = _psfe
+        except ImportError:
+            pass
+
+        try:
             if psfe_cert_b64 and psfe_key_b64:
                 ssl_context = ssl.create_default_context()
 
@@ -184,6 +193,28 @@ class DGIIClient:
         self._access_token = None
         self._token_expires_at = 0
         self._cleanup_tmp_files()
+
+    async def probar_conexion_mtls(self) -> dict:
+        """GET semilla en CerteCF/eCF — valida mTLS PSFE (Manual Técnico DGII §Autenticación)."""
+        if not self._client:
+            raise DGIIClientError("Cliente HTTP no inicializado — use async with DGIIClient(...)")
+        resp = await self._request_first_available("get", self.EP_SEMILLA)
+        ok = resp.status_code == 200 and ("semilla" in resp.text.lower() or "<?xml" in resp.text.lower())
+        return {
+            "ok": ok,
+            "status_code": resp.status_code,
+            "base_url": self.base_url,
+            "detalle": "Semilla DGII recibida" if ok else (resp.text[:200] if resp.text else "Sin respuesta"),
+        }
+
+    async def probar_autenticacion_contribuyente(self) -> dict:
+        """Flujo completo semilla → firma → token (requiere .p12 del contribuyente)."""
+        await self._authenticate()
+        return {
+            "ok": True,
+            "base_url": self.base_url,
+            "mensaje": "Autenticación DGII exitosa — token Bearer obtenido",
+        }
 
     # -------------------------------------------------------
     # Autenticación DGII (Semilla)

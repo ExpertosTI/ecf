@@ -213,6 +213,15 @@
 ### 32. `.gitignore` — artefactos locales de prueba ✅
 - Excluye `/*.xlsx` y `/2026*.xml` en la raíz del repo (postulaciones, XML de prueba DGII)
 
+### 33. Panel admin — certificación DGII end-to-end ✅ (2026-06-27)
+**Archivos:** [portal_admin/index.html](portal_admin/index.html), [api_gateway/admin.py](api_gateway/admin.py), [ecf_core/platform_config.py](ecf_core/platform_config.py), [db/012_platform_psfe.sql](db/012_platform_psfe.sql)
+
+- PSFE de plataforma cifrado en DB (`platform_psfe`) — subida desde menú **Plataforma** (sin editar `.env`)
+- Asistente de 8 pasos por empresa alineado al Manual Técnico e-CF: PSFE mTLS → CerteCF, .p12 vigente, NCF E31–E47, postulación firmada, Odoo, Set de Pruebas (E31–E34 aprobados), presentación DGII
+- Tabla de progreso homologación (conteo e-CF aprobados por tipo en schema del tenant)
+- Botones **Probar CerteCF** (semilla mTLS PSFE) y autenticación completa contribuyente (semilla + .p12 → token)
+- Worker/scheduler/API cargan PSFE desde DB al arrancar
+
 ---
 
 ## 🟡 Pendientes opcionales (bajo riesgo)
@@ -251,20 +260,19 @@
 1. **`pip install pre-commit && pre-commit install`** — activa los hooks en el repo local.
 2. **Ejecutar `db/010_rename_cufe.sql`** contra todas las instancias existentes para renombrar el column `cufe → codigo_seguridad` en los schemas de tenant.
 3. **Actualizar Odoo** con el módulo `ecf_connector` v18.0.5.0 (o v19 v19.0.3.0): `odoo -u ecf_connector` — la migración `pre-migrate.py` renombrará las columnas Odoo automáticamente.
-4. **Firmar Postulación**: Se ha integrado la firma de postulación directamente en el Panel de Administración del SaaS. El administrador puede subir el XML original descargado de la DGII, y el SaaS lo firmará con el certificado `.p12` activo utilizando canonicalización inclusiva (como exige la DGII) y lo descargará con el mismo nombre de forma automatizada.
-5. **Subir al Portal de la DGII**: Subir el archivo firmado obtenido del SaaS en la pantalla de la DGII.
-6. **Smoke test post-migración**:
+4. **Migración PSFE en REY**: ejecutar `db/012_platform_psfe.sql` en postgres y subir PSFE desde `https://ecf.renace.tech/portal/` → Plataforma.
+5. **Certificación Renace (132842316)**: Panel → Empresa → pestaña **Certificación DGII** — seguir asistente de 8 pasos.
+6. **Firmar Postulación**: subir XML original DGII en el asistente (paso 5) — firma XAdES con .p12 activo.
+7. **Odoo**: Set de Pruebas DGII → confirmar facturas → verificar E31–E34 aprobados en la tabla del panel.
+8. **Smoke test post-migración**:
    ```bash
-   # Verificar que los campos se renombraron en PostgreSQL
-   psql -c "SELECT ncf, codigo_seguridad FROM <schema>.ecf LIMIT 3;"
-   # Verificar que los campos existen en Odoo
-   psql -c "SELECT ecf_codigo_seguridad FROM account_move LIMIT 1;"
+   # Verificar codigo_seguridad en PostgreSQL (schema Renace)
+   psql -U renace_ecf -d renace_ecf -c "SELECT ncf, codigo_seguridad FROM tenant_132842316.ecf LIMIT 3;"
    ```
-7. **Smoke test ARECF**: enviar un e-CF de prueba al endpoint `/fe/recepcion/api/ecf` y verificar en los logs que el ARECF Estado=0 se envía a la DGII.
-8. **Iniciar proceso de certificación DGII**: seguir el flujo documentado en `README.md` → sección "Flujo de certificación DGII — paso a paso".
-9. **Plan de contingencia**: revisar `docs/contingencia.md` con el responsable técnico del contribuyente antes de la fase 1 DGII.
+9. **Smoke test ARECF**: enviar un e-CF de prueba al endpoint `/fe/recepcion/api/ecf` y verificar en los logs que el ARECF Estado=0 se envía a la DGII.
+10. **Plan de contingencia**: revisar `docs/contingencia.md` con el responsable técnico del contribuyente antes de la fase 1 DGII.
 
 ---
 
-*Documento actualizado al 2026-06-22 — postulación firmada y lista.*
+*Documento actualizado al 2026-06-27 — asistente certificación DGII en portal.*
 

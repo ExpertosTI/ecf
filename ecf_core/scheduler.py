@@ -236,6 +236,16 @@ async def main():
     )
 
     try:
+        from ecf_core.platform_config import load_psfe_from_db
+
+        if await load_psfe_from_db(db_pool):
+            logger.info("PSFE plataforma listo (DB)")
+        elif os.environ.get("PSFE_CERT_B64"):
+            logger.info("PSFE plataforma listo (.env)")
+    except Exception as exc:
+        logger.warning("PSFE startup check: %s", exc)
+
+    try:
         while True:
             logger.info("Ejecutando jobs programados...")
             await alertar_vencimientos(db_pool)
