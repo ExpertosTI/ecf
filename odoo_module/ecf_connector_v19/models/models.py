@@ -486,14 +486,15 @@ class ECFLog(models.Model):
         if not company.ecf_api_key:
             issues.append({'type': 'error', 'msg': 'API Key ausente'})
         if not company.ecf_webhook_secret:
-            issues.append({'type': 'warning', 'msg': 'Webhook Secret no configurado (Callbacks desactivados)'})
+            issues.append({'type': 'warning', 'msg': 'Webhook Secret no configurado (callbacks Odoo desactivados)'})
 
         cert_dias = None
         consumo_pct = None
         if company.ecf_saas_url and company.ecf_api_key:
             try:
+                base = company.ecf_saas_url.rstrip('/')
                 resp = requests.get(
-                    f"{company.ecf_saas_url.rstrip('/')}/v1/health",
+                    f"{base}/v1/health",
                     headers={"X-API-Key": company.ecf_api_key},
                     timeout=10,
                 )
@@ -518,25 +519,32 @@ class ECFLog(models.Model):
         if failed_logs > 0:
             issues.append({'type': 'warning', 'msg': f'{failed_logs} rechazos en los últimos 7 días'})
 
+        n_err = sum(1 for i in issues if i['type'] == 'error')
+        n_warn = sum(1 for i in issues if i['type'] == 'warning')
+        if n_err:
+            status = 'critical'
+        elif n_warn:
+            status = 'warning'
+        else:
+            status = 'ready'
+
         return {
-            'status': 'ready' if not any(i['type'] == 'error' for i in issues) else 'critical',
+            'status': status,
             'issues': issues,
             'cert_dias_restantes': cert_dias,
             'consumo_mensual_pct': consumo_pct,
-            'compliance_score': 100 if not any(i['type'] in ('error', 'warning') for i in issues) else (80 if not any(i['type'] == 'error' for i in issues) else 0),
+            'compliance_score': max(0, min(100, 100 - 25 * n_err - 5 * n_warn)),
         }
 
     @api.model
     def get_saas_status(self):
-        """
-        Retorna el estado de conexión al SaaS considerando webhooks
-        """
-        company = self.env.company
-        if not company.ecf_saas_url or not company.ecf_api_key:
+        """Estado de conexión real vía GET /v1/health (usado por widgets legacy)."""
+        result = self.check_dgii_compliance()
+        if result['status'] == 'ready':
+            return 'online'
+        if result['status'] == 'critical':
             return 'offline'
-        if not company.ecf_webhook_secret:
-            return 'warning'
-        return 'online'
+        return 'warning'
 
     def action_export_excel(self, move_ids):
         """Descarga reporte XLSX de e-CF vía controller /ecf/export/xlsx."""

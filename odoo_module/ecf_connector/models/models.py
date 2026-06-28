@@ -450,8 +450,9 @@ class ECFLog(models.Model):
 
         if company.ecf_saas_url and company.ecf_api_key:
             try:
+                base = company.ecf_saas_url.rstrip('/')
                 resp = requests.get(
-                    f"{company.ecf_saas_url}/v1/health",
+                    f"{base}/v1/health",
                     headers={'X-API-Key': company.ecf_api_key},
                     timeout=5,
                 )

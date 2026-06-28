@@ -146,8 +146,26 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 12px 30px -10px rgba(15, 23, 42, 0.25);
     border-radius: 20px !important;
-    color: white !important;
+    color: #f8fafc !important;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ecf-glass-card-primary .h1,
+.ecf-glass-card-primary .h2,
+.ecf-glass-card-primary .h3,
+.ecf-glass-card-primary .h4,
+.ecf-glass-card-primary .h5,
+.ecf-glass-card-primary .ecf-kpi-value {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    background: none !important;
+}
+
+.ecf-glass-card-primary .ecf-kpi-label,
+.ecf-glass-card-primary .ecf-kpi-sub,
+.ecf-glass-card-primary .opacity-75 {
+    color: rgba(248, 250, 252, 0.7) !important;
+    -webkit-text-fill-color: rgba(248, 250, 252, 0.7) !important;
 }
 
 .ecf-glass-card-primary:hover {
@@ -248,6 +266,25 @@
     background: linear-gradient(135deg, #0a0f1c 0%, #162032 55%, #0f172a 100%) !important;
     border: 1px solid rgba(0, 229, 160, 0.2) !important;
     box-shadow: 0 16px 40px -12px rgba(0, 229, 160, 0.15) !important;
+    color: #f8fafc !important;
+}
+
+.ecf-glass-card-primary .h1,
+.ecf-glass-card-primary .h2,
+.ecf-glass-card-primary .h3,
+.ecf-glass-card-primary .h4,
+.ecf-glass-card-primary .h5,
+.ecf-glass-card-primary .ecf-kpi-value {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    background: none !important;
+}
+
+.ecf-glass-card-primary .ecf-kpi-label,
+.ecf-glass-card-primary .ecf-kpi-sub,
+.ecf-glass-card-primary .opacity-75 {
+    color: rgba(248, 250, 252, 0.7) !important;
+    -webkit-text-fill-color: rgba(248, 250, 252, 0.7) !important;
 }
 
 .ecf-dashboard-content .btn-primary {

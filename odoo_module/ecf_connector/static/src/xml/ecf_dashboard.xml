@@ -46,10 +46,10 @@
             <div class="row g-4 mb-5">
                 <!-- KPIs Principal -->
                 <div class="col-md-3">
-                    <div class="ecf-glass-card-primary p-4 h-100">
-                        <div class="small fw-bold text-uppercase opacity-75 mb-2">Total Facturado</div>
-                        <div class="h2 fw-bold mb-0 text-truncate">RD$ <t t-esc="state.stats.total_amount?.toLocaleString() || '0'"/></div>
-                        <div class="mt-2 small opacity-75">En el periodo seleccionado</div>
+                    <div class="ecf-glass-card-primary p-4 h-100 text-white">
+                        <div class="small fw-bold text-uppercase mb-2 ecf-kpi-label">Total Facturado</div>
+                        <div class="h2 fw-bold mb-0 text-truncate ecf-kpi-value">RD$ <t t-esc="state.stats.total_amount?.toLocaleString() || '0'"/></div>
+                        <div class="mt-2 small ecf-kpi-sub">En el periodo seleccionado</div>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -268,8 +268,8 @@
                 </div>
                 <div class="col-md-4">
                     <!-- Widget de Homologación -->
-                    <div class="ecf-glass-card-primary p-4 mb-4">
-                        <h5 class="fw-bold mb-3">Salud Técnica DGII</h5>
+                    <div class="ecf-glass-card-primary p-4 mb-4 text-white">
+                        <h5 class="fw-bold mb-3 text-white">Salud Técnica DGII</h5>
                         <div class="d-flex align-items-center mb-4">
                             <div class="h1 fw-bold mb-0 text-white me-3"><t t-esc="state.compliance.compliance_score || 0"/>%</div>
                         </div>

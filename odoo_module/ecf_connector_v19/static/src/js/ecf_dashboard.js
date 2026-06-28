@@ -34,7 +34,6 @@ export class EcfDashboard extends Component {
 
         onWillStart(async () => {
             await this.loadData();
-            await this.checkSaasStatus();
         });
 
         onMounted(() => {
@@ -80,11 +79,25 @@ export class EcfDashboard extends Component {
 
             const compliance = await this.orm.call("ecf.log", "check_dgii_compliance", [[]]);
             this.state.compliance = compliance;
+            if (compliance.status === 'ready') {
+                this.state.saas_status = 'online';
+            } else if (compliance.status === 'critical') {
+                this.state.saas_status = 'offline';
+            } else {
+                this.state.saas_status = 'warning';
+            }
         } catch (err) {
             console.error("Error loading dashboard data", err);
+            this.state.saas_status = 'offline';
         } finally {
             this.state.loading = false;
         }
+    }
+
+    iconForIssue(type) {
+        if (type === 'error') return 'oi-x-circle text-danger';
+        if (type === 'warning') return 'oi-warning-triangle text-warning';
+        return 'oi-check-circle text-white-50';
     }
 
     async openReportDetail(type) {
@@ -127,13 +140,6 @@ export class EcfDashboard extends Component {
         }
     }
 
-    async checkSaasStatus() {
-        try {
-            const status = await this.orm.call("ecf.log", "get_saas_status", [[]]);
-            this.state.saas_status = status;
-        } catch (err) {
-            this.state.saas_status = 'offline';
-        }
     }
 
     renderCharts() {

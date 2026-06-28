@@ -12,11 +12,14 @@
                             <span t-if="state.saas_status === 'online'" class="ms-3 badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fw-semibold align-middle" style="font-size: 0.85rem;">
                                 <i class="oi oi-check-circle me-1"></i> SaaS Conectado
                             </span>
-                            <span t-if="state.saas_status === 'warning'" class="ms-3 badge bg-warning-subtle text-warning border border-warning-subtle px-3 py-2 fw-semibold align-middle" style="font-size: 0.85rem;">
+                            <span t-elif="state.saas_status === 'warning'" class="ms-3 badge bg-warning-subtle text-warning border border-warning-subtle px-3 py-2 fw-semibold align-middle" style="font-size: 0.85rem;">
                                 <i class="oi oi-warning me-1"></i> Configuración Pendiente
                             </span>
-                            <span t-if="state.saas_status === 'offline'" class="ms-3 badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 fw-semibold align-middle" style="font-size: 0.85rem;">
+                            <span t-elif="state.saas_status === 'offline'" class="ms-3 badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 fw-semibold align-middle" style="font-size: 0.85rem;">
                                 <i class="oi oi-circle-x me-1"></i> SaaS Desconectado
+                            </span>
+                            <span t-else="" class="ms-3 badge bg-secondary-subtle text-secondary border px-3 py-2 fw-semibold align-middle" style="font-size: 0.85rem;">
+                                <i class="fa fa-spinner fa-spin me-1"></i> Verificando…
                             </span>
                         </h1>
                         <p class="text-secondary mb-0" style="font-size: 1.05rem; font-weight: 500;">Administración centralizada y monitoreo fiscal en tiempo real</p>
@@ -57,10 +60,10 @@
             <div class="row g-4 mb-5">
                 <!-- KPIs Principal -->
                 <div class="col-md-3">
-                    <div class="ecf-glass-card-primary p-4 h-100">
-                        <div class="small fw-bold text-uppercase opacity-75 mb-2">Total Facturado</div>
-                        <div class="h2 fw-bold mb-0 text-truncate">RD$ <t t-esc="state.stats.total_amount?.toLocaleString() || '0'"/></div>
-                        <div class="mt-2 small opacity-75">En el periodo seleccionado</div>
+                    <div class="ecf-glass-card-primary p-4 h-100 text-white">
+                        <div class="small fw-bold text-uppercase mb-2 ecf-kpi-label">Total Facturado</div>
+                        <div class="h2 fw-bold mb-0 text-truncate ecf-kpi-value">RD$ <t t-esc="state.stats.total_amount?.toLocaleString() || '0'"/></div>
+                        <div class="mt-2 small ecf-kpi-sub">En el periodo seleccionado</div>
                     </div>
                 </div>
                 <div class="col-md-3">
@@ -279,17 +282,20 @@
                 </div>
                 <div class="col-md-4">
                     <!-- Widget de Homologación -->
-                    <div class="ecf-glass-card-primary p-4 mb-4">
-                        <h5 class="fw-bold mb-3">Salud Técnica DGII</h5>
+                    <div class="ecf-glass-card-primary p-4 mb-4 text-white">
+                        <h5 class="fw-bold mb-3 text-white">Salud Técnica DGII</h5>
                         <div class="d-flex align-items-center mb-4">
                             <div class="h1 fw-bold mb-0 text-white me-3"><t t-esc="state.compliance.compliance_score || 0"/>%</div>
                         </div>
                         <div class="progress mb-4" style="height: 8px; background: rgba(255,255,255,0.1);">
                             <div class="progress-bar bg-white" role="progressbar" t-attf-style="width: #{state.compliance.compliance_score || 0}%"></div>
                         </div>
-                        <div class="small opacity-75">
+                        <div class="small ecf-kpi-sub">
                             <t t-foreach="state.compliance.issues || []" t-as="issue" t-key="issue.msg">
-                                <div class="mb-2"><i class="oi oi-check-circle me-1 text-white"></i> <t t-esc="issue.msg"/></div>
+                                <div class="mb-2">
+                                    <i t-attf-class="oi {{ iconForIssue(issue.type) }} me-1"></i>
+                                    <t t-esc="issue.msg"/>
+                                </div>
                             </t>
                         </div>
                     </div>
