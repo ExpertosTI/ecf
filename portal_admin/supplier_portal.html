@@ -16,7 +16,37 @@
 </head>
 <body class="min-h-screen flex flex-col">
 
-    <!-- Navigation -->
+<!-- Login -->
+<div id="loginScreen" class="min-h-screen flex items-center justify-center p-6">
+    <div class="glass rounded-2xl p-8 w-full max-w-md space-y-6">
+        <div class="text-center">
+            <h1 class="text-2xl font-bold">Portal de <span class="gradient-text">Proveedores</span></h1>
+            <p class="text-zinc-400 text-sm mt-2">Consulte el estado de sus e-CF enviados a un cliente Renace e-CF.</p>
+        </div>
+        <form id="loginForm" class="space-y-4">
+            <div>
+                <label class="text-xs text-zinc-400 uppercase tracking-wider">RNC Proveedor</label>
+                <input type="text" id="loginRnc" required maxlength="11" pattern="[0-9]{9,11}"
+                    class="w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 font-mono"
+                    placeholder="131793916">
+            </div>
+            <div>
+                <label class="text-xs text-zinc-400 uppercase tracking-wider">API Key del cliente</label>
+                <input type="password" id="loginApiKey" required autocomplete="off"
+                    class="w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 font-mono text-sm"
+                    placeholder="sk_cert_... (lo entrega el comprador)">
+                <p class="text-[11px] text-zinc-500 mt-1">Clave que el cliente configuró al registrar su empresa en Renace e-CF.</p>
+            </div>
+            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-semibold emerald-glow">
+                Entrar
+            </button>
+            <p id="loginError" class="text-rose-400 text-sm text-center hidden"></p>
+        </form>
+    </div>
+</div>
+
+<!-- App -->
+<div id="appScreen" class="hidden min-h-screen flex flex-col">
     <nav class="glass sticky top-0 z-50 px-6 py-4 flex justify-between items-center">
         <div class="flex items-center gap-2">
             <div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
@@ -24,183 +54,229 @@
             </div>
             <span class="text-xl font-bold tracking-tight uppercase">RENACE <span class="text-emerald-500">ECF</span></span>
         </div>
-        <div class="flex items-center gap-6">
-            <div class="flex items-center gap-3">
-                <div class="text-right hidden md:block">
-                    <p class="text-sm font-semibold">XYZ Supplies LLC</p>
-                    <p class="text-xs text-zinc-400">RNC: 131-12345-6</p>
-                </div>
-                <div class="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden">
-                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex" alt="Avatar">
-                </div>
+        <div class="flex items-center gap-4">
+            <div class="text-right hidden md:block">
+                <p class="text-sm font-semibold" id="navNombre">—</p>
+                <p class="text-xs text-zinc-400">RNC: <span id="navRnc">—</span></p>
             </div>
+            <button id="logoutBtn" class="text-zinc-400 hover:text-white text-sm">Salir</button>
         </div>
     </nav>
 
     <main class="flex-grow p-6 md:p-10 max-w-7xl mx-auto w-full space-y-10">
-        
-        <!-- Header Section -->
         <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
-                <h1 class="text-4xl font-bold mb-2">Portal de <span class="gradient-text">Proveedores</span></h1>
-                <p class="text-zinc-400 max-w-xl">Bienvenido al centro de gestión de facturación electrónica. Suba sus e-CFs y gestione sus aprobaciones comerciales en tiempo real.</p>
+                <h1 class="text-4xl font-bold mb-2">Mis e-CF <span class="gradient-text">Enviados</span></h1>
+                <p class="text-zinc-400 max-w-xl">Facturas electrónicas que usted emitió hacia <strong id="clienteNombre">su cliente</strong>. Los e-CF se envían vía DGII; aquí ve el estado de recepción en el ERP del comprador.</p>
             </div>
-            <button class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 emerald-glow">
-                <i data-lucide="upload-cloud"></i>
-                Subir Nuevo e-CF
+            <button id="refreshBtn" class="bg-zinc-800 hover:bg-zinc-700 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Actualizar
             </button>
         </div>
 
-        <!-- Stats Grid -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div class="glass p-6 rounded-2xl">
-                <p class="text-zinc-400 text-sm mb-1">Enviados este mes</p>
-                <p class="text-3xl font-bold">124</p>
-                <div class="flex items-center gap-1 text-emerald-400 text-xs mt-2">
-                    <i data-lucide="trending-up" class="w-3 h-3"></i>
-                    <span>+12% vs mes anterior</span>
-                </div>
+                <p class="text-zinc-400 text-sm mb-1">Total (12 meses)</p>
+                <p class="text-3xl font-bold" id="statTotal">—</p>
             </div>
             <div class="glass p-6 rounded-2xl border-emerald-500/30">
-                <p class="text-zinc-400 text-sm mb-1">Aprobados</p>
-                <p class="text-3xl font-bold text-emerald-400">98</p>
-                <p class="text-xs text-zinc-500 mt-2">79% de efectividad</p>
+                <p class="text-zinc-400 text-sm mb-1">Procesadas en ERP</p>
+                <p class="text-3xl font-bold text-emerald-400" id="statProcesadas">—</p>
             </div>
             <div class="glass p-6 rounded-2xl">
                 <p class="text-zinc-400 text-sm mb-1">Pendientes</p>
-                <p class="text-3xl font-bold text-amber-400">21</p>
-                <p class="text-xs text-zinc-500 mt-2">Esperando validación</p>
+                <p class="text-3xl font-bold text-amber-400" id="statPendientes">—</p>
             </div>
             <div class="glass p-6 rounded-2xl">
-                <p class="text-zinc-400 text-sm mb-1">Rechazados</p>
-                <p class="text-3xl font-bold text-rose-500">5</p>
-                <p class="text-xs text-zinc-500 mt-2">Requieren corrección</p>
+                <p class="text-zinc-400 text-sm mb-1">Monto total</p>
+                <p class="text-2xl font-bold" id="statMonto">—</p>
             </div>
         </div>
 
-        <!-- Main Content Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
-            
-            <!-- Invoices List -->
-            <div class="lg:col-span-2 space-y-6">
-                <div class="flex items-center justify-between">
-                    <h2 class="text-2xl font-bold">Mis e-CFs Enviados</h2>
-                    <div class="flex gap-2">
-                        <button class="p-2 glass rounded-lg hover:bg-zinc-800 transition-colors"><i data-lucide="filter" class="w-5 h-5 text-zinc-400"></i></button>
-                        <button class="p-2 glass rounded-lg hover:bg-zinc-800 transition-colors"><i data-lucide="search" class="w-5 h-5 text-zinc-400"></i></button>
-                    </div>
-                </div>
+        <div class="glass rounded-2xl overflow-hidden">
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="text-zinc-400 text-xs uppercase tracking-wider border-b border-zinc-800">
+                        <th class="px-6 py-4">NCF</th>
+                        <th class="px-6 py-4">Fecha</th>
+                        <th class="px-6 py-4">Monto</th>
+                        <th class="px-6 py-4">Estado ERP</th>
+                        <th class="px-6 py-4">Cód. Seguridad</th>
+                    </tr>
+                </thead>
+                <tbody id="comprasBody" class="divide-y divide-zinc-800">
+                    <tr><td colspan="5" class="px-6 py-8 text-center text-zinc-500">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
 
-                <div class="glass rounded-2xl overflow-hidden">
-                    <table class="w-full text-left">
-                        <thead>
-                            <tr class="text-zinc-400 text-xs uppercase tracking-wider border-b border-zinc-800">
-                                <th class="px-6 py-4">NCF</th>
-                                <th class="px-6 py-4">Cliente</th>
-                                <th class="px-6 py-4">Fecha</th>
-                                <th class="px-6 py-4">Monto</th>
-                                <th class="px-6 py-4">Estado</th>
-                                <th class="px-6 py-4">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-zinc-800">
-                            <tr class="hover:bg-zinc-800/30 transition-colors group">
-                                <td class="px-6 py-5 font-mono text-emerald-400">E310000000001</td>
-                                <td class="px-6 py-5 font-medium">Alpha Corp.</td>
-                                <td class="px-6 py-5 text-zinc-400">15 Mayo 2024</td>
-                                <td class="px-6 py-5 font-bold">$4,350.00</td>
-                                <td class="px-6 py-5">
-                                    <span class="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20">Aprobado</span>
-                                </td>
-                                <td class="px-6 py-5">
-                                    <button class="text-zinc-400 hover:text-emerald-400 transition-colors" title="Descargar XML de Aceptación">
-                                        <i data-lucide="download" class="w-5 h-5"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr class="hover:bg-zinc-800/30 transition-colors group">
-                                <td class="px-6 py-5 font-mono text-emerald-400">E310000000002</td>
-                                <td class="px-6 py-5 font-medium">Beta Solutions</td>
-                                <td class="px-6 py-5 text-zinc-400">18 Mayo 2024</td>
-                                <td class="px-6 py-5 font-bold">$9,810.00</td>
-                                <td class="px-6 py-5">
-                                    <span class="px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-semibold border border-amber-500/20">Pendiente</span>
-                                </td>
-                                <td class="px-6 py-5">
-                                    <button class="text-zinc-600 cursor-not-allowed" disabled>
-                                        <i data-lucide="download" class="w-5 h-5"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr class="hover:bg-zinc-800/30 transition-colors group">
-                                <td class="px-6 py-5 font-mono text-emerald-400">E310000000003</td>
-                                <td class="px-6 py-5 font-medium">Gamma Ltd.</td>
-                                <td class="px-6 py-5 text-zinc-400">21 Mayo 2024</td>
-                                <td class="px-6 py-5 font-bold">$12,500.00</td>
-                                <td class="px-6 py-5">
-                                    <span class="px-3 py-1 rounded-full bg-rose-500/10 text-rose-400 text-xs font-semibold border border-rose-500/20">Rechazado</span>
-                                </td>
-                                <td class="px-6 py-5">
-                                    <button class="text-zinc-400 hover:text-rose-400 transition-colors" title="Ver Motivo de Rechazo">
-                                        <i data-lucide="alert-circle" class="w-5 h-5"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Side Cards -->
-            <div class="space-y-6">
-                <!-- Dropzone Mock -->
-                <div class="glass p-8 rounded-2xl border-dashed border-emerald-500/40 flex flex-col items-center justify-center text-center space-y-4">
-                    <div class="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500 mb-2">
-                        <i data-lucide="file-up" class="w-8 h-8"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-bold">Enviar XML de e-CF</h3>
-                        <p class="text-sm text-zinc-400 px-4">Arrastre el archivo XML firmado aquí o haga clic para buscar en su equipo.</p>
-                    </div>
-                    <button class="w-full bg-zinc-800 hover:bg-zinc-700 text-white py-3 rounded-xl transition-all font-medium">Seleccionar Archivo</button>
-                    <p class="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Formatos soportados: XML (XAdES-BES)</p>
-                </div>
-
-                <!-- Notifications -->
-                <div class="glass p-6 rounded-2xl">
-                    <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
-                        <i data-lucide="bell" class="text-emerald-500 w-5 h-5"></i>
-                        Notificaciones Recientes
-                    </h3>
-                    <div class="space-y-4">
-                        <div class="flex gap-3">
-                            <div class="w-2 h-2 rounded-full bg-emerald-500 mt-2"></div>
-                            <div>
-                                <p class="text-sm font-medium">Factura Aprobada</p>
-                                <p class="text-xs text-zinc-400">Alpha Corp ha aprobado comercialmente su factura E31...01</p>
-                                <p class="text-[10px] text-zinc-500 mt-1">Hace 2 horas</p>
-                            </div>
-                        </div>
-                        <div class="flex gap-3">
-                            <div class="w-2 h-2 rounded-full bg-rose-500 mt-2"></div>
-                            <div>
-                                <p class="text-sm font-medium text-rose-400">Factura Rechazada</p>
-                                <p class="text-xs text-zinc-400">Gamma Ltd ha rechazado su factura E31...03 por diferencia en montos.</p>
-                                <p class="text-[10px] text-zinc-500 mt-1">Hace 5 horas</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="glass p-6 rounded-2xl text-sm text-zinc-400">
+            <strong class="text-zinc-200">Envío de e-CF:</strong> Los comprobantes se transmiten a la DGII y llegan al comprador por recepción electrónica (<code class="text-emerald-400">/fe/recepcion/api/ecf</code>). Este portal es solo consulta de estado.
         </div>
     </main>
 
     <footer class="p-8 text-center text-zinc-500 text-sm border-t border-zinc-900 mt-auto">
-        <p>© 2024 RENACE ECF. Todos los derechos reservados. Desarrollado para el cumplimiento de e-CF DGII.</p>
+        <p>© Renace e-CF · Portal de Proveedores</p>
     </footer>
+</div>
 
-    <script>
-        lucide.createIcons();
-    </script>
+<script>
+const API_BASE = window.location.origin;
+const STORAGE_KEY = 'renace_supplier_session';
+
+function esc(s) {
+    if (s == null) return '';
+    const d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+}
+
+function fmtDate(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('es-DO', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function fmtMoney(n) {
+    const v = Number(n) || 0;
+    return 'RD$ ' + v.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function estadoBadge(estado) {
+    const e = (estado || 'pendiente').toLowerCase();
+    if (e === 'procesada' || e === 'contabilizada') {
+        return '<span class="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20">Procesada</span>';
+    }
+    if (e === 'rechazada') {
+        return '<span class="px-3 py-1 rounded-full bg-rose-500/10 text-rose-400 text-xs font-semibold border border-rose-500/20">Rechazada</span>';
+    }
+    return '<span class="px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-semibold border border-amber-500/20">Pendiente</span>';
+}
+
+function getSession() {
+    try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null'); } catch { return null; }
+}
+
+function saveSession(data) {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function clearSession() {
+    sessionStorage.removeItem(STORAGE_KEY);
+}
+
+async function apiCompras(apiKey, anio, mes, rnc) {
+    const url = `${API_BASE}/v1/compras?anio=${anio}&mes=${mes}&rnc_proveedor=${encodeURIComponent(rnc)}&formato=json`;
+    const res = await fetch(url, { headers: { 'X-API-Key': apiKey } });
+    if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const j = await res.json(); msg = j.detail || msg; } catch (_) {}
+        throw new Error(msg);
+    }
+    const data = await res.json();
+    return data.registros || data.compras || [];
+}
+
+async function loadCompras(session) {
+    const tbody = document.getElementById('comprasBody');
+    tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-zinc-500">Cargando...</td></tr>';
+
+    const now = new Date();
+    const all = [];
+    for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        try {
+            const rows = await apiCompras(session.apiKey, d.getFullYear(), d.getMonth() + 1, session.rnc);
+            all.push(...rows);
+        } catch (err) {
+            if (i === 0) throw err;
+        }
+    }
+
+    const seen = new Set();
+    const unique = all.filter(r => {
+        if (seen.has(r.ncf)) return false;
+        seen.add(r.ncf);
+        return true;
+    }).sort((a, b) => new Date(b.fecha_comprobante) - new Date(a.fecha_comprobante));
+
+    const procesadas = unique.filter(r => ['procesada', 'contabilizada'].includes((r.estado_odoo || r.estado_erp || '').toLowerCase()));
+    const pendientes = unique.length - procesadas.length;
+    const monto = unique.reduce((s, r) => s + (Number(r.total_monto) || 0), 0);
+
+    document.getElementById('statTotal').textContent = unique.length;
+    document.getElementById('statProcesadas').textContent = procesadas.length;
+    document.getElementById('statPendientes').textContent = pendientes;
+    document.getElementById('statMonto').textContent = fmtMoney(monto);
+
+    if (!unique.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-zinc-500">No hay e-CF registrados para su RNC en los últimos 12 meses.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = unique.map(r => `
+        <tr class="hover:bg-zinc-800/30 transition-colors">
+            <td class="px-6 py-5 font-mono text-emerald-400">${esc(r.ncf)}</td>
+            <td class="px-6 py-5 text-zinc-400">${fmtDate(r.fecha_comprobante)}</td>
+            <td class="px-6 py-5 font-bold">${fmtMoney(r.total_monto)}</td>
+            <td class="px-6 py-5">${estadoBadge(r.estado_odoo || r.estado_erp)}</td>
+            <td class="px-6 py-5 font-mono text-xs text-zinc-500">${esc((r.codigo_seguridad || '—').slice(0, 16))}${(r.codigo_seguridad || '').length > 16 ? '…' : ''}</td>
+        </tr>
+    `).join('');
+}
+
+function showApp(session) {
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('appScreen').classList.remove('hidden');
+    document.getElementById('navRnc').textContent = session.rnc;
+    document.getElementById('navNombre').textContent = session.nombre || `Proveedor ${session.rnc}`;
+    document.getElementById('clienteNombre').textContent = session.cliente || 'su cliente';
+    lucide.createIcons();
+    loadCompras(session).catch(err => {
+        document.getElementById('comprasBody').innerHTML =
+            `<tr><td colspan="5" class="px-6 py-8 text-center text-rose-400">${esc(err.message)}</td></tr>`;
+    });
+}
+
+function showLogin() {
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('appScreen').classList.add('hidden');
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('loginError');
+    errEl.classList.add('hidden');
+    const rnc = document.getElementById('loginRnc').value.replace(/\D/g, '');
+    const apiKey = document.getElementById('loginApiKey').value.trim();
+    try {
+        const rows = await apiCompras(apiKey, new Date().getFullYear(), new Date().getMonth() + 1, rnc);
+        const nombre = rows[0]?.nombre_proveedor || `Proveedor ${rnc}`;
+        const session = { rnc, apiKey, nombre, cliente: 'cliente Renace e-CF' };
+        saveSession(session);
+        showApp(session);
+    } catch (err) {
+        errEl.textContent = err.message || 'Credenciales inválidas';
+        errEl.classList.remove('hidden');
+    }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+    clearSession();
+    showLogin();
+});
+
+document.getElementById('refreshBtn').addEventListener('click', () => {
+    const s = getSession();
+    if (s) loadCompras(s);
+});
+
+const existing = getSession();
+if (existing?.apiKey && existing?.rnc) {
+    showApp(existing);
+} else {
+    showLogin();
+    lucide.createIcons();
+}
+</script>
 </body>
 </html>
