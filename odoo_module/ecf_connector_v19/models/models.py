@@ -422,8 +422,9 @@ class ECFLog(models.Model):
         domain.append(('create_date', '>=', fields.Datetime.to_datetime(date_from)))
         domain.append(('create_date', '<=', fields.Datetime.to_datetime(date_to) + timedelta(days=1)))
         
+        company_id = self.env.company[:1].id
         # Filtro multi-compañía
-        domain.append(('company_id', '=', self.env.company.id))
+        domain.append(('company_id', '=', company_id))
         
         logs = self.search(domain)
         
@@ -452,7 +453,7 @@ class ECFLog(models.Model):
             GROUP BY day
             ORDER BY day ASC
         """
-        self.env.cr.execute(daily_query, (date_limit, self.env.company.id))
+        self.env.cr.execute(daily_query, (date_limit, company_id))
         daily_volume = self.env.cr.dictfetchall()
         
         # Convertir fechas a string para JSON
@@ -486,7 +487,7 @@ class ECFLog(models.Model):
     @api.model
     def get_fiscal_summary(self, period='month'):
         """Resumen fiscal 606/607 para el rango del dashboard."""
-        company_id = self.env.company.id
+        company_id = self.env.company[:1].id
         start_date, end_date = self._ecf_report_dates()
 
         ventas_domain = [
@@ -565,12 +566,12 @@ class ECFLog(models.Model):
     @api.model
     def get_saas_connectivity(self):
         """Estado de conexión al SaaS (ping /v1/health)."""
-        return self.env.company.get_ecf_saas_connectivity()
+        return self.env.company[:1].get_ecf_saas_connectivity()
 
     @api.model
     def check_dgii_compliance(self):
         """Verifica el estado de salud del sistema consultando el SaaS Renace e-CF."""
-        company = self.env.company
+        company = self.env.company[:1]
         issues = []
 
         if not company.ecf_saas_url:
