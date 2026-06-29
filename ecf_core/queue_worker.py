@@ -48,7 +48,11 @@ def _normalizar_items_ecf(raw_items) -> list[dict]:
     if not raw_items:
         return []
     if isinstance(raw_items, str):
-        raw_items = json.loads(raw_items)
+        try:
+            raw_items = json.loads(raw_items)
+        except json.JSONDecodeError:
+            logger.error("Error decodificando items: no es JSON válido: %s", raw_items)
+            return []
     if not isinstance(raw_items, list):
         return []
     items: list[dict] = []
@@ -56,9 +60,15 @@ def _normalizar_items_ecf(raw_items) -> list[dict]:
         if raw is None:
             continue
         if isinstance(raw, str):
-            raw = json.loads(raw)
+            try:
+                raw = json.loads(raw)
+            except json.JSONDecodeError:
+                logger.error("Error decodificando item individual: %s", raw)
+                continue
         if isinstance(raw, dict):
             items.append(raw)
+        else:
+            logger.error("Item de ECF descartado porque no es un dict: %s (tipo %s)", raw, type(raw))
     return items
 
 
@@ -243,6 +253,14 @@ class ECFQueueWorker:
         except DGIIClientError as e:
             logger.warning("Error DGII en ECF %s: %s", ecf_id, e)
             await self._programar_reintento(mensaje, intento, str(e))
+
+        except TypeError as e:
+            logger.exception("TypeError procesando ECF %s: %s. Revisa la estructura de los datos.", ecf_id, e)
+            error_msg = f"TypeError (Posible dato mal formado): {e}"
+            await self._enviar_a_dlq(mensaje, error_msg)
+            await self._marcar_error(
+                schema=mensaje.get("schema_name", ""), ecf_id=ecf_id, error=error_msg
+            )
 
         except Exception as e:
             logger.exception("Error fatal procesando ECF %s: %s", ecf_id, e)

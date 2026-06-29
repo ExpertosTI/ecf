@@ -853,15 +853,23 @@ class AccountMove(models.Model):
 
     def action_emitir_ecf(self):
         """Acción manual: valida y emite el e-CF."""
-        self.ensure_one()
-        self._validar_pre_emision()
-        self._emitir_ecf()
+        for record in self:
+            record._validar_pre_emision()
+            record._emitir_ecf()
+
+        if len(self) == 1:
+            title = _('e-CF Enviado')
+            msg = _('El e-CF fue enviado al SaaS. Espere el callback de la DGII.')
+        else:
+            title = _('Lote e-CF Enviado')
+            msg = _('Se enviaron %s e-CFs al SaaS. Espere el callback.', len(self))
+
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _('e-CF Enviado'),
-                'message': _('El e-CF fue enviado al SaaS. Espere el callback de la DGII.'),
+                'title': title,
+                'message': msg,
                 'type': 'info',
                 'sticky': False,
             },
