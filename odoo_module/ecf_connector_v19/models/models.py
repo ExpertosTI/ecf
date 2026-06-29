@@ -73,6 +73,32 @@ def _validar_rnc_o_cedula(documento):
     return False
 
 
+# Mapeo de nombres de UoM de Odoo a códigos numéricos DGII (UnidadMedidaType).
+# Si la UoM no se encuentra aquí, se usa '43' (Unidad) por defecto.
+_UOM_DGII_MAP = {
+    'unidad': '43', 'unidades': '43', 'unit': '43', 'units': '43', 'und': '43',
+    'pieza': '11', 'piezas': '11', 'pz': '11',
+    'kg': '2', 'kilogramo': '2', 'kilogramos': '2',
+    'lb': '4', 'libra': '4', 'libras': '4',
+    'galón': '7', 'galon': '7', 'galones': '7', 'gal': '7',
+    'litro': '6', 'litros': '6', 'lt': '6', 'l': '6',
+    'metro': '1', 'metros': '1', 'm': '1',
+    'hora': '14', 'horas': '14', 'hr': '14', 'hrs': '14',
+    'día': '15', 'dia': '15', 'días': '15', 'dias': '15',
+    'servicio': '43', 'servicios': '43',
+    'caja': '12', 'cajas': '12',
+    'paquete': '13', 'paquetes': '13',
+}
+
+
+def _uom_to_dgii_code(uom_name: str) -> str:
+    """Convierte nombre de UoM de Odoo al código numérico DGII."""
+    if not uom_name:
+        return '43'
+    key = uom_name.strip().lower()
+    return _UOM_DGII_MAP.get(key, '43')
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  Contactos (res.partner) — Validación RNC para e-CF
 # ─────────────────────────────────────────────────────────────────────────────
@@ -169,6 +195,32 @@ class ResCompany(models.Model):
             return {'status': 'error', 'http_status': resp.status_code}
         except Exception:
             return {'status': 'offline'}
+
+    def get_ecf_saas_connectivity(self):
+        """Ping real a GET /v1/health — usado por el dashboard (independiente del checklist)."""
+        import time
+        self.ensure_one()
+        if not self.ecf_saas_url or not self.ecf_api_key:
+            return {'status': 'offline', 'reason': 'URL o API Key no configurados'}
+        try:
+            t0 = time.monotonic()
+            resp = requests.get(
+                f"{self.ecf_saas_url.rstrip('/')}/v1/health",
+                headers={'X-API-Key': self.ecf_api_key},
+                timeout=8,
+            )
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            if resp.ok:
+                data = resp.json()
+                return {
+                    'status': 'online',
+                    'latency_ms': latency_ms,
+                    'ambiente': data.get('ambiente'),
+                    'version': data.get('version'),
+                }
+            return {'status': 'offline', 'reason': f'HTTP {resp.status_code}', 'latency_ms': latency_ms}
+        except Exception as exc:
+            return {'status': 'offline', 'reason': str(exc)}
 
 
 class ResConfigSettings(models.TransientModel):
@@ -344,12 +396,31 @@ class ECFLog(models.Model):
         }
 
     @api.model
+    def _ecf_report_dates(self):
+        """Rango de fechas del dashboard (contexto date_from / date_to)."""
+        ctx = self.env.context
+        today = fields.Date.context_today(self)
+        if ctx.get('date_from'):
+            date_from = fields.Date.from_string(ctx['date_from'])
+        else:
+            date_from = today.replace(day=1)
+        if ctx.get('date_to'):
+            date_to = fields.Date.from_string(ctx['date_to'])
+        else:
+            date_to = today
+        return date_from, date_to
+
+    @api.model
     def get_dashboard_stats(self, domain=None):
         """
         Retorna estadísticas para el dashboard e-CF
         """
         if domain is None:
             domain = []
+
+        date_from, date_to = self._ecf_report_dates()
+        domain.append(('create_date', '>=', fields.Datetime.to_datetime(date_from)))
+        domain.append(('create_date', '<=', fields.Datetime.to_datetime(date_to) + timedelta(days=1)))
         
         # Filtro multi-compañía
         domain.append(('company_id', '=', self.env.company.id))
@@ -414,46 +485,33 @@ class ECFLog(models.Model):
 
     @api.model
     def get_fiscal_summary(self, period='month'):
-        """Resumen fiscal 606/607 usando read_group — apto para grandes volúmenes.
-
-        Evita cargar todos los registros en memoria con search()+sum().
-        Retorna totales de ventas (607) y compras (606) para el período indicado.
-        """
+        """Resumen fiscal 606/607 para el rango del dashboard."""
         company_id = self.env.company.id
-        today = date.today()
+        start_date, end_date = self._ecf_report_dates()
 
-        if period == 'month':
-            start_date = today.replace(day=1)
-        else:
-            start_date = today.replace(month=1, day=1)
-
-        # 607 — Ventas: facturas publicadas
+        ventas_domain = [
+            ('company_id', '=', company_id),
+            ('move_type', '=', 'out_invoice'),
+            ('invoice_date', '>=', start_date),
+            ('invoice_date', '<=', end_date),
+            ('state', '=', 'posted'),
+        ]
         ventas_groups = self.env['account.move'].read_group(
-            domain=[
-                ('company_id', '=', company_id),
-                ('move_type', '=', 'out_invoice'),
-                ('invoice_date', '>=', start_date),
-                ('state', '=', 'posted'),
-            ],
+            domain=ventas_domain,
             fields=['amount_untaxed', 'amount_tax', 'amount_total'],
             groupby=[],
         )
         v = ventas_groups[0] if ventas_groups else {}
-        ventas_count_domain = [
+
+        compras_domain = [
             ('company_id', '=', company_id),
-            ('move_type', '=', 'out_invoice'),
+            ('move_type', '=', 'in_invoice'),
             ('invoice_date', '>=', start_date),
+            ('invoice_date', '<=', end_date),
             ('state', '=', 'posted'),
         ]
-
-        # 606 — Compras: facturas de proveedor publicadas
         compras_groups = self.env['account.move'].read_group(
-            domain=[
-                ('company_id', '=', company_id),
-                ('move_type', '=', 'in_invoice'),
-                ('invoice_date', '>=', start_date),
-                ('state', '=', 'posted'),
-            ],
+            domain=compras_domain,
             fields=['amount_untaxed', 'amount_tax', 'amount_total'],
             groupby=[],
         )
@@ -464,16 +522,50 @@ class ECFLog(models.Model):
                 'total':  float(v.get('amount_total') or 0.0),
                 'base':   float(v.get('amount_untaxed') or 0.0),
                 'itbis':  float(v.get('amount_tax') or 0.0),
-                'count':  self.env['account.move'].search_count(ventas_count_domain),
+                'count':  self.env['account.move'].search_count(ventas_domain),
             },
             'compras': {
                 'total': float(c.get('amount_total') or 0.0),
                 'base':  float(c.get('amount_untaxed') or 0.0),
                 'itbis': float(c.get('amount_tax') or 0.0),
-                'count': int(c.get('account_move_count') or 0),
+                'count': self.env['account.move'].search_count(compras_domain),
             },
-            'periodo': start_date.strftime('%B %Y'),
+            'periodo': f"{start_date.strftime('%d/%m/%Y')} — {end_date.strftime('%d/%m/%Y')}",
         }
+
+    @api.model
+    def get_report_rows(self, report_type):
+        """Filas 606/607 para el visor y exportaciones (PDF/TXT)."""
+        date_from, date_to = self._ecf_report_dates()
+        move_type = 'in_invoice' if report_type == '606' else 'out_invoice'
+        moves = self.env['account.move'].search([
+            ('company_id', '=', self.env.company.id),
+            ('move_type', '=', move_type),
+            ('invoice_date', '>=', date_from),
+            ('invoice_date', '<=', date_to),
+            ('state', '=', 'posted'),
+        ], order='invoice_date desc, id desc')
+
+        rows = []
+        for move in moves:
+            partner_vat = ''.join(c for c in (move.partner_id.vat or '') if c.isdigit())
+            rows.append({
+                'id': move.id,
+                'ncf': move.ecf_ncf or move.l10n_latam_document_number or move.name,
+                'date': move.invoice_date,
+                'rnc': partner_vat or '---',
+                'partner': move.partner_id.name or '---',
+                'base': move.amount_untaxed,
+                'tax': move.amount_tax,
+                'total': move.amount_total,
+                'status': 'Pagado' if move.payment_state == 'paid' else 'Pendiente',
+            })
+        return rows
+
+    @api.model
+    def get_saas_connectivity(self):
+        """Estado de conexión al SaaS (ping /v1/health)."""
+        return self.env.company.get_ecf_saas_connectivity()
 
     @api.model
     def check_dgii_compliance(self):
@@ -599,6 +691,8 @@ class AccountMove(models.Model):
     ecf_codigo_seguridad = fields.Char(string='Código de Seguridad', readonly=True, copy=False,
                                         help='Código de Seguridad e-CF (128 chars del SignatureValue, DGII RD)')
     ecf_qr     = fields.Text(string='QR Code', readonly=True, copy=False)
+    ecf_track_id = fields.Char(string='Track ID DGII', readonly=True, copy=False,
+                                help='Track ID retornado por la DGII para consultas de estado')
     ecf_log_ids = fields.One2many('ecf.log', 'move_id', string='Historial e-CF')
 
     # ── Flujo POS diferido ──
@@ -809,12 +903,12 @@ class AccountMove(models.Model):
                 'precio_unitario':         str(price_unit),
                 'descuento':               str(discount),
                 'itbis_tasa':              str(itbis_tasa),
-                'unidad':                  line.product_uom_id.name or 'Unidad',
+                'unidad':                  _uom_to_dgii_code(line.product_uom_id.name),
                 'indicador_bien_servicio': indicador,
             })
 
         # Detectar tipo de identificación del comprador
-        partner_vat = self.partner_id.vat or ''
+        partner_vat = ''.join(c for c in (self.partner_id.vat or '') if c.isdigit())
         if len(partner_vat) == 9:
             tipo_rnc = '1'   # RNC
         elif len(partner_vat) == 11:
@@ -830,7 +924,7 @@ class AccountMove(models.Model):
 
         payload = {
             'tipo_ecf':           self.ecf_tipo_id.codigo,
-            'rnc_comprador':      self.partner_id.vat or None,
+            'rnc_comprador':      partner_vat or None,
             'nombre_comprador':   self.partner_id.name,
             'tipo_rnc_comprador': tipo_rnc,
             'fecha_emision':      (
@@ -842,6 +936,7 @@ class AccountMove(models.Model):
             'tipo_cambio':        tipo_cambio,
             'odoo_move_id':       str(self.id),
             'odoo_move_name':     self.name,
+            'ambiente_emision':   company.ecf_ambiente,
         }
         payload.update(self._dgii_campos_emision())
 

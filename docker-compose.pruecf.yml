@@ -21,6 +21,7 @@ services:
       METRICS_API_KEY: ${METRICS_API_KEY:-}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-60}
       RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-60}
+      ECF_AMBIENTE: ${ECF_AMBIENTE:-certificacion}
       TZ: America/Santo_Domingo
     depends_on:
       postgres:
@@ -62,6 +63,7 @@ services:
       PSFE_KEY_B64: ${PSFE_KEY_B64}
       DGII_CA_B64: ${DGII_CA_B64}
       VAULT_MASTER_KEY: ${VAULT_MASTER_KEY}
+      ECF_AMBIENTE: ${ECF_AMBIENTE:-certificacion}
       TZ: America/Santo_Domingo
     depends_on:
       postgres:
@@ -89,6 +91,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       VAULT_MASTER_KEY: ${VAULT_MASTER_KEY}
+      ECF_AMBIENTE: ${ECF_AMBIENTE:-certificacion}
     depends_on:
       postgres:
         condition: service_healthy

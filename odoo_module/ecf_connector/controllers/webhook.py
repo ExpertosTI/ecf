@@ -19,7 +19,22 @@ _logger = logging.getLogger(__name__)
 WEBHOOK_MAX_AGE_SECONDS = 300
 
 
+def _rnc_solo_digitos(rnc: str) -> str:
+    return ''.join(c for c in (rnc or '') if c.isdigit())
+
+
 class ECFWebhookController(http.Controller):
+
+    def _buscar_company_por_rnc(self, tenant_rnc: str):
+        """Encuentra la compañía aunque el VAT en Odoo tenga guiones (132-84231-6)."""
+        digits = _rnc_solo_digitos(tenant_rnc)
+        if not digits:
+            return request.env['res.company']
+        companies = request.env['res.company'].sudo().search([])
+        for company in companies:
+            if _rnc_solo_digitos(company.vat) == digits:
+                return company
+        return request.env['res.company']
 
     @http.route(
         '/ecf/webhook/callback',
@@ -44,9 +59,7 @@ class ECFWebhookController(http.Controller):
                 _logger.warning("Callback sin header X-ECF-Tenant-RNC — rechazado")
                 return request.make_response('Bad Request', status=400)
 
-            company = request.env['res.company'].sudo().search(
-                [('vat', '=', tenant_rnc)], limit=1
-            )
+            company = self._buscar_company_por_rnc(tenant_rnc)
             if not company:
                 _logger.warning("Callback con RNC desconocido: %s", tenant_rnc)
                 return request.make_response('Bad Request', status=400)
@@ -71,6 +84,9 @@ class ECFWebhookController(http.Controller):
             if not self._verificar_timestamp(data):
                 _logger.warning("Callback ECF rechazado por timestamp expirado o ausente")
                 return request.make_response('Request Expired', status=408)
+
+            if data.get('event') == 'ping':
+                return request.make_response('OK', status=200)
 
             self._procesar_callback(data)
 
@@ -186,9 +202,7 @@ class ECFWebhookController(http.Controller):
             tenant_rnc  = request.httprequest.headers.get('X-ECF-Tenant-RNC', '')
 
             # Detectar compañía por RNC
-            company = request.env['res.company'].sudo().search(
-                [('vat', '=', tenant_rnc)], limit=1
-            ) if tenant_rnc else request.env['res.company'].sudo().browse(1)
+            company = self._buscar_company_por_rnc(tenant_rnc) if tenant_rnc else request.env['res.company'].sudo().browse(1)
 
             if not company:
                 _logger.warning("Webhook recibida: compañía no encontrada para RNC %s", tenant_rnc)

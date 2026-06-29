@@ -148,8 +148,13 @@ mkdir -p "$BACKUP_DIR"
 if $DC "${COMPOSE_ARGS[@]}" ps postgres 2>/dev/null | grep -q "running"; then
     log "PostgreSQL activo. Realizando backup..."
     BACKUP_FILE="${BACKUP_DIR}/renace_ecf_${TIMESTAMP}.sql.gz"
-    $DC "${COMPOSE_ARGS[@]}" exec -T postgres \
-        pg_dump -U renace_ecf renace_ecf | gzip > "$BACKUP_FILE"
+    if $DC "${COMPOSE_ARGS[@]}" exec -T postgres pg_dump -U renace_ecf renace_ecf 2>/dev/null | gzip > "$BACKUP_FILE"; then
+        :
+    elif $DC "${COMPOSE_ARGS[@]}" exec -T postgres pg_dump -U saas_ecf saas_ecf 2>/dev/null | gzip > "$BACKUP_FILE"; then
+        warn "Backup con usuario legacy saas_ecf (instalaciones pre-rename 5d7b554)"
+    else
+        error "No se pudo hacer backup (renace_ecf ni saas_ecf conectan)"
+    fi
     BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
     log "Backup creado: ${BACKUP_FILE} (${BACKUP_SIZE})"
 
@@ -201,22 +206,63 @@ fi
 log "Levantando infraestructura (PostgreSQL, Redis, Traefik)..."
 $DC "${COMPOSE_ARGS[@]}" up -d postgres redis traefik
 
-# Esperar a que DB y Redis esten saludables
+# Esperar a que DB y Redis esten saludables (no solo "Up")
+for i in $(seq 1 60); do
+    PG_HEALTH=$($DC "${COMPOSE_ARGS[@]}" ps postgres 2>/dev/null | grep -c "(healthy)" || echo 0)
+    RD_HEALTH=$($DC "${COMPOSE_ARGS[@]}" ps redis 2>/dev/null | grep -c "(healthy)" || echo 0)
+    PG_HEALTH=${PG_HEALTH:-0}
+    RD_HEALTH=${RD_HEALTH:-0}
+
+    if [ "$PG_HEALTH" -ge 1 ] && [ "$RD_HEALTH" -ge 1 ]; then
+        log "Infraestructura activa (healthchecks OK)"
+        break
+    fi
+    if [ "$i" -eq 60 ]; then
+        error "Timeout esperando healthchecks de PostgreSQL/Redis. Verificar: $DC logs postgres redis"
+    fi
+    sleep 2
+done
+
+# Instalaciones en produccion antes de 5d7b554 usaban saas_ecf; el compose paso a renace_ecf
+# sin migrar el volumen PG (initdb solo corre en volumen vacio).
+if ! $DC "${COMPOSE_ARGS[@]}" exec -T postgres \
+    psql -U renace_ecf -d renace_ecf -c "SELECT 1" &>/dev/null; then
+    if $DC "${COMPOSE_ARGS[@]}" exec -T postgres \
+        psql -U saas_ecf -d saas_ecf -c "SELECT 1" &>/dev/null; then
+        log "Migrando usuario/base saas_ecf → renace_ecf (rename branding, datos intactos)..."
+        $DC "${COMPOSE_ARGS[@]}" exec -T postgres psql -U saas_ecf -d postgres -v ON_ERROR_STOP=1 <<-EOSQL
+			ALTER DATABASE saas_ecf RENAME TO renace_ecf;
+			CREATE ROLE pgfix_migration LOGIN SUPERUSER PASSWORD '${DB_PASSWORD}';
+		EOSQL
+        $DC "${COMPOSE_ARGS[@]}" exec -T postgres psql -U pgfix_migration -d postgres -v ON_ERROR_STOP=1 <<-EOSQL
+			ALTER ROLE saas_ecf RENAME TO renace_ecf;
+			DROP ROLE pgfix_migration;
+		EOSQL
+        log "Rename saas_ecf → renace_ecf completado"
+    elif $DC "${COMPOSE_ARGS[@]}" exec -T postgres \
+        psql -U saas_ecf -d renace_ecf -c "SELECT 1" &>/dev/null; then
+        log "Migrando rol saas_ecf → renace_ecf (base ya renombrada)..."
+        $DC "${COMPOSE_ARGS[@]}" exec -T postgres psql -U saas_ecf -d postgres -v ON_ERROR_STOP=1 <<-EOSQL
+			CREATE ROLE pgfix_migration LOGIN SUPERUSER PASSWORD '${DB_PASSWORD}';
+		EOSQL
+        $DC "${COMPOSE_ARGS[@]}" exec -T postgres psql -U pgfix_migration -d postgres -v ON_ERROR_STOP=1 <<-EOSQL
+			ALTER ROLE saas_ecf RENAME TO renace_ecf;
+			DROP ROLE pgfix_migration;
+		EOSQL
+        log "Rename rol saas_ecf → renace_ecf completado"
+    fi
+fi
+
+# Confirmar que renace_ecf acepta conexiones antes de migrar
+log "Verificando conexion PostgreSQL (usuario renace_ecf)..."
 for i in $(seq 1 30); do
-    # Verificación universal (v1 y v2)
-    PG_OK=$($DC "${COMPOSE_ARGS[@]}" ps postgres | grep -c "Up" || echo 0)
-    RD_OK=$($DC "${COMPOSE_ARGS[@]}" ps redis | grep -c "Up" || echo 0)
-
-    # Asegurar que sean números
-    PG_OK=${PG_OK:-0}
-    RD_OK=${RD_OK:-0}
-
-    if [ "$PG_OK" -ge 1 ] && [ "$RD_OK" -ge 1 ]; then
-        log "Infraestructura activa"
+    if $DC "${COMPOSE_ARGS[@]}" exec -T postgres \
+        psql -U renace_ecf -d renace_ecf -c "SELECT 1" &>/dev/null; then
+        log "PostgreSQL listo — renace_ecf conectado"
         break
     fi
     if [ "$i" -eq 30 ]; then
-        error "Timeout esperando infraestructura. Verificar logs con: $DC logs"
+        error "PostgreSQL no acepta conexiones como renace_ecf. Probar: $DC exec postgres psql -U saas_ecf -d saas_ecf -c 'SELECT 1'"
     fi
     sleep 2
 done

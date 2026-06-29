@@ -1517,7 +1517,7 @@ async function testWebhook() {
         if (res.success) {
             toast(`✅ Conexión exitosa (HTTP ${res.status_code})`);
         } else {
-            toast(`❌ Error: ${res.error || 'Respuesta inválida'}`, 'error');
+            toast(`❌ Error: ${res.error || res.response_body || 'Respuesta inválida'}`, 'error');
         }
     } catch (err) {
         toast('Error de conexión: ' + err.message, 'error');

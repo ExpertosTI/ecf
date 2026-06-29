@@ -19,7 +19,22 @@ _logger = logging.getLogger(__name__)
 WEBHOOK_MAX_AGE_SECONDS = 300
 
 
+def _rnc_solo_digitos(rnc: str) -> str:
+    return ''.join(c for c in (rnc or '') if c.isdigit())
+
+
 class ECFWebhookController(http.Controller):
+
+    def _buscar_company_por_rnc(self, tenant_rnc: str):
+        """Encuentra la compañía aunque el VAT en Odoo tenga guiones (132-84231-6)."""
+        digits = _rnc_solo_digitos(tenant_rnc)
+        if not digits:
+            return request.env['res.company']
+        companies = request.env['res.company'].sudo().search([])
+        for company in companies:
+            if _rnc_solo_digitos(company.vat) == digits:
+                return company
+        return request.env['res.company']
 
     @http.route(
         '/ecf/webhook/callback',
@@ -44,9 +59,7 @@ class ECFWebhookController(http.Controller):
                 _logger.warning("Callback sin header X-ECF-Tenant-RNC — rechazado")
                 return request.make_response('Bad Request', status=400)
 
-            company = request.env['res.company'].sudo().search(
-                [('vat', '=', tenant_rnc)], limit=1
-            )
+            company = self._buscar_company_por_rnc(tenant_rnc)
             if not company:
                 _logger.warning("Callback con RNC desconocido: %s", tenant_rnc)
                 return request.make_response('Bad Request', status=400)
@@ -71,6 +84,9 @@ class ECFWebhookController(http.Controller):
             if not self._verificar_timestamp(data):
                 _logger.warning("Callback ECF rechazado por timestamp expirado o ausente")
                 return request.make_response('Request Expired', status=408)
+
+            if data.get('event') == 'ping':
+                return request.make_response('OK', status=200)
 
             self._procesar_callback(data)
 
@@ -109,6 +125,7 @@ class ECFWebhookController(http.Controller):
         ncf          = data.get('ncf')
         estado       = data.get('estado')
         codigo_seguridad = data.get('codigo_seguridad') or data.get('cufe')
+        track_id     = data.get('track_id')
         qr_code      = data.get('qr_code')
         error_msg    = data.get('error_msg')
 
@@ -127,6 +144,8 @@ class ECFWebhookController(http.Controller):
         vals = {'ecf_estado': estado}
         if codigo_seguridad:
             vals['ecf_codigo_seguridad'] = codigo_seguridad
+        if track_id:
+            vals['ecf_track_id'] = track_id
         if qr_code:
             vals['ecf_qr'] = qr_code
 
@@ -154,14 +173,16 @@ class ECFWebhookController(http.Controller):
         # Mensaje en el chatter
         icono = {'aprobado': '✅', 'rechazado': '❌', 'condicionado': '⚠️'}.get(estado, 'ℹ️')
         error_text = f" — Error: {error_msg}" if error_msg else ""
+        track_text = f" — Track: <code>{track_id}</code>" if track_id else ""
         move.message_post(
             body=f"{icono} e-CF {estado.upper()}. NCF: <strong>{ncf}</strong>"
                  + (f" — Cód. Seguridad: <strong>{codigo_seguridad}</strong>" if codigo_seguridad else "")
+                 + track_text
                  + error_text,
             message_type='comment',
         )
 
-        _logger.info("Callback procesado: move=%s ncf=%s estado=%s", odoo_move_id, ncf, estado)
+        _logger.info("Callback procesado: move=%s ncf=%s estado=%s track_id=%s", odoo_move_id, ncf, estado, track_id)
 
     # ─────────────────────────────────────────────────────────────────────────
     # Webhook: e-CF RECIBIDAS (Compras desde DGII)
@@ -186,9 +207,7 @@ class ECFWebhookController(http.Controller):
             tenant_rnc  = request.httprequest.headers.get('X-ECF-Tenant-RNC', '')
 
             # Detectar compañía por RNC
-            company = request.env['res.company'].sudo().search(
-                [('vat', '=', tenant_rnc)], limit=1
-            ) if tenant_rnc else request.env['res.company'].sudo().browse(1)
+            company = self._buscar_company_por_rnc(tenant_rnc) if tenant_rnc else request.env['res.company'].sudo().browse(1)
 
             if not company:
                 _logger.warning("Webhook recibida: compañía no encontrada para RNC %s", tenant_rnc)

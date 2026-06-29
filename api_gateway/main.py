@@ -351,6 +351,10 @@ class FacturaPayload(BaseModel):
     tipo_ingresos:      str = Field(default="01", pattern=r"^0[1-6]$")
     indicador_envio_diferido: int = Field(default=0, ge=0, le=1)
     direccion_comprador: Optional[str] = Field(None, max_length=255)
+    ambiente_emision: Optional[str] = Field(
+        None, pattern=r"^(simulacion|certificacion|produccion)$",
+        description="Ambiente solicitado por Odoo; el worker lo usa si el tenant lo permite",
+    )
     odoo_move_id:       Optional[str] = Field(None, max_length=64, validation_alias=AliasChoices("external_id", "odoo_move_id"))
     odoo_move_name:     Optional[str] = Field(None, max_length=64, validation_alias=AliasChoices("external_name", "odoo_move_name"))
 
@@ -478,6 +482,7 @@ async def emitir_ecf(
         "schema_name": schema,
         "ncf":         ncf,
         "tipo_ecf":    payload.tipo_ecf,
+        "ambiente_emision": payload.ambiente_emision,
         "intento":     1,
         "enqueued_at": datetime.now(timezone.utc).isoformat(),
     })

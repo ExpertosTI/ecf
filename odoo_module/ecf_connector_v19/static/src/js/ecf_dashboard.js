@@ -19,6 +19,7 @@ export class EcfDashboard extends Component {
             stats: {},
             fiscal: {},
             compliance: {},
+            saas: {},
             loading: true,
             saas_status: 'checking', 
             date_from: firstDay.toISOString().split('T')[0],
@@ -41,6 +42,13 @@ export class EcfDashboard extends Component {
         });
     }
 
+    get dateContext() {
+        return {
+            date_from: this.state.date_from,
+            date_to: this.state.date_to,
+        };
+    }
+
     setQuickDate(filter) {
         const today = new Date();
         let fromDate = new Date();
@@ -49,7 +57,7 @@ export class EcfDashboard extends Component {
             fromDate = today;
         } else if (filter === 'week') {
             const day = today.getDay();
-            const diff = today.getDate() - day + (day === 0 ? -6 : 1); // lunes
+            const diff = today.getDate() - day + (day === 0 ? -6 : 1);
             fromDate = new Date(today.setDate(diff));
         } else if (filter === 'month') {
             fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -66,31 +74,32 @@ export class EcfDashboard extends Component {
     async loadData() {
         this.state.loading = true;
         try {
-            const context = { 
-                date_from: this.state.date_from, 
-                date_to: this.state.date_to 
-            };
+            const context = this.dateContext;
             
-            const stats = await this.orm.call("ecf.log", "get_dashboard_stats", [[]], { context });
+            const [stats, fiscal, compliance, saas] = await Promise.all([
+                this.orm.call("ecf.log", "get_dashboard_stats", [[]], { context }),
+                this.orm.call("ecf.log", "get_fiscal_summary", [[]], { context }),
+                this.orm.call("ecf.log", "check_dgii_compliance", [[]]),
+                this.orm.call("ecf.log", "get_saas_connectivity", [[]]),
+            ]);
             this.state.stats = stats;
-            
-            const fiscal = await this.orm.call("ecf.log", "get_fiscal_summary", [[]], { context });
             this.state.fiscal = fiscal;
-
-            const compliance = await this.orm.call("ecf.log", "check_dgii_compliance", [[]]);
             this.state.compliance = compliance;
-            if (compliance.status === 'ready') {
+            this.state.saas = saas;
+
+            if (saas.status === 'online') {
                 this.state.saas_status = 'online';
-            } else if (compliance.status === 'critical') {
-                this.state.saas_status = 'offline';
-            } else {
+            } else if (compliance.status === 'warning') {
                 this.state.saas_status = 'warning';
+            } else {
+                this.state.saas_status = 'offline';
             }
         } catch (err) {
             console.error("Error loading dashboard data", err);
             this.state.saas_status = 'offline';
         } finally {
             this.state.loading = false;
+            this.renderCharts();
         }
     }
 
@@ -104,34 +113,13 @@ export class EcfDashboard extends Component {
         this.state.current_report_type = type;
         this.state.loading = true;
         try {
-            const domain = [
-                ['invoice_date', '>=', this.state.date_from],
-                ['invoice_date', '<=', this.state.date_to],
-                ['move_type', '=', type === '606' ? 'in_invoice' : 'out_invoice'],
-                ['state', '=', 'posted'],
-                ['l10n_latam_document_number', '!=', false] // Solo facturas con NCF/e-NCF
-            ];
-            
-            const fields = [
-                'name', 'invoice_date', 'partner_id', 'amount_untaxed', 
-                'amount_tax', 'amount_total', 'l10n_latam_document_number',
-                'payment_state'
-            ];
-            const data = await this.orm.searchRead("account.move", domain, fields);
-            
-            this.state.report_details = data.map(m => ({
-                id: m.id,
-                ncf: m.l10n_latam_document_number || m.name,
-                date: m.invoice_date,
-                rnc: m.partner_id[1].match(/\(([^)]+)\)/)?.[1] || '---',
-                partner: m.partner_id[1].split('(')[0],
-                base: m.amount_untaxed,
-                tax: m.amount_tax,
-                total: m.amount_total,
-                status: m.payment_state === 'paid' ? 'Pagado' : 'Pendiente'
-            }));
-
-            
+            const rows = await this.orm.call(
+                "ecf.log",
+                "get_report_rows",
+                [type],
+                { context: this.dateContext },
+            );
+            this.state.report_details = rows;
             this.state.show_report_viewer = true;
         } catch (err) {
             this.notification.add(_t("Error al cargar detalles del reporte"), { type: "danger" });
@@ -140,79 +128,99 @@ export class EcfDashboard extends Component {
         }
     }
 
-    }
-
     renderCharts() {
         if (this.state.loading || !this.state.stats.daily_volume) return;
         const stats = this.state.stats;
 
-        // Chart Estado
-        new Chart(this.chartStatusRef.el, {
-            type: 'doughnut',
-            data: {
-                labels: Object.keys(stats.stats_estado),
-                datasets: [{
-                    data: Object.values(stats.stats_estado),
-                    backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#3b82f6'],
-                    borderWidth: 0,
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
+        if (this.chartStatusRef.el) {
+            new Chart(this.chartStatusRef.el, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(stats.stats_estado),
+                    datasets: [{
+                        data: Object.values(stats.stats_estado),
+                        backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#3b82f6'],
+                        borderWidth: 0,
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
 
-        // Chart Volumen Diario
-        new Chart(this.chartVolumeRef.el, {
-            type: 'line',
-            data: {
-                labels: stats.daily_volume.map(d => d.day),
-                datasets: [{
-                    label: 'Comprobantes',
-                    data: stats.daily_volume.map(d => d.count),
-                    borderColor: '#0087ff',
-                    borderWidth: 3,
-                    tension: 0.4,
-                    fill: true,
-                    backgroundColor: 'rgba(0, 135, 255, 0.05)',
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
+        if (this.chartVolumeRef.el) {
+            new Chart(this.chartVolumeRef.el, {
+                type: 'line',
+                data: {
+                    labels: stats.daily_volume.map(d => d.day),
+                    datasets: [{
+                        label: 'Comprobantes',
+                        data: stats.daily_volume.map(d => d.count),
+                        borderColor: '#0087ff',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        backgroundColor: 'rgba(0, 135, 255, 0.05)',
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+    }
+
+    async _fetchReportRows(reportType) {
+        if (
+            this.state.report_details.length
+            && this.state.current_report_type === reportType
+        ) {
+            return this.state.report_details;
+        }
+        const rows = await this.orm.call(
+            "ecf.log",
+            "get_report_rows",
+            [reportType],
+            { context: this.dateContext },
+        );
+        this.state.current_report_type = reportType;
+        this.state.report_details = rows;
+        return rows;
     }
 
     async exportReport(reportType, format) {
         this.notification.add(_t(`Exportando Reporte ${reportType} (${format.toUpperCase()})...`), { type: "info" });
         if (format === 'excel') {
-            this.notification.add(_t("Generando archivo Excel (XLSX)..."), { type: "success" });
             this.actionService.doAction(reportType === '606' ? 'ecf_connector_v19.ecf_compras_action' : 'ecf_connector_v19.ecf_ventas_action');
-        } else if (format === 'pdf') {
-            this.notification.add(_t("Generando Reporte PDF profesional..."), { type: "success" });
-            const move_ids = this.state.report_details.map(r => r.id);
-            if (!move_ids.length) {
-                this.notification.add(_t("No hay datos para imprimir"), { type: "warning" });
+            return;
+        }
+
+        try {
+            const rows = await this._fetchReportRows(reportType);
+            if (!rows.length) {
+                this.notification.add(_t("No hay facturas en el periodo seleccionado"), { type: "warning" });
                 return;
             }
-            this.actionService.doAction({
-                type: 'ir.actions.report',
-                report_name: 'ecf_connector_v19.report_ecf_summary_template',
-                report_type: 'qweb-pdf',
-                res_ids: move_ids,
-                datas: {
-                    ids: move_ids,
-                    model: 'account.move',
-                },
-                context: { active_ids: move_ids }
-            });
 
-        } else if (format === 'txt') {
-            const content = `Reporte ${reportType} | Periodo: ${this.state.date_from} a ${this.state.date_to}\n` + 
-                            this.state.report_details.map(r => `${r.ncf}|${r.rnc}|${r.total}`).join('\n');
-            const blob = new Blob([content], { type: 'text/plain' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `Reporte_${reportType}_DGII.txt`;
-            a.click();
-            window.URL.revokeObjectURL(url);
+            if (format === 'pdf') {
+                const move_ids = rows.map((r) => r.id);
+                this.actionService.doAction({
+                    type: 'ir.actions.report',
+                    report_name: 'ecf_connector_v19.report_ecf_summary_template',
+                    report_type: 'qweb-pdf',
+                    res_ids: move_ids,
+                    context: { active_ids: move_ids },
+                });
+            } else if (format === 'txt') {
+                const content = `Reporte ${reportType} | Periodo: ${this.state.date_from} a ${this.state.date_to}\n`
+                    + rows.map((r) => `${r.ncf}|${r.rnc}|${r.total}`).join('\n');
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Reporte_${reportType}_DGII.txt`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
+        } catch (err) {
+            this.notification.add(_t("Error al exportar el reporte"), { type: "danger" });
         }
     }
 

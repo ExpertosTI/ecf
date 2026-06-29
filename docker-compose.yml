@@ -96,7 +96,8 @@ services:
     labels:
       - "traefik.enable=true"
       # Router API
-      - "traefik.http.routers.api.rule=Host(`${ECF_DOMAIN:-ecf.local}`) && PathPrefix(`/v1`)"
+      # Router API + landing (prod usa Host sin PathPrefix; certificacion alineado)
+      - "traefik.http.routers.api.rule=Host(`${ECF_DOMAIN:-ecf.local}`)"
       - "traefik.http.routers.api.entrypoints=websecure"
       - "traefik.http.routers.api.tls=true"
       - "traefik.http.routers.api.tls.certresolver=letsencrypt"

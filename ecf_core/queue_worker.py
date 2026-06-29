@@ -28,6 +28,7 @@ from ecf_core.dgii_client import (
 )
 from ecf_core.ecf_core_service import ECFCoreService, FacturaECF, ItemECF
 from ecf_core.utils import safe_schema as _safe_schema
+from ecf_core.utils import normalize_odoo_webhook_url
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,29 @@ QUEUE_ECF_RETRY   = "ecf:retry"         # Cola de reintentos
 QUEUE_ECF_DLQ     = "ecf:dlq"           # Dead letter queue (fallos definitivos)
 MAX_INTENTOS      = 5
 RETRY_DELAYS      = [30, 120, 300, 900, 3600]   # segundos entre reintentos
+
+
+def _normalizar_items_ecf(raw_items) -> list[dict]:
+    """Convierte items de json_agg(row_to_json) a list[dict].
+
+    asyncpg puede devolver el array completo o cada fila como str JSON;
+    indexar con claves falla con TypeError: string indices must be integers.
+    """
+    if not raw_items:
+        return []
+    if isinstance(raw_items, str):
+        raw_items = json.loads(raw_items)
+    if not isinstance(raw_items, list):
+        return []
+    items: list[dict] = []
+    for raw in raw_items:
+        if raw is None:
+            continue
+        if isinstance(raw, str):
+            raw = json.loads(raw)
+        if isinstance(raw, dict):
+            items.append(raw)
+    return items
 
 
 class ECFQueueWorker:
@@ -113,6 +137,12 @@ class ECFQueueWorker:
                 logger.info("ECF %s ya en estado final %s, saltando", ecf_id, ecf_data["estado"])
                 return
 
+            ambiente_efectivo = mensaje.get("ambiente_emision") or tenant["ambiente"]
+            if mensaje.get("ambiente_emision") == "simulacion":
+                ambiente_efectivo = "simulacion"
+            elif mensaje.get("ambiente_emision") in ("certificacion", "produccion"):
+                ambiente_efectivo = mensaje["ambiente_emision"]
+
             # Recuperar certificado .p12 del vault
             p12_data = await self.cert_repo.obtener(tenant_id)
             p12_pass = self.vault.descifrar_campo(tenant.get("cert_password") or "").encode()
@@ -129,11 +159,11 @@ class ECFQueueWorker:
             # MOCK MODE: Solo activo cuando ECF_AMBIENTE != eCF/produccion
             _sistema_ambiente = os.environ.get("ECF_AMBIENTE", "").lower()
             _es_produccion = _sistema_ambiente in {"ecf", "produccion"}
-            if tenant["ambiente"] == "simulacion":
+            if ambiente_efectivo == "simulacion":
                 if _es_produccion:
                     raise RuntimeError(
-                        f"Tenant {tenant['rnc']} tiene ambiente='simulacion' pero el sistema está "
-                        f"en producción (ECF_AMBIENTE={_sistema_ambiente}). Corrija el ambiente del tenant."
+                        f"Tenant {tenant['rnc']} emite en simulación pero el sistema está "
+                        f"en producción (ECF_AMBIENTE={_sistema_ambiente}). Corrija el ambiente."
                     )
                 logger.warning("MOCK MODE activo para tenant %s — e-CF NO se envía a DGII", tenant["rnc"])
                 from ecf_core.dgii_client import EstadoDGII, RespuestaDGII
@@ -159,10 +189,10 @@ class ECFQueueWorker:
                     codigo_seguridad=None,
                     qr_code=None,  # Se genera localmente abajo
                     detalles=[{"codigo": "MOCK01", "mensaje": mensaje_mock}],
-                    raw={"mock": True, "ambiente": tenant["ambiente"]}
+                    raw={"mock": True, "ambiente": ambiente_efectivo}
                 )
             else:
-                async with DGIIClient(ambiente=tenant["ambiente"]) as dgii:
+                async with DGIIClient(ambiente=ambiente_efectivo) as dgii:
                     dgii.set_certificate(p12_data, p12_pass)
                     respuesta = await dgii.enviar_ecf(
                         xml_firmado=resultado["xml_firmado"],
@@ -174,7 +204,7 @@ class ECFQueueWorker:
             # Generar SecurityCode y QR URL
             security_code = generar_security_code(resultado["xml_firmado"])
             qr_url = generar_qr_url(
-                ambiente=tenant["ambiente"],
+                ambiente=ambiente_efectivo,
                 rnc_emisor=tenant["rnc"],
                 ncf=factura.ncf,
                 total=str(factura.total),
@@ -185,11 +215,12 @@ class ECFQueueWorker:
             )
 
             # Persistir resultado
+            codigo_final = respuesta.codigo_seguridad or security_code
             await self._actualizar_ecf(
                 schema     = tenant["schema_name"],
                 ecf_id     = ecf_id,
                 estado     = self._estado_dgii_a_local(respuesta.estado),
-                codigo_seguridad = respuesta.codigo_seguridad,
+                codigo_seguridad = codigo_final,
                 xml_original = resultado.get("xml_original"),
                 xml_firmado= resultado["xml_firmado"],
                 respuesta  = respuesta.raw,
@@ -202,8 +233,10 @@ class ECFQueueWorker:
             # Callback a Odoo para TODOS los estados finales
             estado_local = self._estado_dgii_a_local(respuesta.estado)
             if estado_local in ("aprobado", "rechazado", "condicionado"):
-                await self._callback_odoo(tenant, ecf_data, respuesta, estado_local,
-                                         qr_url=qr_url)
+                await self._callback_odoo(
+                    tenant, ecf_data, respuesta, estado_local,
+                    qr_url=qr_url, security_code=codigo_final,
+                )
 
             logger.info("ECF %s procesado: %s", ecf_id, respuesta.estado)
 
@@ -312,7 +345,7 @@ class ECFQueueWorker:
         await self.redis.rpush(QUEUE_ECF_DLQ, json.dumps(mensaje))
 
     async def _callback_odoo(self, tenant: dict, ecf_data: dict, respuesta, estado_local: str,
-                              qr_url: str = None):
+                              qr_url: str = None, security_code: str = None):
         """Notifica a Odoo el resultado mediante webhook firmado con HMAC-SHA256.
 
         Durante ventana de rotación acepta también el secret anterior almacenado
@@ -321,12 +354,15 @@ class ECFQueueWorker:
         if not tenant.get("odoo_webhook_url"):
             return
 
+        webhook_url = normalize_odoo_webhook_url(tenant["odoo_webhook_url"])
+
         payload = json.dumps({
             "odoo_move_id": ecf_data.get("odoo_move_id"),
             "external_id":  ecf_data.get("odoo_move_id"),
             "ncf":          ecf_data["ncf"],
-            "codigo_seguridad": respuesta.codigo_seguridad,
+            "codigo_seguridad": security_code or respuesta.codigo_seguridad,
             "estado":       estado_local,
+            "track_id":     respuesta.track_id,
             "qr_code":      qr_url or respuesta.qr_code,
             "error_msg":    respuesta.mensaje if estado_local != "aprobado" else None,
             "detalles":     respuesta.detalles if estado_local != "aprobado" else [],
@@ -340,13 +376,18 @@ class ECFQueueWorker:
 
         async def _post_webhook(secret: str) -> httpx.Response:
             firma = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+            sig_header = f"sha256={firma}"
+            logger.debug(
+                "Webhook HMAC: secret[0:8]=%s firma[0:16]=%s url=%s",
+                secret[:8], firma[:16], webhook_url,
+            )
             async with httpx.AsyncClient(timeout=10.0) as client:
                 return await client.post(
-                    tenant["odoo_webhook_url"],
+                    webhook_url,
                     content=payload,
                     headers={
                         "Content-Type":     "application/json",
-                        "X-ECF-Signature":  firma,
+                        "X-ECF-Signature":  sig_header,
                         "X-ECF-Tenant-RNC": tenant["rnc"],
                     },
                 )
@@ -394,7 +435,7 @@ class ECFQueueWorker:
 
     def _construir_factura(self, ecf_data: dict, tenant: dict) -> FacturaECF:
         from decimal import Decimal
-        raw_items = ecf_data.get("items") or []
+        raw_items = _normalizar_items_ecf(ecf_data.get("items"))
         items = [
             ItemECF(
                 linea                   = i["linea"],
@@ -406,7 +447,7 @@ class ECFQueueWorker:
                 unidad                  = i.get("unidad", "Unidad"),
                 indicador_bien_servicio = int(i.get("indicador_bien_servicio", 2)),
             )
-            for i in raw_items if i is not None
+            for i in raw_items
         ]
         from datetime import date
         return FacturaECF(
@@ -451,13 +492,26 @@ class ECFQueueWorker:
         s = _safe_schema(schema)
         async with self.db.acquire() as conn:
             row = await conn.fetchrow(
-                f'SELECT e.*, array_agg(row_to_json(i)) AS items '
-                f'FROM {s}.ecf e '
-                f'LEFT JOIN {s}.ecf_items i ON i.ecf_id = e.id '
-                f'WHERE e.id = $1 GROUP BY e.id',
-                uuid.UUID(ecf_id)
+                f"""
+                SELECT e.*,
+                    COALESCE(
+                        (
+                            SELECT json_agg(row_to_json(i))
+                            FROM {s}.ecf_items i
+                            WHERE i.ecf_id = e.id
+                        ),
+                        '[]'::json
+                    ) AS items
+                FROM {s}.ecf e
+                WHERE e.id = $1
+                """,
+                uuid.UUID(ecf_id),
             )
-        return dict(row) if row else {}
+        if not row:
+            return {}
+        data = dict(row)
+        data["items"] = _normalizar_items_ecf(data.get("items"))
+        return data
 
     async def _actualizar_ecf(self, schema, ecf_id, estado, codigo_seguridad, xml_firmado, respuesta, intento,
                               track_id=None, security_code=None, qr_url=None,

@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, field_validator, AliasChoices
 
 from ecf_core.cert_vault import CertVault, CertVaultError, CertVaultRepository
 from ecf_core.dgii_client import DGIIClient, DGIIClientError
-from ecf_core.utils import safe_schema as _safe_schema
+from ecf_core.utils import normalize_odoo_webhook_url, safe_schema as _safe_schema
 
 logger = logging.getLogger(__name__)
 
@@ -480,6 +480,82 @@ async def rotate_webhook_secret(
     }
 
 
+@router.post("/tenants/{tenant_id}/test-webhook")
+async def test_webhook(
+    tenant_id: str,
+    _: None = Depends(require_admin),
+):
+    """Pings the configured webhook URL to verify network reachability and HMAC signature."""
+    import httpx
+    import json
+    import datetime
+
+    db = _get_pool()
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT rnc, odoo_webhook_url, odoo_webhook_secret FROM public.tenants WHERE id = $1 AND deleted_at IS NULL",
+            uuid.UUID(tenant_id),
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Tenant no encontrado")
+
+    if not row["odoo_webhook_url"]:
+        raise HTTPException(status_code=422, detail="Webhook URL no configurada")
+
+    webhook_url = normalize_odoo_webhook_url(row["odoo_webhook_url"])
+    
+    # Decrypt secret
+    encrypted = row["odoo_webhook_secret"]
+    if encrypted:
+        try:
+            vault = CertVault()
+            webhook_secret = vault.descifrar_campo(encrypted)
+        except Exception:
+            webhook_secret = encrypted
+    else:
+        webhook_secret = ""
+
+    if not webhook_secret:
+        raise HTTPException(status_code=422, detail="Webhook Secret no configurado")
+
+    # Build ping payload
+    payload = json.dumps({
+        "event": "ping",
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }).encode()
+
+    firma = hmac.new(webhook_secret.encode(), payload, hashlib.sha256).hexdigest()
+    sig_header = f"sha256={firma}"
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(
+                webhook_url,
+                content=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-ECF-Signature": sig_header,
+                    "X-ECF-Tenant-RNC": row["rnc"],
+                },
+            )
+            resp.raise_for_status()
+            return {
+                "tenant_id": tenant_id,
+                "status_code": resp.status_code,
+                "mensaje": "Webhook contactado exitosamente",
+            }
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Webhook respondió con HTTP {e.response.status_code}. Revisa el secret o la URL.",
+        )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Error conectando al Webhook: {str(e)}",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Certificate management
 # ---------------------------------------------------------------------------
@@ -861,7 +937,7 @@ async def test_webhook(
     if not row:
         raise HTTPException(status_code=404, detail="Tenant no encontrado")
 
-    webhook_url = row["odoo_webhook_url"]
+    webhook_url = normalize_odoo_webhook_url(row["odoo_webhook_url"])
     if not webhook_url:
         raise HTTPException(status_code=400, detail="URL de webhook no configurada para esta empresa")
 
@@ -911,8 +987,10 @@ async def test_webhook(
             )
             return {
                 "status_code": resp.status_code,
-                "response_body": resp.text[:500],  # Truncate for safety
+                "response_body": resp.text[:500],
+                "webhook_url_used": webhook_url,
                 "success": resp.is_success,
+                "error": None if resp.is_success else f"HTTP {resp.status_code}: {resp.text[:200]}",
             }
     except Exception as e:
         return {"success": False, "error": str(e)}

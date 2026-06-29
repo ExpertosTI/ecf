@@ -124,3 +124,23 @@ def q2(d: Decimal | int | float | str) -> Decimal:
     if not isinstance(d, Decimal):
         d = Decimal(str(d))
     return d.quantize(TWO_PLACES)
+
+
+def normalize_rnc_digits(rnc: str) -> str:
+    """RNC/Cédula solo dígitos (132-84231-6 → 132842316)."""
+    return "".join(c for c in (rnc or "") if c.isdigit())
+
+
+def normalize_odoo_webhook_url(url: str) -> str:
+    """Asegura path /ecf/webhook/callback cuando solo se guardó el dominio Odoo."""
+    url = (url or "").strip().rstrip("/")
+    if not url:
+        return url
+    suffix = "/ecf/webhook/callback"
+    if url.endswith(suffix):
+        return url
+    from urllib.parse import urlparse
+    path = urlparse(url).path or ""
+    if not path or path == "/":
+        return url + suffix
+    return url
