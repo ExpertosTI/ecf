@@ -5,6 +5,31 @@
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
+            <!-- Buscar y crear cliente -->
+            <xpath expr="//field[@name='partner_id']" position="attributes">
+                <attribute name="widget">many2one</attribute>
+                <attribute name="required">0</attribute>
+                <attribute name="placeholder">Buscar cliente registrado...</attribute>
+                <attribute name="string">Buscar Cliente</attribute>
+            </xpath>
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="x_customer_phone" placeholder="WhatsApp / Teléfono..."/>
+                <field name="x_customer_name" required="1" placeholder="Nombre completo..."/>
+            </xpath>
+
+            <!-- Ocultar fechas, lista de precios y términos de pago -->
+            <xpath expr="//field[@name='validity_date']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='date_order']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='pricelist_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='payment_term_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
 
             <!-- 1. Botón de etiqueta en header -->
             <xpath expr="//header" position="inside">
@@ -131,7 +156,16 @@
                     </group>
                 </page>
             </xpath>
+            <!-- 5. Reemplazar la tabla de líneas tradicional por el widget de productos tipo POS -->
+            <xpath expr="//field[@name='order_line']" position="attributes">
+                <attribute name="widget">pos_product_grid_sales</attribute>
+            </xpath>
 
         </field>
+    </record>
+
+    <!-- Cambiar el menú de cotizaciones nativo de Odoo a 'Órdenes' -->
+    <record id="sale.menu_sale_quotations" model="ir.ui.menu">
+        <field name="name">Órdenes</field>
     </record>
 </odoo>

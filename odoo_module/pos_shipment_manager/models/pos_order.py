@@ -18,8 +18,11 @@ class PosOrder(models.Model):
         ('paid', 'Pago al Instante'),
         ('cod', 'Contra Entrega'),
     ], string="Modo de Envío", default='none')
-    messenger_id = fields.Many2one('res.users', string='Mensajero Seleccionado')
+    messenger_id = fields.Many2one('res.partner', string='Mensajero Seleccionado')
     manual_location_link = fields.Char(string='Link de Ubicación (Manual)')
+    distance_km = fields.Float(string='Distancia (KM)', digits=(16, 2))
+    shipping_charge = fields.Monetary(string='Cargo de Envío (Cliente)')
+    shipping_cost = fields.Monetary(string='Costo de Envío (Mensajero)')
     nav_google_url = fields.Char(related='shipment_id.nav_google_url', string='Google Maps (Envío)')
     nav_waze_url = fields.Char(related='shipment_id.nav_waze_url', string='Waze (Envío)')
 
@@ -32,6 +35,8 @@ class PosOrder(models.Model):
             else:
                 order.sale_order_id = False
 
+
+
     @api.model
     def _order_fields(self, ui_order):
         fields = super()._order_fields(ui_order)
@@ -41,6 +46,12 @@ class PosOrder(models.Model):
             fields['messenger_id'] = ui_order['messenger_id']
         if 'manual_location_link' in ui_order:
             fields['manual_location_link'] = ui_order['manual_location_link']
+        if 'distance_km' in ui_order:
+            fields['distance_km'] = ui_order['distance_km']
+        if 'shipping_charge' in ui_order:
+            fields['shipping_charge'] = ui_order['shipping_charge']
+        if 'shipping_cost' in ui_order:
+            fields['shipping_cost'] = ui_order['shipping_cost']
         return fields
 
     @api.model
@@ -103,16 +114,13 @@ class PosOrder(models.Model):
             if order.sale_order_id and order.sale_order_id.shipment_mode != 'none' and order.shipment_mode == 'none':
                 order.shipment_mode = order.sale_order_id.shipment_mode
 
-            # Crear el envío si el modo lo amerita (venga o no de cotización)
+                # Crear el envío si el modo lo amerita (venga o no de cotización)
             if order.shipment_mode in ['paid', 'cod']:
                 messenger = order.messenger_id.id or (order.sale_order_id.messenger_id.id if order.sale_order_id else False)
                 
-                # Calcular tarifa de envío: desde cotización o leyendo las líneas del POS
-                if order.sale_order_id:
-                    shipping_fee = order.sale_order_id.shipping_fee
-                else:
-                    shipping_lines = order.lines.filtered(lambda l: 'envio' in (l.product_id.name or '').lower() or 'envío' in (l.product_id.name or '').lower())
-                    shipping_fee = sum(shipping_lines.mapped('price_subtotal_incl')) if shipping_lines else 0.0
+                # Priorizar el monto enviado desde el POS UI, si no, buscar en cotización
+                shipping_fee = order.shipping_charge or (order.sale_order_id.shipping_fee if order.sale_order_id else 0.0)
+                shipping_cost = order.shipping_cost or shipping_fee # Fallback cost = charge if not specified
                     
                 location_link = order.manual_location_link or (order.sale_order_id.manual_location_link if order.sale_order_id else False)
                 
@@ -122,6 +130,8 @@ class PosOrder(models.Model):
                     'date_invoiced': order.create_date or fields.Datetime.now(),
                     'state': 'street',  # Pasa directo a "En la Calle"
                     'shipping_charge': shipping_fee,
+                    'shipping_cost': shipping_cost,
+                    'distance_km': order.distance_km,
                     'company_id': order.company_id.id,
                     'manual_location_link': location_link,
                     'shipment_mode': order.shipment_mode,
@@ -160,23 +170,57 @@ class PosOrder(models.Model):
             'target': 'current',
         }
 
+    def _export_for_ui(self, order):
+        result = super()._export_for_ui(order)
+        result['shipment_mode'] = order.shipment_mode or 'none'
+        result['messenger_id'] = order.messenger_id.id if order.messenger_id else None
+        result['manual_location_link'] = order.manual_location_link or ''
+        result['distance_km'] = order.distance_km or 0.0
+        result['shipping_charge'] = order.shipping_charge or 0.0
+        result['shipping_cost'] = order.shipping_cost or 0.0
+        return result
+
+    @api.model
+    def _load_pos_data_fields(self, config_id):
+        fields_ = super()._load_pos_data_fields(config_id)
+        return fields_ + [
+            'shipment_mode', 'messenger_id', 'manual_location_link',
+            'distance_km', 'shipping_charge', 'shipping_cost',
+        ]
+
+
 
 class PosSession(models.Model):
     _inherit = 'pos.session'
 
-    @api.model
-    def _loader_params_res_users(self):
-        params = super()._loader_params_res_users()
-        params['search_params']['fields'] += ['is_messenger']
-        return params
-
-    def _pos_data_process(self, loaded_data):
-        super()._pos_data_process(loaded_data)
-        # Forzar la carga de mensajeros en una clave dedicada para máxima fiabilidad
-        loaded_data['pos_messengers'] = self.env['res.users'].search_read(
-            [('is_messenger', '=', True)], 
-            ['id', 'name', 'is_messenger']
+    # API Odoo 18: los campos extra se declaran vía _load_pos_data_fields en
+    # cada modelo (ver abajo). Los datos auxiliares (mensajeros, producto de
+    # envío) se sirven con este RPC que el POS llama en processServerData.
+    def load_shipment_data(self):
+        """Datos de envío para la UI del POS (mensajeros + producto de envío)."""
+        self.ensure_one()
+        messengers = self.env['res.partner'].search_read(
+            [('is_messenger', '=', True)],
+            ['id', 'name', 'is_messenger', 'messenger_whatsapp'],
         )
+        shipment_product_id = self.env['ir.config_parameter'].sudo().get_param('pos_shipment.product_id')
+        return {
+            'pos_messengers': messengers,
+            'pos_shipment_product_id': int(shipment_product_id) if shipment_product_id else False,
+        }
+
+
+class SaleOrder(models.Model):
+    _inherit = 'sale.order'
+
+    @api.model
+    def _load_pos_data_fields(self, config_id):
+        fields_ = super()._load_pos_data_fields(config_id)
+        return fields_ + [
+            'shipment_mode', 'payment_status_label', 'messenger_id',
+            'manual_location_link', 'distance_km', 'shipping_fee',
+        ]
+
 
 class PosOrderLine(models.Model):
     _inherit = 'pos.order.line'
@@ -185,3 +229,4 @@ class PosOrderLine(models.Model):
         string='Costo Línea',
         help="Costo interno (ej. lo que se le paga al mensajero o costo de pieza)."
     )
+

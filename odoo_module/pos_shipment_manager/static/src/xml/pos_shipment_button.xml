@@ -85,28 +85,34 @@
                 <div class="psm-settle-dialog p-0" style="background: #f8f9fa;">
                     
                     <div class="d-flex justify-content-between align-items-center p-3 bg-white border-bottom shadow-sm">
-                        <div>
-                            <div style="font-size: 14px; font-weight: 800; color: #111;">DINERO POR RECIBIR</div>
-                            <p class="text-muted mb-0" style="font-size: 11px;">Selecciona los envíos entregados hoy</p>
+                        <div class="flex-grow-1">
+                            <div style="font-size: 14px; font-weight: 800; color: #1e293b;">LIQUIDACIÓN DE ENVÍOS</div>
+                            <select class="form-select form-select-sm mt-1" t-model="state.messengerFilter" style="max-width: 220px; font-size: 12px; border-radius: 10px; border: 2px solid #f1f5f9; font-weight: 600;">
+                                <option value="">🔍 Todos los mensajeros</option>
+                                <t t-foreach="state.messengers" t-as="m" t-key="m">
+                                    <option t-att-value="m" t-esc="m"/>
+                                </t>
+                            </select>
                         </div>
-                        <button class="btn btn-sm btn-primary rounded-pill px-3 fw-bold" t-on-click="props.onRefresh">
-                            <i class="fa fa-refresh me-1"/> Sincronizar
+                        <button class="btn btn-sm btn-light border rounded-pill px-3 fw-bold" t-on-click="refresh" t-att-disabled="state.loading">
+                            <i t-att-class="state.loading ? 'fa fa-spinner fa-spin' : 'fa fa-refresh'"/>
+                            <span class="ms-1">Sincronizar</span>
                         </button>
                     </div>
 
-                    <div class="psm-settle-dialog__list px-3 py-3" style="max-height: 400px; overflow-y: auto;">
-                        <t t-foreach="props.shipments" t-as="s" t-key="s.id">
+                    <div class="psm-settle-dialog__list px-3 py-3" style="max-height: 420px; overflow-y: auto;">
+                        <t t-foreach="filteredShipments" t-as="s" t-key="s.id">
                             <div class="psm-settle-item mb-3 bg-white"
                                  t-att-class="state.checked[s.id] ? 'psm-settle-item--selected' : ''"
-                                 style="border-radius: 16px; transition: all 0.2s ease; border: 2px solid transparent; box-shadow: 0 4px 12px rgba(0,0,0,0.05);"
+                                 style="border-radius: 18px; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); border: 2px solid transparent; box-shadow: 0 4px 15px rgba(0,0,0,0.03);"
                                  t-on-click="() => this.toggle(s.id)">
 
                                 <div class="d-flex align-items-center p-3">
                                     <div class="psm-settle-item__check me-3" 
-                                         t-att-style="state.checked[s.id] ? 'background: #10b981; border-color: #10b981;' : 'background: #fff; border-color: #e5e7eb;'"
-                                         style="width: 24px; height: 24px; border-radius: 8px; border: 2px solid; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                                         t-att-style="state.checked[s.id] ? 'background: #10b981; border-color: #10b981; transform: scale(1.1);' : 'background: #fff; border-color: #cbd5e1;'"
+                                         style="width: 26px; height: 26px; border-radius: 9px; border: 2.5px solid; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
                                         <t t-if="state.checked[s.id]">
-                                            <i class="fa fa-check" style="color: white; font-size: 14px;"/>
+                                            <i class="fa fa-check" style="color: white; font-size: 15px;"/>
                                         </t>
                                     </div>
 
@@ -114,46 +120,50 @@
                                         <div class="d-flex justify-content-between align-items-start">
                                             <div>
                                                 <div class="d-flex align-items-center gap-2">
-                                                    <div class="fw-bolder" style="font-size: 15px; color: #111;" t-esc="s.name"/>
+                                                    <div class="fw-bolder" style="font-size: 17px; color: #0f172a; letter-spacing: -0.3px;">
+                                                        <t t-esc="s.partner_name"/>
+                                                    </div>
                                                     <span t-if="s.state === 'delivered'" 
-                                                          class="badge rounded-pill bg-success text-white" 
-                                                          style="font-size: 10px; padding: 2px 8px;">ENTREGADO</span>
+                                                          class="badge rounded-pill" 
+                                                          style="font-size: 9px; padding: 3px 10px; background: #dcfce7; color: #15803d; font-weight: 800;">ENTREGADO</span>
                                                     <span t-if="s.state === 'street'" 
-                                                          class="badge rounded-pill bg-info text-white" 
-                                                          style="font-size: 10px; padding: 2px 8px;">EN LA CALLE</span>
-                                                    <span class="text-muted" style="font-size: 10px; font-weight: 700;" t-esc="s.date"/>
+                                                          class="badge rounded-pill" 
+                                                          style="font-size: 9px; padding: 3px 10px; background: #e0f2fe; color: #0369a1; font-weight: 800;">EN RUTA</span>
                                                 </div>
-                                                <div class="text-muted text-truncate" style="font-size: 12px; font-weight: 600;">
-                                                    <t t-esc="s.partner_name"/> 
-                                                    <span style="font-size: 10px; opacity: 0.7; margin-left: 4px;">• Vend: <t t-esc="s.seller"/></span>
+                                                <div class="text-muted" style="font-size: 12px; font-weight: 600; margin-top: 2px;">
+                                                    <span style="color: #6366f1; font-weight: 700;"><t t-esc="s.name"/></span>
+                                                    <span t-if="s.partner_phone" class="ms-2" style="opacity: 0.8;">• <i class="fa fa-phone ms-1"/> <t t-esc="s.partner_phone"/></span>
+                                                    <span class="ms-2" style="opacity: 0.6;">• <t t-esc="s.date"/></span>
+                                                </div>
+                                                <!-- Resumen de productos -->
+                                                <div class="mt-2 p-2 bg-light rounded-3" style="font-size: 11px; color: #475569; font-weight: 500; border: 1px solid #f1f5f9;">
+                                                    <i class="fa fa-shopping-basket me-1 opacity-50"/>
+                                                    <t t-esc="s.products.map(p => p.qty + 'x ' + p.name).join(', ')"/>
                                                 </div>
                                             </div>
                                             <div class="text-end">
+                                                <div style="font-size: 20px; font-weight: 900;" t-att-style="s.is_cod ? 'color: #0f172a;' : 'color: #3b82f6;'">
+                                                    RD$ <t t-esc="s.amount.toFixed(2)"/>
+                                                </div>
                                                 <t t-if="s.is_cod">
-                                                    <div style="font-size: 18px; font-weight: 900; color: #111;">
-                                                        RD$ <t t-esc="s.total_order.toFixed(2)"/>
-                                                    </div>
-                                                    <span class="badge bg-danger rounded-pill" style="font-size: 10px; padding: 3px 8px;">CONTRA ENTREGA</span>
+                                                    <span class="badge bg-danger rounded-pill" style="font-size: 10px; padding: 4px 10px; font-weight: 800; background: #fee2e2 !important; color: #b91c1c;">CONTRA ENTREGA</span>
                                                 </t>
                                                 <t t-else="">
-                                                    <div style="font-size: 18px; font-weight: 900; color: #0d6efd;">
-                                                        RD$ <t t-esc="s.charge.toFixed(2)"/>
-                                                    </div>
-                                                    <span class="badge bg-success rounded-pill" style="font-size: 10px; padding: 3px 8px;">PAGADO</span>
+                                                    <span class="badge bg-success rounded-pill" style="font-size: 10px; padding: 4px 10px; font-weight: 800; background: #dcfce7 !important; color: #15803d;">PAGADO</span>
                                                 </t>
                                             </div>
                                         </div>
                                         
-                                        <div class="mt-2 d-flex align-items-center justify-content-between" style="font-size: 11px; color: #6b7280;">
-                                            <span class="bg-light px-2 py-1 rounded">🏍 <t t-esc="s.messenger_name"/></span>
-                                            <div class="d-flex gap-1">
-                                                <button class="btn btn-sm btn-outline-primary rounded-pill px-2 py-1 fw-bold d-flex align-items-center gap-1" 
-                                                        style="font-size: 10px;"
+                                        <div class="mt-3 d-flex align-items-center justify-content-between">
+                                            <span class="fw-bold px-2 py-1 rounded" style="font-size: 11px; background: #f8fafc; color: #64748b; border: 1px solid #f1f5f9;">🏍 <t t-esc="s.messenger_name"/></span>
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-sm btn-outline-primary border-2 rounded-pill px-3 py-1 fw-bold d-flex align-items-center gap-1" 
+                                                        style="font-size: 11px; transition: all 0.2s;"
                                                         t-on-click.stop="() => this.copyToClipboard(s.customer_url, 'Cliente')">
-                                                    <i class="fa fa-user"/> Cliente
+                                                    <i class="fa fa-user-o"/> Cliente
                                                 </button>
-                                                <button class="btn btn-sm btn-outline-dark rounded-pill px-2 py-1 fw-bold d-flex align-items-center gap-1" 
-                                                        style="font-size: 10px;"
+                                                <button class="btn btn-sm btn-outline-dark border-2 rounded-pill px-3 py-1 fw-bold d-flex align-items-center gap-1" 
+                                                        style="font-size: 11px; transition: all 0.2s;"
                                                         t-on-click.stop="() => this.copyToClipboard(s.messenger_url, 'Mensajero')">
                                                     <i class="fa fa-motorcycle"/> Mensajero
                                                 </button>
@@ -165,31 +175,42 @@
                         </t>
                     </div>
 
-                    <div class="p-3 bg-white border-top">
-                        <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded-pill bg-light">
+                    <div class="p-4 bg-white border-top">
+                        <div class="d-flex justify-content-between align-items-center mb-3 p-3 border-2 rounded-3" style="background: #f8fafc; border: 2px dashed #e2e8f0;">
                             <div class="d-flex align-items-center">
-                                <i class="fa fa-motorcycle me-2 text-primary"/>
-                                <span class="fw-bold" style="font-size: 13px;">Confirmar pago a Mensajero</span>
+                                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 36px; height: 36px;">
+                                    <i class="fa fa-motorcycle"/>
+                                </div>
+                                <div>
+                                    <div class="fw-bold" style="font-size: 14px; color: #1e293b;">Pago de Comisión a Mensajero</div>
+                                    <div style="font-size: 11px; color: #64748b;">Descontar costo de envío de la caja</div>
+                                </div>
                             </div>
                             <div class="form-check form-switch m-0">
-                                <input class="form-check-input" type="checkbox" t-model="state.payMessenger" style="width: 40px; height: 20px; cursor: pointer;"/>
+                                <input class="form-check-input" type="checkbox" t-model="state.payMessenger" style="width: 48px; height: 24px; cursor: pointer;"/>
                             </div>
                         </div>
 
-                        <div class="d-flex justify-content-between align-items-center bg-dark text-white p-3" style="border-radius: 14px; box-shadow: 0 8px 20px rgba(0,0,0,0.15);">
+                        <div class="d-flex justify-content-between align-items-center p-4" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);">
                             <div>
-                                <div style="font-size: 11px; font-weight: 700; opacity: 0.7; text-transform: uppercase;">Total Seleccionado</div>
-                                <div style="font-size: 13px; font-weight: 500;"><t t-esc="selectedIds.length"/> envío(s)</div>
+                                <div style="font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Resumen de Entrega</div>
+                                <div style="font-size: 14px; font-weight: 600; color: #fff; margin-top: 2px;"><t t-esc="selectedIds.length"/> envíos seleccionados</div>
                             </div>
-                            <div style="font-size: 26px; font-weight: 900;">RD$ <t t-esc="totalSelected"/></div>
+                            <div class="text-end">
+                                <div style="font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Total a Recibir</div>
+                                <div style="font-size: 32px; font-weight: 900; color: #fff; letter-spacing: -1px;">RD$ <t t-esc="totalSelected"/></div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </t>
             <t t-set-slot="footer">
-                <button class="btn btn-light rounded-pill px-4 fw-bold" t-on-click="this.cancel">Cerrar</button>
-                <button class="btn btn-success rounded-pill px-4 fw-bold shadow-sm" t-on-click="this.confirm" t-att-disabled="selectedIds.length === 0">
-                    ✓ Confirmar Recibo
+                <button class="btn btn-light rounded-pill px-4 fw-bold border" t-on-click="this.cancel">Cerrar</button>
+                <button class="btn btn-success rounded-pill px-5 fw-bold shadow-lg" 
+                        t-on-click="this.confirm" 
+                        t-att-disabled="selectedIds.length === 0"
+                        style="background: #10b981; border: none; padding: 12px 30px;">
+                    ✓ Confirmar Liquidación
                 </button>
             </t>
         </Dialog>
@@ -213,15 +234,95 @@
         </xpath>
     </t>
 
-    <!-- Diálogo Unificado de Configuración de Envío (Opción B) -->
+    <!-- Diálogo Unificado de Configuración de Envío -->
     <t t-name="pos_shipment_manager.ShipmentConfigDialog" owl="1">
         <Dialog title="'🚚 Configuración de Entrega'" size="'md'">
             <t t-set-slot="default">
                 <div class="psm-config-dialog p-4">
                     
-                    <!-- 1. Selección de Modo -->
+                    <!-- 1. Cliente por Teléfono (Campo Primario) -->
+                    <div class="mb-4 position-relative">
+                        <label class="fw-bold mb-2 d-flex align-items-center gap-2" style="font-size: 13px; color: #475569;">
+                            <i class="fa fa-phone" style="color: #6366f1;"/>
+                            1. CLIENTE (BUSCAR POR TELÉFONO)
+                        </label>
+
+                        <!-- Partner seleccionado -->
+                        <t t-if="state.selectedPartner &amp;&amp; state.selectedPartner.id">
+                            <div class="p-3 d-flex justify-content-between align-items-center" 
+                                 style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-radius: 16px; border: 2px solid #86efac;">
+                                <div>
+                                    <div style="font-size: 10px; font-weight: 800; color: #15803d; text-transform: uppercase; letter-spacing: 0.5px;">Cliente Vinculado</div>
+                                    <div class="fw-bold" style="font-size: 16px; color: #166534; letter-spacing: -0.3px;">
+                                        <t t-esc="state.selectedPartner.name || state.selectedPartner.display_name || ''"/>
+                                    </div>
+                                    <div style="font-size: 12px; color: #16a34a; font-weight: 600;">
+                                        <i class="fa fa-phone me-1"/> <t t-esc="state.phoneQuery"/>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-outline-danger border-0 rounded-circle" 
+                                        style="width: 36px; height: 36px; padding: 0;" 
+                                        t-on-click="deselectPartner">
+                                    <i class="fa fa-times"/>
+                                </button>
+                            </div>
+                        </t>
+
+                        <!-- Input de teléfono (cuando no hay partner seleccionado) -->
+                        <t t-if="!state.selectedPartner || !state.selectedPartner.id">
+                            <div class="input-group" style="border-radius: 14px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.04);">
+                                <span class="input-group-text bg-white border-2" style="border-right: 0; padding: 14px 16px;">
+                                    <i t-att-class="state.isSearching ? 'fa fa-spinner fa-spin text-primary' : 'fa fa-phone text-primary'" style="font-size: 16px;"/>
+                                </span>
+                                <input type="tel" class="form-control form-control-lg" 
+                                       placeholder="Escribe el número del cliente..."
+                                       t-on-input="onPhoneInput"
+                                       t-att-value="state.phoneQuery"
+                                       style="border-left: 0; border: 2px solid #e2e8f0; font-size: 18px; font-weight: 700; letter-spacing: 1px; padding: 14px;"/>
+                            </div>
+
+                            <!-- Resultados de búsqueda -->
+                            <t t-if="state.searchResults.length > 0">
+                                <div class="psm-autocomplete-list" style="margin-top: 4px;">
+                                    <t t-foreach="state.searchResults" t-as="partner" t-key="partner.id">
+                                        <div class="psm-autocomplete-item d-flex align-items-center gap-3 p-3" 
+                                             style="cursor: pointer; border-bottom: 1px solid #f8fafc; transition: background 0.15s;"
+                                             t-on-click="() => this.selectPartner(partner)">
+                                            <div class="d-flex align-items-center justify-content-center bg-primary text-white rounded-circle" 
+                                                 style="width: 36px; height: 36px; min-width: 36px; font-size: 14px; font-weight: 800;">
+                                                <t t-esc="(partner.name || '?')[0].toUpperCase()"/>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <div class="fw-bold" style="font-size: 14px; color: #1e293b;"><t t-esc="partner.name || partner.display_name || ''"/></div>
+                                                <div style="font-size: 12px; color: #64748b; font-weight: 600;">
+                                                    <i class="fa fa-phone me-1"/> <t t-esc="partner.phone || partner.mobile || ''"/>
+                                                </div>
+                                            </div>
+                                            <i class="fa fa-check-circle text-success" style="font-size: 18px; opacity: 0.6;"/>
+                                        </div>
+                                    </t>
+                                </div>
+                            </t>
+
+                            <!-- Campo de nombre (solo cuando no se encuentra el teléfono) -->
+                            <t t-if="state.showNameInput">
+                                <div class="mt-3 p-3" style="background: #fef9c3; border-radius: 14px; border: 2px solid #fde047;">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <i class="fa fa-user-plus" style="color: #a16207;"/>
+                                        <span style="font-size: 11px; font-weight: 800; color: #a16207; text-transform: uppercase;">Cliente nuevo — escribe el nombre</span>
+                                    </div>
+                                    <input type="text" class="form-control form-control-lg fw-bold" 
+                                           placeholder="Nombre del cliente..."
+                                           t-model="state.customerName"
+                                           style="border-radius: 10px; border: 2px solid #fde047; font-size: 16px;"/>
+                                </div>
+                            </t>
+                        </t>
+                    </div>
+
+                    <!-- 2. Selección de Modo -->
                     <div class="mb-4">
-                        <label class="fw-bold mb-2" style="font-size: 13px; color: #475569;">1. MODO DE ENVÍO</label>
+                        <label class="fw-bold mb-2" style="font-size: 13px; color: #475569;">2. MODO DE ENVÍO</label>
                         <div class="d-flex gap-2">
                             <button class="btn flex-grow-1 py-3 fw-bold rounded-3 border-2" 
                                     t-att-class="state.mode === 'paid' ? 'btn-primary border-primary' : 'btn-outline-secondary'"
@@ -230,29 +331,69 @@
                                 <t t-if="state.isAlreadyPaid"><div style="font-size: 8px; opacity: 0.8; color: #10b981;">(VALIDADO EN CAJA)</div></t>
                             </button>
                             <button class="btn flex-grow-1 py-3 fw-bold rounded-3 border-2" 
-                                    t-att-class="state.mode === 'cod' ? 'btn-danger border-danger' : (state.isAlreadyPaid ? 'btn-light text-muted opacity-50' : 'btn-outline-secondary')"
-                                    t-att-disabled="state.isAlreadyPaid"
+                                    t-att-class="state.mode === 'cod' ? 'btn-danger border-danger' : 'btn-outline-secondary'"
                                     t-on-click="() => this.setMode('cod')">
                                 <i class="fa fa-money me-2"/> CONTRA ENTREGA
-                                <t t-if="state.isAlreadyPaid"><div style="font-size: 8px; opacity: 0.7;">(BLOQUEADO POR PAGO)</div></t>
+                                <t t-if="state.isAlreadyPaid"><div style="font-size: 8px; opacity: 0.7; color: #dc2626;">(AJUSTAR PAGO)</div></t>
                             </button>
                         </div>
                     </div>
 
-                    <!-- 2. Selección de Mensajero -->
+                    <!-- 3. Selección de Mensajero -->
                     <div class="mb-4">
-                        <label class="fw-bold mb-2" style="font-size: 13px; color: #475569;">2. ASIGNAR MENSAJERO</label>
+                        <div class="d-flex justify-content-between align-items-end mb-2">
+                            <label class="fw-bold" style="font-size: 13px; color: #475569;">3. ASIGNAR MENSAJERO</label>
+                            <button class="btn btn-sm btn-outline-dark" style="font-size: 11px;" t-on-click="() => this.state.showQuickMessenger = !this.state.showQuickMessenger">
+                                <i class="fa fa-motorcycle me-1"/> Nuevo Mensajero
+                            </button>
+                        </div>
+                        <t t-if="state.showQuickMessenger">
+                            <div class="p-3 mb-3 bg-light rounded-3 border">
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <input type="text" class="form-control form-control-sm" placeholder="Nombre Mensajero" t-model="state.quickMessengerName"/>
+                                    </div>
+                                    <div class="col-6">
+                                        <input type="text" class="form-control form-control-sm" placeholder="WhatsApp" t-model="state.quickMessengerPhone"/>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-success w-100" t-on-click="quickCreateMessenger">Crear y Asignar Mensajero</button>
+                            </div>
+                        </t>
                         <select class="form-select form-select-lg fw-bold" t-model="state.messengerId" style="border-radius: 12px; border: 2px solid #e2e8f0;">
                             <option value="">Seleccionar mensajero...</option>
-                            <t t-foreach="props.messengers" t-as="m" t-key="m.id">
+                            <t t-foreach="state.messengersList" t-as="m" t-key="m.id">
                                 <option t-att-value="m.id"><t t-esc="m.name"/></option>
                             </t>
                         </select>
                     </div>
 
-                    <!-- 3. Ubicación Manual (Input) -->
+                    <!-- 4. Distancia y Precio (Auto-Cálculo) -->
+                    <div class="mb-4">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="fw-bold mb-2" style="font-size: 13px; color: #475569;">4. DISTANCIA (KM)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control form-control-lg fw-bold" 
+                                           placeholder="0.00" step="0.1"
+                                           t-on-input="onDistanceChange"
+                                           t-att-value="state.distance"
+                                           style="border-radius: 12px; border: 2px solid #e2e8f0;"/>
+                                    <span class="input-group-text bg-light border-2" style="border-radius: 0 12px 12px 0;">KM</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <label class="fw-bold mb-2" style="font-size: 13px; color: #475569;">PRECIO ENVÍO (RD$)</label>
+                                <input type="number" class="form-control form-control-lg fw-bold" 
+                                       t-model.number="state.calculatedPrice"
+                                       style="border-radius: 12px; border: 2px solid #10b981; color: #10b981;"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 5. Ubicación Manual (Input) -->
                     <div class="mb-2">
-                        <label class="fw-bold mb-2" style="font-size: 13px; color: #475569;">3. LINK DE UBICACIÓN (CLIENTE)</label>
+                        <label class="fw-bold mb-2" style="font-size: 13px; color: #475569;">5. LINK DE UBICACIÓN (CLIENTE)</label>
                         <div class="input-group">
                             <span class="input-group-text bg-white border-2" style="border-right: 0; border-radius: 12px 0 0 12px;"><i class="fa fa-map-marker text-danger"/></span>
                             <input type="text" class="form-control form-control-lg" 

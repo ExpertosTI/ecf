@@ -20,6 +20,7 @@ def slugify(value):
     value = re.sub(r'[^\w\s-]', '', value).strip().lower()
     return re.sub(r'[-\s]+', '-', value)
 
+
 class PosShipment(models.Model):
     _name = 'pos.shipment'
     _description = 'Envío de Pedido POS'
@@ -46,7 +47,7 @@ class PosShipment(models.Model):
         for s in self:
             s.partner_id = s.order_id.partner_id or s.sale_order_id.partner_id
     messenger_id = fields.Many2one(
-        'res.users', string='Mensajero', tracking=True,
+        'res.partner', string='Mensajero', tracking=True,
         domain="[('is_messenger', '=', True)]"
     )
     state = fields.Selection([
@@ -56,6 +57,14 @@ class PosShipment(models.Model):
         ('settled', 'Pagado y Cerrado'),
         ('cancelled', 'Cancelado'),
     ], string='Estado', default='draft', tracking=True, index=True)
+    is_cod = fields.Boolean(string='Es Contra Entrega', compute='_compute_dashboard_fields')
+    total_order = fields.Float(string='Total de la Orden', compute='_compute_dashboard_fields')
+
+    @api.depends('shipment_mode', 'sale_order_id.shipment_mode', 'order_id.amount_total', 'sale_order_id.amount_total')
+    def _compute_dashboard_fields(self):
+        for s in self:
+            s.is_cod = (s.shipment_mode or (s.sale_order_id.shipment_mode if s.sale_order_id else 'none')) == 'cod'
+            s.total_order = (s.sale_order_id.amount_total if s.sale_order_id else s.order_id.amount_total) or 0.0
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -114,24 +123,21 @@ class PosShipment(models.Model):
     date_delivered = fields.Datetime(
         string='Fecha Entrega', readonly=True, tracking=True
     )
-    delivery_time = fields.Integer(string='Minutos Entrega', help="Tiempo desde salida hasta entrega")
-    date_departure = fields.Datetime(string='Fecha Salida', help="Cuando el mensajero salió físicamente", tracking=True)
+    delivery_time = fields.Integer(string='Minutos Entrega', help="Tiempo desde asignación hasta entrega")
     
     # --- Cálculo de KM y Precios ---
     distance_km = fields.Float(string='Distancia (KM)', digits=(16, 2))
     shipping_cost = fields.Monetary(
         string='Costo Mensajero', currency_field='currency_id',
-        compute='_compute_shipping_amounts', store=False, readonly=False,
+        compute='_compute_shipping_amounts', store=True, readonly=False,
         help="Lo que se le paga al mensajero."
     )
     shipping_charge = fields.Monetary(
         string='Cargo Cliente', currency_field='currency_id',
-        compute='_compute_shipping_amounts', store=False, readonly=False,
+        compute='_compute_shipping_amounts', store=True, readonly=False,
         help="Lo que se le cobra al cliente."
     )
 
-    total_order = fields.Monetary(string='Total Pedido', compute='_compute_order_totals', currency_field='currency_id')
-    is_cod = fields.Boolean(string='Es Contra Entrega', compute='_compute_order_totals')
     is_paid = fields.Boolean(string='Pagado', compute='_compute_payment_status', help="Indica si el pedido ya fue pagado en POS o Factura")
 
     @api.depends('order_id.state', 'order_id.amount_paid', 'sale_order_id.invoice_ids.payment_state', 'order_id.amount_total')
@@ -148,22 +154,13 @@ class PosShipment(models.Model):
 
             # 2. Caso Sale Order / Factura: Verificamos facturas
             elif s.sale_order_id:
-                # En Odoo 18, miramos si las facturas publicadas están pagadas
                 invoices = s.sale_order_id.invoice_ids.filtered(lambda i: i.state == 'posted')
                 if invoices:
-                    # Si todas las facturas publicadas están pagadas/en pago, lo damos por pagado
-                    paid = all(inv.payment_state in ['paid', 'in_payment'] for inv in invoices)
+                    paid = all(i.payment_state in ['paid', 'in_payment'] for i in invoices)
                 else:
-                    # Si no hay facturas, solo está pagado si la orden misma está bloqueada/hecha (no común para SO)
-                    paid = s.sale_order_id.state == 'done'
+                    paid = s.sale_order_id.state == 'sale' and s.sale_order_id.invoice_status == 'invoiced'
             
             s.is_paid = paid
-
-    @api.depends('order_id.amount_total', 'sale_order_id.amount_total', 'shipment_mode')
-    def _compute_order_totals(self):
-        for s in self:
-            s.total_order = (s.sale_order_id.amount_total if s.sale_order_id else s.order_id.amount_total) or 0.0
-            s.is_cod = s.shipment_mode == 'cod'
 
     map_url = fields.Char(string='Mapa Destino', compute='_compute_map_url')
     manual_location_link = fields.Char(string='Link Ubicación Manual', help="Pegar link de WhatsApp o Google Maps compartido")
@@ -230,22 +227,24 @@ class PosShipment(models.Model):
             manual = s.manual_location_link
             addr = s.partner_id.contact_address or s.partner_id.street or ""
             
-            # Google Maps: GPS -> Manual -> Address Search
+            # Google Maps: Manual -> GPS -> Address Search
             g_url = manual
-            if lat and lon:
-                g_url = f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}"
-            elif not g_url and addr:
-                q = urllib.parse.quote(addr)
-                g_url = f"https://www.google.com/maps/search/?api=1&query={q}"
+            if not g_url:
+                if lat and lon:
+                    g_url = f"https://www.google.com/maps/dir/?api=1&destination={lat},{lon}"
+                elif addr:
+                    q = urllib.parse.quote(addr)
+                    g_url = f"https://www.google.com/maps/search/?api=1&query={q}"
             s.nav_google_url = g_url or "#"
 
-            # Waze: GPS -> Manual -> Address Search
+            # Waze: Manual -> GPS -> Address Search
             w_url = manual
-            if lat and lon:
-                w_url = f"https://waze.com/ul?ll={lat},{lon}&navigate=yes"
-            elif not w_url and addr:
-                q = urllib.parse.quote(addr)
-                w_url = f"https://waze.com/ul?q={q}&navigate=yes"
+            if not w_url:
+                if lat and lon:
+                    w_url = f"https://waze.com/ul?ll={lat},{lon}&navigate=yes"
+                elif addr:
+                    q = urllib.parse.quote(addr)
+                    w_url = f"https://waze.com/ul?q={q}&navigate=yes"
             s.nav_waze_url = w_url or "#"
 
     def action_submit_rating(self, customer_rating=0, customer_rating_note=None, vendor_rating=0, vendor_rating_note=None):
@@ -265,9 +264,10 @@ class PosShipment(models.Model):
     def _compute_portal_urls(self):
         base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
         for s in self:
-            slug = slugify(s.partner_id.name)
-            s.customer_portal_url = f"{base_url}/confirmar-pedido/{s.customer_token}/{slug}"
-            s.messenger_portal_url = f"{base_url}/reportar-entrega/{s.access_token}/{slug}"
+            partner_name = s.partner_id.name or 'cliente'
+            slug = slugify(partner_name)
+            s.customer_portal_url = f"{base_url}/confirmar-pedido/{s.customer_token or ''}/{slug}"
+            s.messenger_portal_url = f"{base_url}/reportar-entrega/{s.access_token or ''}/{slug}"
 
     @api.depends('partner_id.partner_latitude', 'partner_id.partner_longitude')
     def _compute_map_url(self):
@@ -277,16 +277,21 @@ class PosShipment(models.Model):
             else:
                 s.map_url = False
     
-    @api.depends('distance_km', 'partner_id.partner_latitude', 'order_id.lines', 'sale_order_id.order_line')
+    @api.depends('partner_id.partner_latitude', 'order_id.lines', 'sale_order_id.order_line', 'shipment_mode')
     def _compute_shipping_amounts(self):
         for record in self:
+            charge = record.shipping_charge or 0.0
+            
             # Buscar productos de envío de forma agresiva (Acentos, Mayúsculas y Términos Comunes)
             lines = record.order_id.lines if record.order_id else record.sale_order_id.order_line
             delivery_line = False
             if lines:
-                delivery_line = lines.filtered(lambda l: 
-                    any(word in (l.product_id.name or '').lower() for word in ['envio', 'envío', 'delivery', 'cargo', 'flete', 'mensajeria', 'mensajería'])
-                )[:1]
+                if record.sale_order_id:
+                    delivery_line = lines.filtered(lambda l: l.is_delivery_line)[:1]
+                else:
+                    delivery_line = lines.filtered(lambda l: 
+                        any(word in (l.product_id.name or '').lower() for word in ['envio', 'envío', 'delivery', 'cargo', 'flete', 'mensajeria', 'mensajería'])
+                    )[:1]
 
             if delivery_line:
                 # Extraer monto final (con impuestos si es POS, total si es Sale)
@@ -295,12 +300,15 @@ class PosShipment(models.Model):
                     record.shipping_charge = val
                     record.shipping_cost = val
                     continue
+                elif charge > 0:
+                    record.shipping_charge = charge
+                    record.shipping_cost = charge
+                    continue
 
-            # Fallback GPS
-            if not record.distance_km and record.partner_id.partner_latitude:
-                record.distance_km = record._calculate_gps_distance()
-            
             d = record.distance_km
+            if not d and record.partner_id.partner_latitude:
+                d = record._calculate_gps_distance()
+            
             raw_charge = 0.0
             if d <= 5: raw_charge = 150.0
             elif d <= 10: raw_charge = 150.0 + ((d - 5) * 30.0)
@@ -308,8 +316,8 @@ class PosShipment(models.Model):
             elif d > 20: raw_charge = 500.0 + ((d - 20) * 15.0)
             
             val = round(raw_charge / 10.0) * 10.0
-            record.shipping_charge = val
-            record.shipping_cost = val
+            record.shipping_charge = charge or val
+            record.shipping_cost = charge or val
 
     def _calculate_gps_distance(self):
         """Calcula distancia Haversine desde la compañía al cliente."""
@@ -337,35 +345,11 @@ class PosShipment(models.Model):
 
     @property
     def estimated_delivery_time(self):
-        """Algoritmo Opción B: Mínimo 55m + Variable por KM + Historial."""
-        km = self.distance_km or 0.0
-        
-        # 1. Base: Mínimo 55m + 7 min por cada KM
-        base = 55 + (km * 7)
-        
-        # 2. Factor de Velocidad del Mensajero (Historial últimos 5 envíos)
-        factor = 1.0
-        if self.messenger_id:
-            past_shipments = self.env['pos.shipment'].sudo().search([
-                ('messenger_id', '=', self.messenger_id.id),
-                ('state', 'in', ['delivered', 'settled']),
-                ('delivery_time', '>', 0)
-            ], limit=5, order='date_delivered desc')
-            
-            if len(past_shipments) >= 2:
-                # Comparamos tiempo real vs estimado base de esos envíos pasados
-                total_real = sum(s.delivery_time for s in past_shipments)
-                total_est = sum(s._get_base_bracket_time(s.distance_km) for s in past_shipments)
-                if total_est > 0:
-                    factor = total_real / total_est
-                    factor = min(max(factor, 0.7), 1.3)
-        
-        total = base * factor
+        """Calcula un tiempo estimado dinámico basado en la distancia."""
+        base = 65
+        dist_factor = self.distance_km * 8
+        total = min(max(base + dist_factor, 65), 120)
         return int(total)
-
-    def _get_base_bracket_time(self, km):
-        """Helper para el cálculo de la línea base (55m + 7m/km)."""
-        return 55 + (km * 7)
 
     company_id = fields.Many2one(
         'res.company', string='Compañía', required=True,
@@ -380,24 +364,25 @@ class PosShipment(models.Model):
         self.write({
             'messenger_id': messenger_id,
             'state': 'street',
-            'date_processed': fields.Datetime.now(),
-            'date_departure': fields.Datetime.now(), # Se asume salida inmediata al asignar
+            'date_processed': fields.Datetime.now()
         })
 
     def action_confirm_delivery(self, payment_method, note=None):
-        """Método llamado desde el portal público."""
+        """Método llamado desde el portal público con Validación de Seguridad (Renquitec Security)."""
         self.ensure_one()
         if self.state in ['delivered', 'settled']: return True
         
-        now = fields.Datetime.now()
-        duration = 0
-        if self.date_departure:
-            duration = int((now - self.date_departure).total_seconds() / 60)
-            
+        # GATE DE SEGURIDAD (Renquitec Hard-Lock): 
+        # Solo permitir si es Contra Entrega o ya está Pagado
+        mode = self.shipment_mode or (self.sale_order_id.shipment_mode if self.sale_order_id else 'none')
+        is_cod = mode == 'cod'
+        if not is_cod and not self.is_paid:
+            _logger.warning(f"[PSM Security] Bloqueo de confirmación: Pedido {self.name} NO pagado y NO es COD.")
+            raise UserError(_("No puedes confirmar la entrega: El pedido debe ser pagado en la tienda primero."))
+
         self.write({
             'state': 'delivered',
-            'date_delivered': now,
-            'delivery_time': duration,
+            'date_delivered': fields.Datetime.now(),
             'payment_method_confirmed': payment_method,
             'messenger_note': note,
         })
@@ -421,6 +406,7 @@ class PosShipment(models.Model):
                 'message': _("Envío liquidado correctamente"),
                 'type': 'success',
                 'sticky': False,
+                'next': {'shipment_id': self.id, 'model': self._name, 'print_thermal': True}
             }
         }
 
@@ -481,11 +467,9 @@ class PosShipment(models.Model):
 
                 shipment.write(vals)
                 settled.append(shipment.name)
-                
             except Exception as e:
                 _logger.error(f"[PSM] Error liquidando envío {shipment.name}: {str(e)}")
                 errors.append(f"{shipment.name} (Error: {str(e)})")
-                
         return {'settled': settled, 'errors': errors}
 
     def _prepare_single_shipment(self, s):
@@ -502,10 +486,12 @@ class PosShipment(models.Model):
             if qty > 0 and 'envio' not in p_name.lower():
                 product_summary.append({'name': p_name, 'qty': qty, 'price': l.price_total if s.sale_order_id else l.price_subtotal_incl})
 
+        order_ref = s.order_id.pos_reference or s.sale_order_id.name or ''
         return {
             'id': s.id,
-            'name': s.name,
+            'name': f"{s.name} [{order_ref}]" if order_ref else s.name,
             'partner_name': s.partner_id.name or 'Consumidor Final',
+            'partner_phone': s.partner_id.phone or s.partner_id.mobile or '',
             'messenger_name': s.messenger_id.name or 'Sin asignar',
             'seller_name': (s.sale_order_id.user_id.name or s.order_id.user_id.name) if (s.sale_order_id or s.order_id) else 'Sistema',
             'time_ago': self._get_time_ago(s.create_date),
@@ -514,7 +500,7 @@ class PosShipment(models.Model):
             'is_cod': is_cod,
             'charge': s.shipping_charge,
             'cost': s.shipping_cost,
-            'amount': total_order if is_cod else s.shipping_charge,
+            'amount': total_order if is_cod else 0.0,
             'state': s.state,
             'state_label': 'ENTREGADO' if s.state == 'delivered' else 'EN LA CALLE' if s.state == 'street' else 'BORRADOR',
             'customer_portal_url': s.customer_portal_url,
@@ -545,9 +531,7 @@ class PosShipment(models.Model):
         elif date_filter == 'all':
             start_date = fields.Datetime.to_datetime(today - timedelta(days=365))
 
-        # Multi-Compañía: Filtrar por compañías permitidas
-        allowed_companies = self.env.companies.ids
-        stat_domain = [('create_date', '>=', start_date), ('create_date', '<=', end_date), ('company_id', 'in', allowed_companies)]
+        stat_domain = [('create_date', '>=', start_date), ('create_date', '<=', end_date)]
         if search_query:
             stat_domain += ['|', '|', '|', '|', '|',
                             ('name', 'ilike', search_query), 
@@ -559,8 +543,15 @@ class PosShipment(models.Model):
         
         historical_recs = self.search(stat_domain)
 
-        # 2. OPERATIVA (Todos los activos, sin importar fecha)
-        active_domain = [('is_settled', '=', False), ('company_id', 'in', allowed_companies)]
+        # 2. OPERATIVA (Activos de los últimos 7 días o sin liquidar)
+        allowed_companies = self.env.companies.ids
+        # Solo mostrar lo no liquidado de los últimos 7 días para evitar saturar el TPV con basura antigua
+        active_date_limit = fields.Datetime.now() - timedelta(days=7)
+        active_domain = [
+            ('is_settled', '=', False), 
+            ('company_id', 'in', allowed_companies),
+            ('create_date', '>=', active_date_limit)
+        ]
         if search_query:
             active_domain += ['|', '|', '|', '|', '|',
                              ('name', 'ilike', search_query), 
@@ -587,6 +578,11 @@ class PosShipment(models.Model):
         for s in active_recs:
             if s.state == 'settled': continue
             if s.state == 'delivered' and s.is_liquidated: continue
+            
+            # Filtro: Solo mostrar COD en Ruta y Entregados (Dinero por Recibir)
+            if s.state in ('street', 'delivered') and s.shipment_mode != 'cod':
+                continue
+                
             if s.state in data:
                 data[s.state].append(self._prepare_single_shipment(s))
 
@@ -595,13 +591,26 @@ class PosShipment(models.Model):
         total_rating, rating_count, total_minutes, delivery_count, in_transit_amount = 0, 0, 0, 0, 0.0
         
         for s in historical_recs:
+            m_name = s.messenger_id.name or 'Sin Asignar'
+            u_name = (s.sale_order_id.user_id.name or s.order_id.user_id.name) if (s.sale_order_id or s.order_id) else 'Sistema'
+
+            if m_name not in messengers:
+                messengers[m_name] = {'delivered': 0, 'returned': 0}
+            if u_name not in sellers:
+                sellers[u_name] = {'delivered': 0}
+
             if s.state in ('delivered', 'settled'):
-                m_name = s.messenger_id.name or 'Sin Asignar'
-                messengers[m_name] = messengers.get(m_name, 0) + 1
-                u_name = (s.sale_order_id.user_id.name or s.order_id.user_id.name) if (s.sale_order_id or s.order_id) else 'Sistema'
-                sellers[u_name] = sellers.get(u_name, 0) + 1
-                if s.customer_rating > 0: total_rating += s.customer_rating; rating_count += 1
-                if s.delivery_time > 0: total_minutes += s.delivery_time; delivery_count += 1
+                messengers[m_name]['delivered'] += 1
+                sellers[u_name]['delivered'] += 1
+                
+                if s.customer_rating > 0: 
+                    total_rating += s.customer_rating
+                    rating_count += 1
+                if s.delivery_time > 0: 
+                    total_minutes += s.delivery_time
+                    delivery_count += 1
+            elif s.state == 'cancelled':
+                messengers[m_name]['returned'] += 1
             
             # Reconciliación (Basada en lo activo, no en el histórico)
             if s.id in active_recs.ids and s.state == 'delivered' and not s.is_liquidated:
@@ -609,8 +618,14 @@ class PosShipment(models.Model):
                     in_transit_amount += (s.sale_order_id.amount_total if s.sale_order_id else s.order_id.amount_total) or 0.0
 
         data['stats'].update({
-            'messenger_perf': [{'name': k, 'count': v} for k, v in sorted(messengers.items(), key=lambda x: x[1], reverse=True)[:5]],
-            'seller_perf': [{'name': k, 'count': v} for k, v in sorted(sellers.items(), key=lambda x: x[1], reverse=True)[:5]],
+            'messenger_perf': [
+                {'name': k, 'count': v['delivered'], 'returned': v['returned']} 
+                for k, v in sorted(messengers.items(), key=lambda x: x[1]['delivered'], reverse=True)[:5]
+            ],
+            'seller_perf': [
+                {'name': k, 'count': v['delivered']} 
+                for k, v in sorted(sellers.items(), key=lambda x: x[1]['delivered'], reverse=True)[:5]
+            ],
             'avg_time': round(total_minutes / delivery_count, 1) if delivery_count else 0,
             'avg_rating': round(total_rating / rating_count, 1) if rating_count else 0.0
         })
@@ -633,20 +648,37 @@ class PosShipment(models.Model):
         self.ensure_one()
         self.write({'state': 'cancelled', 'messenger_note': note})
         if self.order_id:
-            try:
-                self.order_id.action_pos_order_cancel()
-            except Exception as e:
-                _logger.warning("No se pudo cancelar pos.order %s: %s", self.order_id.id, e)
+            try: self.order_id.action_pos_order_cancel()
+            except: pass
         if self.sale_order_id and self.sale_order_id.state not in ['cancel', 'done']:
-            try:
-                self.sale_order_id.action_cancel()
-            except Exception as e:
-                _logger.warning("No se pudo cancelar sale.order %s: %s", self.sale_order_id.id, e)
+            try: self.sale_order_id.action_cancel()
+            except: pass
 
     def get_portal_url(self):
         self.ensure_one()
-        base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
-        return f"{base_url}/reportar-entrega/{self.secure_token}"
+        return self.messenger_portal_url or "#"
+
+    def get_share_data(self):
+        self.ensure_one()
+        partner = self.partner_id
+        messenger = self.messenger_id
+        
+        mode = self.shipment_mode or (self.sale_order_id.shipment_mode if self.sale_order_id else 'none')
+        is_cod = mode == 'cod'
+        total_order = (self.sale_order_id.amount_total if self.sale_order_id else self.order_id.amount_total) or 0.0
+        
+        return {
+            'id': self.id,
+            'name': self.name,
+            'total_order': total_order,
+            'is_cod': is_cod,
+            'customer_url': self.customer_portal_url or '',
+            'customer_phone': (partner.phone or partner.mobile or '') if partner else '',
+            'partner_name': partner.name if partner else _('Consumidor Final'),
+            'messenger_url': self.messenger_portal_url or '',
+            'messenger_phone': messenger.messenger_whatsapp if messenger else '',
+        }
+
 
     def action_share_whatsapp(self):
         self.ensure_one()
@@ -672,3 +704,49 @@ class PosShipment(models.Model):
         res_model = 'pos.order' if self.order_id else 'sale.order'
         res_id = self.order_id.id if self.order_id else self.sale_order_id.id
         return {'type': 'ir.actions.act_window', 'res_model': res_model, 'res_id': res_id, 'view_mode': 'form', 'target': 'current'}
+
+    @api.model
+    def action_create_shipment_from_draft_pos(self, order_data):
+        partner_id = order_data.get('partner_id')
+        if not partner_id:
+            raise UserError(_("Debe seleccionar un cliente antes de generar el envío."))
+            
+        # 1. Crear la Cotización (sale.order)
+        sale_order_vals = {
+            'partner_id': partner_id,
+            'shipment_mode': order_data.get('shipment_mode', 'none'),
+            'messenger_id': order_data.get('messenger_id'),
+            'manual_location_link': order_data.get('manual_location_link'),
+            'distance_km': order_data.get('distance_km', 0.0),
+            'shipping_fee': order_data.get('shipping_charge', 0.0),
+            'order_line': [
+                (0, 0, {
+                    'product_id': line['product_id'],
+                    'product_uom_qty': line['qty'],
+                    'price_unit': line['price_unit'],
+                }) for line in order_data.get('lines', [])
+            ]
+        }
+        sale_order = self.env['sale.order'].create(sale_order_vals)
+        sale_order._sync_shipping_line()
+        
+        # 2. Generar el envío (pos.shipment) en estado borrador (draft)
+        shipment = self.env['pos.shipment'].create({
+            'sale_order_id': sale_order.id,
+            'partner_id': partner_id,
+            'messenger_id': order_data.get('messenger_id'),
+            'shipping_charge': order_data.get('shipping_charge', 0.0),
+            'shipping_cost': order_data.get('shipping_charge', 0.0),
+            'state': 'draft',
+            'company_id': self.env.company.id,
+            'shipment_mode': order_data.get('shipment_mode', 'none'),
+        })
+        
+        # Notificar al dashboard
+        shipment._notify_dashboard()
+        
+        return {
+            'sale_order_id': sale_order.id,
+            'sale_order_name': sale_order.name,
+            'shipment_id': shipment.id,
+        }

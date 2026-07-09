@@ -7,6 +7,10 @@ class ShipmentController(http.Controller):
 
     def _get_shipment_by_token(self, token, token_types=None):
         """Helper to find shipment by any valid token."""
+        # Sin token no se busca: un domain con token vacío/None haría match
+        # con registros cuyo campo token esté en NULL (acceso sin credencial).
+        if not token or not str(token).strip():
+            return request.env['pos.shipment'].sudo().browse()
         if not token_types:
             token_types = ['customer_token', 'access_token', 'secure_token']
         
@@ -17,7 +21,7 @@ class ShipmentController(http.Controller):
         return request.env['pos.shipment'].sudo().search(domain, limit=1)
 
     # --- RUTA PARA MENSAJEROS ---
-    @http.route(['/reportar-entrega/<string:token>', 
+    @http.route(['/reportar-entrega/<string:token>',
                   '/reportar-entrega/<string:token>/<string:slug>',
                   '/pos/shipment/confirm/<string:token>'], 
                   type='http', auth="public", website=True)
@@ -40,7 +44,8 @@ class ShipmentController(http.Controller):
         is_cod = mode == 'cod'
         
         if is_cod:
-            amount_to_collect = (pos_order.amount_total if pos_order else (sale.amount_total if sale else 0.0))
+            order_total = (pos_order.amount_total if pos_order else (sale.amount_total if sale else 0.0))
+            amount_to_collect = order_total + (shipment.shipping_charge or 0.0)
         else:
             amount_to_collect = 0.0 if mode == 'paid' else (shipment.shipping_charge or 0.0)
 
@@ -117,8 +122,12 @@ class ShipmentController(http.Controller):
             except Exception:
                 pass
 
-        # Tras confirmar, redirigimos a la página principal del cliente que decidirá si mostrar mapa o encuesta
-        return request.redirect(f'/pos/shipment/customer/{token}')
+        # Tras confirmar, enviamos al Mapa de Seguimiento
+        return request.render('pos_shipment_manager.shipment_customer_success', {
+            'shipment': shipment,
+            'order': shipment.order_id,
+            'partner': shipment.partner_id,
+        })
 
     @http.route('/pos/shipment/customer/<string:token>/rate', type='http', auth="public", methods=['POST'], website=True, csrf=True)
     def shipment_customer_rate(self, token, **post):
@@ -136,16 +145,18 @@ class ShipmentController(http.Controller):
             'shipment': shipment,
             'rating_success': True
         })
-
     @http.route('/pos/shipment/status_json/<string:token>', type='json', auth="public")
-    def shipment_status_json(self, token):
-        shipment = self._get_shipment_by_token(token)
+    def shipment_status_json(self, token, **kwargs):
+        """Endpoint para polling en tiempo real del portal del cliente."""
+        shipment = self._get_shipment_by_token(token, ['customer_token', 'access_token'])
         if not shipment:
             return {'error': 'not_found'}
         return {
             'state': shipment.state,
-            'dynamic_eta': shipment.dynamic_eta,
-            'customer_confirmed': shipment.customer_confirmed
+            'is_delivered': shipment.state in ('delivered', 'settled'),
+            'eta': shipment.dynamic_eta,
+            'status_title': shipment.dynamic_status_title,
+            'status_message': shipment.dynamic_status_message,
         }
 
     # --- ACCIONES COMPARTIDAS ---
@@ -162,24 +173,19 @@ class ShipmentController(http.Controller):
         payment_method = post.get('payment_method', 'cash')
 
         if action == 'confirm':
-            # REGLA RENQUITEC ELITE: Blindaje de Seguridad en Pagos
-            mode = shipment.shipment_mode or (shipment.sale_order_id.shipment_mode if shipment.sale_order_id else 'cod')
-            
-            # Bloqueo 1: Si es Pago al Instante pero NO está pagado -> BLOQUEAR
-            if mode == 'paid' and not shipment.is_paid:
-                return "⚠️ ERROR DE SEGURIDAD: El pedido aún no ha sido pagado en caja. No puede confirmar la entrega de un pedido 'Pago al Instante' sin el pago verificado."
-            
-            # Bloqueo 2: Si es Contra Entrega pero YA está pagado -> AVISO/BLOQUEO (Evita doble cobro)
-            if mode == 'cod' and shipment.is_paid:
-                return "⚠️ ALERTA: Este pedido ya fue pagado en caja anteriormente. El mensajero NO debe cobrar dinero. Por favor, verifique con la administración antes de confirmar."
-            
-            is_ready = shipment.order_id or (shipment.sale_order_id and shipment.sale_order_id.state not in ['draft', 'sent', 'cancel'])
-            if not is_ready:
-                return "⚠️ Error: El pedido aún no está listo (Borrador). Verifique que la orden esté confirmada."
-            
-            shipment.action_confirm_delivery(payment_method, note)
-            # El mensajero ve su éxito, el cliente (al recargar) verá las estrellas
-            return request.render('pos_shipment_manager.shipment_messenger_success', {'shipment': shipment})
+            try:
+                shipment.action_confirm_delivery(payment_method, note)
+                # El mensajero ve su éxito, el cliente (al recargar) verá las estrellas
+                return request.render('pos_shipment_manager.shipment_messenger_success', {'shipment': shipment})
+            except Exception as e:
+                return request.render('pos_shipment_manager.shipment_confirmation_portal', {
+                    'shipment': shipment,
+                    'error_message': str(e),
+                    'partner': shipment.partner_id,
+                    'order': shipment.order_id,
+                    'sale': shipment.sale_order_id,
+                    'today': fields.Date.today(),
+                })
         elif action == 'cancel':
             full_note = f"[{cancel_reason}] {note}" if cancel_reason else note
             shipment.action_cancel_delivery(full_note)
@@ -191,7 +197,13 @@ class ShipmentController(http.Controller):
         shipment = request.env['pos.shipment'].browse(record_id)
         if not shipment.exists():
             return request.not_found()
-        
+        # Verificar que el usuario tiene acceso real al registro antes de
+        # renderizar con sudo (evita fuga entre compañías / sin permisos).
+        try:
+            shipment.check_access('read')
+        except Exception:
+            return request.not_found()
+
         report = request.env.ref('pos_shipment_manager.action_report_settlement_receipt')
         pdf_content, _ = report.sudo()._render_qweb_pdf([record_id])
         

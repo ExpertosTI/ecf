@@ -1,17 +1,17 @@
 /** @odoo-module **/
-import { usePos } from "@point_of_sale/app/store/pos_hook";
+// usePos deprecado en Odoo 18
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
 import { ShipmentSettleDialog } from "@pos_shipment_manager/js/shipment_settle_dialog";
 import { ShipmentSettleReceipt } from "@pos_shipment_manager/js/shipment_settle_receipt";
+import { ShipmentShareDialog } from "@pos_shipment_manager/js/shipment_share_dialog";
 import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import { useState } from "@odoo/owl";
 
-patch(ProductScreen.prototype, {
-    setup() {
+patch(ProductScreen.prototype, {setup() {
         super.setup(...arguments);
-        this.pos = usePos();
+        // this.pos ya está inyectado nativamente en ProductScreen
         this.orm = useService("orm");
         this.dialog = useService("dialog");
         this.notification = useService("notification");
@@ -51,6 +51,7 @@ patch(ProductScreen.prototype, {
                 date: s.date_formatted,
                 seller: s.seller_name,
                 partner_name: s.partner_name,
+                partner_phone: s.partner_phone,
                 messenger_name: s.messenger_name,
                 charge: s.charge || 0,
                 cost: s.cost || 0,
@@ -152,62 +153,109 @@ patch(ProductScreen.prototype, {
             },
         });
     },
+
     async onClickShareCurrent() {
         const order = this.pos.get_order();
         if (!order) return;
 
         // Intentar obtener el ID del envío desde el pedido o la cotización vinculada
-        let shipmentId = order.shipment_id ? order.shipment_id.id : null;
+        let shipmentId = order.shipment_id ? (typeof order.shipment_id === 'object' ? order.shipment_id.id : order.shipment_id) : null;
         
         // Si no hay ID directo, buscar por el nombre de la orden o SO
+        const saleOrderId = order.sale_order_id ? (typeof order.sale_order_id === 'object' ? order.sale_order_id.id : order.sale_order_id) : null;
         if (!shipmentId) {
-            const domain = order.sale_order_id 
-                ? [['sale_order_id', '=', order.sale_order_id.id]] 
+            const domain = saleOrderId 
+                ? [['sale_order_id', '=', saleOrderId]] 
                 : [['order_id.pos_reference', '=', order.name]];
             
-            const shipmentRecs = await this.orm.searchRead("pos.shipment", domain, ["id"], { limit: 1 });
-            if (shipmentRecs.length > 0) {
-                shipmentId = shipmentRecs[0].id;
+            try {
+                const shipmentRecs = await this.orm.searchRead("pos.shipment", domain, ["id"], { limit: 1 });
+                if (shipmentRecs.length > 0) {
+                    shipmentId = shipmentRecs[0].id;
+                }
+            } catch (err) {
+                console.warn("[PSM] Error searching shipment:", err);
             }
         }
 
+        // Si aún no hay un envío generado, lo creamos al vuelo como cotización
         if (!shipmentId) {
-            this.notification.add(_t("Este pedido no tiene un envío generado todavía. Valida el pago primero."), {
-                type: "warning",
-            });
-            return;
+            const partner = order.get_partner();
+            if (!partner) {
+                this.notification.add(_t("Debe seleccionar un cliente antes de generar el envío."), {
+                    type: "danger",
+                });
+                return;
+            }
+            if (order.shipment_mode === 'none' || !order.shipment_mode) {
+                this.notification.add(_t("Debe configurar el modo de envío primero."), {
+                    type: "danger",
+                });
+                return;
+            }
+
+            this.notification.add(_t("Generando cotización y envío..."), { type: "info", sticky: false });
+
+            // Mapear líneas del carrito del POS
+            const orderLines = order.get_orderlines().map(line => ({
+                product_id: line.get_product().id,
+                qty: line.get_quantity(),
+                price_unit: line.get_unit_price(),
+            }));
+
+            try {
+                const result = await this.orm.call(
+                    "pos.shipment",
+                    "action_create_shipment_from_draft_pos",
+                    [{
+                        partner_id: partner.id,
+                        shipment_mode: order.shipment_mode,
+                        messenger_id: order.messenger_id,
+                        manual_location_link: order.manual_location_link,
+                        distance_km: order.distance_km || 0.0,
+                        shipping_charge: order.shipping_charge || 0.0,
+                        lines: orderLines,
+                    }]
+                );
+
+                if (result && result.shipment_id) {
+                    shipmentId = result.shipment_id;
+                    order.sale_order_id = result.sale_order_id;
+                    order.shipment_id = result.shipment_id;
+                    
+                    // Actualizar contador y lista local de envíos pendientes
+                    await this._refreshPending();
+                    this.notification.add(_t("Envío generado con éxito."), { type: "success" });
+                }
+            } catch (error) {
+                this.notification.add(_t("Error al generar envío: ") + (error.message ? error.message.message : error.toString()), {
+                    type: "danger",
+                });
+                return;
+            }
         }
 
-        await this._openShareDialog(shipmentId);
+        if (shipmentId) {
+            await this._openShareDialog(shipmentId);
+        }
     },
 
     async _openShareDialog(shipmentId) {
         try {
-            const shipmentData = await this.orm.read("pos.shipment", [shipmentId], [
-                "id", "name", "customer_portal_url", "messenger_portal_url", "total_order", "is_cod", "partner_id", "messenger_id"
-            ]);
-            
-            if (shipmentData && shipmentData.length > 0) {
-                const s = shipmentData[0];
-                
-                // Obtener teléfonos
-                const partner = await this.orm.read("res.partner", [s.partner_id[0]], ["phone", "mobile", "name"]);
-                const messenger = s.messenger_id ? await this.orm.read("res.users", [s.messenger_id[0]], ["messenger_whatsapp", "name"]) : null;
-
-                const { ShipmentShareDialog } = await import("@pos_shipment_manager/js/shipment_share_dialog");
-                
+            const data = await this.orm.call("pos.shipment", "get_share_data", [[shipmentId]]);
+            if (data) {
                 this.dialog.add(ShipmentShareDialog, {
                     shipment: {
-                        id: s.id,
-                        name: s.name,
-                        total_order: s.total_order,
-                        is_cod: s.is_cod,
-                        partner_name: partner[0].name
+                        id: data.id,
+                        name: data.name,
+                        total_order: data.total_order,
+                        is_cod: data.is_cod,
+                        partner_name: data.partner_name
                     },
-                    customer_url: s.customer_portal_url,
-                    customer_phone: partner[0].phone || partner[0].mobile,
-                    messenger_url: s.messenger_portal_url,
-                    messenger_phone: messenger ? messenger[0].messenger_whatsapp : null,
+                    customer_url: data.customer_url,
+                    customer_phone: data.customer_phone,
+                    messenger_url: data.messenger_url,
+                    messenger_phone: data.messenger_phone,
                 });
             }
         } catch (error) {
@@ -215,4 +263,3 @@ patch(ProductScreen.prototype, {
         }
     },
 });
-

@@ -96,7 +96,32 @@
     }
 }
 
-/* Selector de categorías - Opción B/C: Ocultar si no tiene imagen vía CSS */
-.product-category-selector .category-item:not(:has(.category-img)) {
-    display: none !important;
+/* Autocomplete list styles */
+.psm-autocomplete-list {
+    position: absolute;
+    background: white;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    border-radius: 12px;
+    width: 100%;
+    margin-top: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1050;
+}
+.psm-autocomplete-item {
+    padding: 10px 14px;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    &:hover {
+        background: #f8fafc;
+    }
+    &:last-child {
+        border-bottom: none;
+    }
 }

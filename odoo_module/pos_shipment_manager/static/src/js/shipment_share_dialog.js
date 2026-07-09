@@ -15,9 +15,8 @@ export class ShipmentShareDialog extends Component {
     async copyToClipboard(text) {
         try {
             await navigator.clipboard.writeText(text);
-            this.notification.add(_t("📋 Enlace copiado al portapapeles"), {
+            this.notification.add(_t("Enlace copiado al portapapeles"), {
                 type: "success",
-                sticky: false,
             });
         } catch (err) {
             this.notification.add(_t("Error al copiar enlace"), {
@@ -27,19 +26,23 @@ export class ShipmentShareDialog extends Component {
     }
 
     shareWhatsApp(type) {
+        const shipment = this.props.shipment;
         const url = type === 'customer' ? this.props.customer_url : this.props.messenger_url;
         const phone = type === 'customer' ? this.props.customer_phone : this.props.messenger_phone;
         
-        if (!phone) {
-            this.notification.add(_t("El contacto no tiene teléfono asignado."), {
-                type: "warning",
-            });
-            return;
-        }
+        // Limpiar teléfono y asegurar formato internacional (Dominicana +1)
+        let cleanPhone = phone ? phone.toString().replace(/\D/g, '') : '';
+        if (cleanPhone.length === 10) cleanPhone = '1' + cleanPhone;
 
-        const cleanPhone = phone.replace(/\D/g, '');
-        const message = encodeURIComponent(`Hola, aquí tienes el enlace de seguimiento de tu pedido: ${url}`);
-        window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+        const msg = type === 'customer' 
+            ? `Hola ${shipment.partner_name || ''}, tu pedido *${shipment.name}* está en camino. Síguelo aquí: ${url}`
+            : `🛵 *NUEVO ENVÍO: ${shipment.name}*\n👤 Cliente: ${shipment.partner_name}\n📦 Cobrar: RD$ ${shipment.total_order.toFixed(2)}${shipment.is_cod ? ' (CONTRA ENTREGA)' : ''}\n✅ Link Hoja de Ruta: ${url}`;
+        
+        const waUrl = cleanPhone 
+            ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`
+            : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+            
+        window.open(waUrl, '_blank');
     }
 
     cancel() {

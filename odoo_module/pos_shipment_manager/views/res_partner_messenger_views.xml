@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- List View for Messengers -->
+    <record id="view_partner_tree_messenger" model="ir.ui.view">
+        <field name="name">res.partner.messenger.list</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <list string="Mensajeros" decoration-success="messenger_pending_balance == 0" decoration-warning="messenger_pending_balance &gt; 0">
+                <field name="name"/>
+                <field name="messenger_whatsapp" widget="phone"/>
+                <field name="currency_id" column_invisible="True"/>
+                <field name="messenger_pending_balance" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Ultra-Simplified Form View for Messengers (Quick Edit/Create) -->
+    <record id="view_partner_form_messenger_simple" model="ir.ui.view">
+        <field name="name">res.partner.form.messenger.simple</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <form string="Nuevo Mensajero">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" string="Nombre Completo"/>
+                        <h1><field name="name" placeholder="Ej. Juan Pérez" required="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Datos de Contacto">
+                            <field name="messenger_whatsapp" widget="phone" string="WhatsApp / Teléfono" placeholder="Ej. 18091234567" required="1"/>
+                            <field name="is_messenger" invisible="1"/>
+                        </group>
+                        <group string="Balances">
+                            <field name="currency_id" invisible="1"/>
+                            <field name="messenger_pending_balance" widget="monetary" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Form inheritance for res.partner (Admin view) -->
+    <record id="view_partner_form_messenger_inherit" model="ir.ui.view">
+        <field name="name">res.partner.form.messenger.inherit</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="before">
+                <header>
+                    <button name="action_share_whatsapp" string="WhatsApp Mensajero" type="object" icon="fa-whatsapp" class="btn-success" invisible="not messenger_whatsapp"/>
+                </header>
+            </xpath>
+            <xpath expr="//div[contains(@class, 'oe_title')]" position="after">
+                <div class="o_row mb-4" invisible="not is_messenger">
+                    <span class="badge rounded-pill bg-primary" style="font-size: 14px; padding: 10px 20px;">
+                        <i class="fa fa-motorcycle me-2"/> MENSAJERO RENACE
+                    </span>
+                </div>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="Logística y Pagos (Mensajero)" name="messenger_config" invisible="not is_messenger">
+                    <group>
+                        <group string="Configuración de Envíos">
+                            <field name="is_messenger"/>
+                            <field name="messenger_whatsapp" widget="phone" placeholder="Ej. 18091234567"/>
+                        </group>
+                        <group string="Estado Financiero">
+                            <field name="currency_id" invisible="1"/>
+                            <field name="messenger_pending_balance" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Action for Messengers -->
+    <record id="action_pos_messenger" model="ir.actions.act_window">
+        <field name="name">Mensajeros</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('is_messenger', '=', True)]</field>
+        <field name="context">{'default_is_messenger': True}</field>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_partner_tree_messenger')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_partner_form_messenger_simple')})]"/>
+    </record>
+</odoo>

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'POS Shipment Management',
+    'name': 'Gestión de Envíos POS',
     'version': '18.0.1.0.0',
     'category': 'Point of Sale',
     'summary': 'Gestión avanzada de envíos, mensajeros y cobros contra entrega',
@@ -11,9 +11,9 @@
         - Métricas de tiempo de procesamiento y entrega.
         - Integración con Dashboard POS y Cotizaciones.
     """,
-    'author': 'Renace Tech',
+    'author': 'Adderly Marte',
     'website': 'https://renace.tech',
-    'depends': ['point_of_sale', 'pos_sale', 'sale_management', 'dashboard_pos', 'salesperson_pos_order_line', 'mail', 'web'],
+    'depends': ['point_of_sale', 'pos_sale', 'sale_management', 'mail', 'web'],
     'data': [
         'security/ir.model.access.csv',
         'security/shipment_security.xml',
@@ -25,7 +25,7 @@
         'views/shipment_portal_templates.xml',
         'views/customer_portal_templates.xml',
         'views/pos_shipment_views.xml',
-        'views/res_users_views.xml',
+        'views/res_partner_messenger_views.xml',
         'views/res_partner_views.xml',
         'views/res_config_settings_views.xml',
         'views/sale_order_views.xml',
@@ -40,11 +40,15 @@
             'pos_shipment_manager/static/src/xml/ShipmentDashboard.xml',
             'pos_shipment_manager/static/src/scss/shipment_dashboard.scss',
             'pos_shipment_manager/static/src/scss/sale_order_backend.scss',
+            'pos_shipment_manager/static/src/js/pos_product_grid_sales.js',
+            'pos_shipment_manager/static/src/xml/pos_product_grid_sales.xml',
+            'pos_shipment_manager/static/src/scss/pos_product_grid_sales.scss',
             'pos_shipment_manager/static/src/js/pos_dashboard_overrides.js',
             'pos_shipment_manager/static/src/xml/pos_dashboard_overrides.xml',
         ],
         'point_of_sale._assets_pos': [
             'pos_shipment_manager/static/src/js/pos_settle_patch.js',
+            'pos_shipment_manager/static/src/js/pos_shipment_payment.js',
             'pos_shipment_manager/static/src/js/shipment_settle_dialog.js',
             'pos_shipment_manager/static/src/js/shipment_config_dialog.js',
             'pos_shipment_manager/static/src/js/shipment_share_dialog.js',
@@ -54,9 +58,12 @@
             'pos_shipment_manager/static/src/xml/ShipmentSettleReceipt.xml',
             'pos_shipment_manager/static/src/scss/pos_shipment_button.scss',
             'pos_shipment_manager/static/src/js/pos_ticket_screen_overrides.js',
+            'pos_shipment_manager/static/src/js/pos_printer_patch.js',
             'pos_shipment_manager/static/src/js/ShipmentModeButton.js',
             'pos_shipment_manager/static/src/xml/ShipmentModeButton.xml',
             'pos_shipment_manager/static/src/xml/pos_sale_overrides.xml',
+            'pos_shipment_manager/static/src/js/pos_quotation_button.js',
+            'pos_shipment_manager/static/src/xml/pos_quotation_button.xml',
             'pos_shipment_manager/static/src/xml/OrderReceipt.xml',
         ],
     },

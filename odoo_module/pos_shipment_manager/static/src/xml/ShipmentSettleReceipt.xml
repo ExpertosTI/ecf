@@ -49,16 +49,6 @@
                             <span>🏍 <t t-esc="s.messenger_name"/></span>
                             <t t-if="s.is_cod"><span style="background: #000; color: #fff; padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 900;">COD</span></t>
                         </div>
-                        
-                        <!-- Detalle de Productos -->
-                        <div style="margin-top: 8px; font-size: 10px; color: #444; background: #fdfdfd; padding: 6px; border-radius: 8px;">
-                            <t t-foreach="s.products" t-as="p" t-key="p.name">
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-                                    <span><t t-esc="p.qty"/>x <t t-esc="p.name"/></span>
-                                    <span><t t-esc="p.price.toLocaleString(undefined, {minimumFractionDigits: 0})"/></span>
-                                </div>
-                            </t>
-                        </div>
                     </div>
                 </t>
             </div>

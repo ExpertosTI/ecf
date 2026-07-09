@@ -1,27 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates id="template" xml:space="preserve">
-
-    <t t-name="pos_shipment_manager.OrderReceipt" t-inherit="point_of_sale.OrderReceipt" t-inherit-mode="extension">
-        <xpath expr="//div[hasclass('pos-receipt')]/*[1]" position="before">
-            <t t-if="props.data.shipment_mode and props.data.shipment_mode !== 'none'">
-                <div class="psm-ticket-logistics" 
-                     style="display: flex; justify-content: space-between; align-items: center; gap: 5px; margin-bottom: 12px; padding: 6px 10px; border: 2px solid #000; border-radius: 6px; font-family: 'Courier New', Courier, monospace; background: #fff;">
-                    
-                    <div style="font-weight: 900; text-transform: uppercase; font-size: 11px; white-space: nowrap;">
-                        <t t-if="props.data.shipment_mode === 'paid'"><i class="fa fa-check-circle"/> PAGADO</t>
-                        <t t-if="props.data.shipment_mode === 'cod'"><i class="fa fa-money"/> CONTRA ENTREGA</t>
-                    </div>
-                    
-                    <div t-if="props.data.messenger_name" style="font-size: 10px; font-weight: 700; flex-grow: 1; text-align: center; border-left: 1px solid #ddd; border-right: 1px solid #ddd; padding: 0 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        🛵 <t t-esc="props.data.messenger_name.toUpperCase()"/>
-                    </div>
-                    
-                    <div t-if="props.data.shipment_mode === 'cod'" style="font-size: 10px; font-weight: 900; background: #000; color: #fff; padding: 2px 6px; border-radius: 3px; white-space: nowrap;">
-                        COBRAR
-                    </div>
+    <t t-name="pos_shipment_manager.ReceiptHeaderMessenger" t-inherit="point_of_sale.ReceiptHeader" t-inherit-mode="extension" owl="1">
+        <xpath expr="//div[hasclass('pos-receipt-contact')]" position="inside">
+            <!-- Modo de Envío y Mensajero -->
+            <t t-set="psmShipMode" t-value="(props.data &amp;&amp; props.data.shipment_mode) || (props.data &amp;&amp; props.data.headerData &amp;&amp; props.data.headerData.shipment_mode) || 'none'"/>
+            <t t-set="psmMessengerName" t-value="(props.data &amp;&amp; props.data.messenger_name) || (props.data &amp;&amp; props.data.headerData &amp;&amp; props.data.headerData.messenger_name) || ''"/>
+            
+            <div t-if="psmShipMode and psmShipMode !== 'none'" style="margin-top: 4px; border-top: 1px dashed #000; padding-top: 4px; font-family: 'Courier New', Courier, monospace;">
+                <div style="font-weight: bold; font-size: 1.05em; text-align: center; border: 1.5px solid #000; padding: 3px; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <t t-if="psmShipMode === 'paid'">★ ENVÍO - PAGADO ★</t>
+                    <t t-elif="psmShipMode === 'cod'">★ ENVÍO - CONTRA ENTREGA ★</t>
                 </div>
-            </t>
+                <div t-if="psmMessengerName" style="margin-top: 2px; font-size: 0.95em;">
+                    <span style="font-weight: bold;">MENSAJERO: </span>
+                    <span style="font-weight: bold; text-transform: uppercase;"><t t-esc="psmMessengerName"/></span>
+                </div>
+            </div>
         </xpath>
     </t>
-
 </templates>

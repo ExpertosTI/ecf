@@ -1,0 +1,197 @@
+// ─────────────────────────────────────────────────────────
+//  PSM Backend — POS Product Grid in Sales Form (Renace Stack)
+// ─────────────────────────────────────────────────────────
+
+.pos-sales-grid-container {
+    height: 550px;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 16px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+
+    .pos-sales-ticket-panel {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 16px;
+        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+
+        .ticket-line-item {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            
+            &:hover {
+                border-color: #cbd5e1 !important;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            }
+        }
+    }
+
+    .pos-sales-catalog-panel {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 16px;
+
+        .product-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+            &:hover {
+                transform: translateY(-2px);
+                border-color: #2563eb !important;
+                box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.1), 0 4px 6px -4px rgba(37, 99, 235, 0.1);
+            }
+        }
+    }
+}
+
+// ── Optimización Móvil (Renace Stack) ───────────────────
+@media (max-width: 768px) {
+    .pos-sales-grid-container {
+        flex-direction: column-reverse !important;
+        height: auto !important;
+        min-height: 600px;
+        padding: 8px !important;
+        gap: 12px !important;
+
+        .pos-sales-ticket-panel {
+            width: 100% !important;
+            height: 320px !important;
+            padding: 12px !important;
+            box-shadow: none;
+            
+            .ticket-lines-scroll {
+                max-height: 240px;
+            }
+
+            .ticket-line-item {
+                padding: 10px !important;
+                
+                .line-actions {
+                    gap: 6px !important;
+                    
+                    button {
+                        width: 32px !important; // Mayor área táctil en móvil
+                        height: 32px !important;
+                        
+                        i {
+                            font-size: 12px !important;
+                        }
+                    }
+                    
+                    .line-total {
+                        font-size: 12px !important;
+                        min-width: 60px !important;
+                    }
+                }
+            }
+        }
+
+        .pos-sales-catalog-panel {
+            width: 100% !important;
+            padding: 12px !important;
+            flex-grow: 1;
+
+            .catalog-header {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 8px !important;
+
+                .search-input-wrapper,
+                .category-select-wrapper {
+                    width: 100% !important;
+                }
+            }
+
+            .products-grid {
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 10px !important;
+                padding: 2px !important;
+            }
+
+            .product-card {
+                .product-card-img-wrapper {
+                    height: 90px !important;
+                }
+                
+                .product-card-body {
+                    height: 70px !important;
+                    padding: 8px !important;
+                }
+
+                .product-name {
+                    font-size: 11px !important;
+                    height: 28px !important;
+                    -webkit-line-clamp: 2 !important;
+                }
+
+                .product-price {
+                    font-size: 12px !important;
+                }
+                
+                .btn-sm {
+                    width: 26px !important;
+                    height: 26px !important;
+                    
+                    i {
+                        font-size: 10px !important;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Pantallas muy pequeñas (teléfonos < 480px)
+@media (max-width: 480px) {
+    .pos-sales-grid-container {
+        padding: 4px !important;
+        
+        .pos-sales-ticket-panel {
+            height: 280px !important;
+            
+            .ticket-lines-scroll {
+                max-height: 200px;
+            }
+            
+            .ticket-line-item {
+                padding: 6px !important;
+                flex-wrap: wrap;
+                
+                .line-info {
+                    width: 100%;
+                    margin-bottom: 6px;
+                }
+                
+                .line-actions {
+                    width: 100%;
+                    justify-content: flex-end;
+                }
+            }
+        }
+        
+        .pos-sales-catalog-panel {
+            .products-grid {
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 6px !important;
+            }
+            
+            .product-card {
+                .product-card-img-wrapper {
+                    height: 75px !important;
+                }
+                
+                .product-card-body {
+                    height: 60px !important;
+                    padding: 4px !important;
+                }
+                
+                .product-name {
+                    font-size: 10px !important;
+                    height: 24px !important;
+                }
+            }
+        }
+    }
+}
+

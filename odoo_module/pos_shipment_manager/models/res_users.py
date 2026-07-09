@@ -12,8 +12,6 @@ class ResUsers(models.Model):
         help="Marcar para habilitar como personal de entrega en el POS."
     )
     messenger_whatsapp = fields.Char(string='WhatsApp del Mensajero')
-    nav_google_url = fields.Char(string='Google Maps (Envío)')
-    nav_waze_url = fields.Char(string='Waze (Envío)')
 
     messenger_pending_balance = fields.Monetary(
         string='Saldo Pendiente', compute='_compute_messenger_balance',
@@ -62,3 +60,19 @@ class ResUsers(models.Model):
             'url': url,
             'target': 'new',
         }
+
+    @api.model
+    def action_create_pos_messenger(self, name, phone):
+        """Método seguro para crear un mensajero desde la vista rápida del POS."""
+        if not self.env.user.has_group('point_of_sale.group_pos_user'):
+            raise UserError(_("No tienes permisos para crear mensajeros desde el POS."))
+            
+        if not name or not phone:
+            return {'error': _("El nombre y número de teléfono son obligatorios.")}
+            
+        user = self.sudo().create({
+            'name': name,
+            'is_messenger': True,
+            'messenger_whatsapp': phone,
+        })
+        return {'id': user.id, 'name': user.name}

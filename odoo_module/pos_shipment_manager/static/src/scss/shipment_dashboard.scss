@@ -145,7 +145,93 @@ $border:      #e2e8f0;
     .psm-stat-val {
         background: #fff1f2; color: $brand-red; padding: 2px 10px; border-radius: 8px; font-size: 12px;
         &--blue { background: #eff6ff; color: #3b82f6; }
+        &--red { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; }
     }
+
+    .psm-stat-group {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+    }
+}
+
+// 📈 Modern Progress and Statistics Styling for waiters & messengers
+.psm-stat-row-new {
+    background: #f8fafc;
+    border-radius: 14px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    border: 1px solid #e2e8f0;
+    transition: all 0.25s ease;
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+        border-color: #cbd5e1;
+    }
+}
+
+.psm-stat-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.psm-stat-name {
+    font-size: 14px;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+.psm-stat-count {
+    font-size: 12px;
+    font-weight: 900;
+    background: #f1f5f9;
+    color: #475569;
+    padding: 2px 8px;
+    border-radius: 6px;
+}
+
+.psm-progress-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.psm-progress-bar-bg {
+    flex: 1;
+    background: #e2e8f0;
+    height: 8px;
+    border-radius: 99px;
+    overflow: hidden;
+}
+
+.psm-progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ef4444 0%, #f43f5e 100%);
+    border-radius: 99px;
+    transition: width 0.4s ease;
+
+    &--blue {
+        background: linear-gradient(90deg, #3b82f6 0%, #06b6d4 100%);
+    }
+}
+
+.psm-progress-pct {
+    font-size: 11px;
+    font-weight: 800;
+    color: #64748b;
+    min-width: 32px;
+    text-align: right;
+}
+
+.psm-stat-sub-info {
+    margin-top: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #ef4444;
 }
 
 .psm-mega-metric {
@@ -254,19 +340,7 @@ $border:      #e2e8f0;
         align-items: flex-start;
         margin-bottom: 12px;
     }
-    &__ref { 
-        font-weight: 900; 
-        color: $brand-red; 
-        font-size: 13px;
-        &.clickable {
-            text-decoration: underline dotted;
-            cursor: pointer;
-            transition: color 0.2s;
-            &:hover {
-                color: darken($brand-red, 15%);
-            }
-        }
-    }
+    &__ref { font-weight: 900; color: $brand-red; font-size: 13px; }
     
     &__customer {
         font-size: 14px;

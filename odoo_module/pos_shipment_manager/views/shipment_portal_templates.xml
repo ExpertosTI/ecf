@@ -4,6 +4,12 @@
     <template id="shipment_confirmation_portal" name="Portal del Mensajero">
         <t t-call="web.layout">
             <t t-set="head">
+                <title>Renace Logística — <t t-esc="shipment.name"/></title>
+                <meta property="og:title" t-attf-content="🛵 NUEVO ENVÍO: #{shipment.name}"/>
+                <meta property="og:description" t-attf-content="Cliente: #{shipment.partner_id.name if (shipment.partner_id and shipment.partner_id.name) else 'Consumidor Final'} | Monto: RD$ #{'%.2f' % amount_to_collect}"/>
+                <meta property="og:image" content="https://renace.tech/logo.png"/>
+                <meta property="og:type" content="website"/>
+                <meta name="description" t-attf-content="Seguimiento de envío para #{shipment.name} en Renace Logística"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet"/>
                 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"/>
@@ -53,6 +59,11 @@
                     <img t-attf-src="/logo.png?company=#{company.id}" class="company-logo"/>
                     <h1><t t-esc="shipment.name"/></h1>
                     <p>Hoja de Ruta — <t t-esc="today.strftime('%d/%m/%Y') if today else ''"/></p>
+                    <t t-if="error_message">
+                        <div style="background: #ef4444; color: white; padding: 10px; margin-top: 15px; border-radius: 10px; font-size: 12px; font-weight: 700;">
+                             <i class="fa fa-exclamation-circle"/> <t t-esc="error_message"/>
+                        </div>
+                    </t>
                 </div>
 
                 <div class="status-line">
@@ -74,8 +85,8 @@
                 <div class="section">
                     <span class="section-title">Datos de Entrega</span>
                     <div class="addr-box">
-                        <div class="addr-name" t-esc="partner.name"/>
-                        <div class="addr-text" t-esc="partner.contact_address"/>
+                        <div class="addr-name" t-esc="partner.name if partner else 'Consumidor Final'"/>
+                        <div class="addr-text" t-esc="partner.contact_address if partner else ''"/>
                         <div class="contact-grid">
                             <a t-att-href="shipment.nav_google_url" class="btn-contact btn-google">
                                 <i class="fa fa-map-marker"/> <span>Maps</span>
@@ -83,11 +94,11 @@
                             <a t-att-href="shipment.nav_waze_url" class="btn-contact btn-waze">
                                 <i class="fa fa-location-arrow"/> <span>Waze</span>
                             </a>
-                            <t t-set="cust_phone" t-value="partner.mobile or partner.phone"/>
+                            <t t-set="cust_phone" t-value="(partner.mobile or partner.phone) if partner else False"/>
                             <t t-if="cust_phone">
-                                <t t-set="clean_phone" t-value="''.join(filter(str.isdigit, cust_phone))"/>
+                                <t t-set="clean_phone" t-value="''.join([c for c in cust_phone if c.isdigit()])"/>
                                 <t t-if="len(clean_phone) == 10" t-set="clean_phone" t-value="'1' + clean_phone"/>
-                                <a t-attf-href="whatsapp://send?phone=#{clean_phone}&amp;text=Hola #{partner.name}, soy el mensajero de #{shipment.company_id.name}, estoy en camino con tu pedido #{shipment.name}." 
+                                <a t-attf-href="whatsapp://send?phone=#{clean_phone}&amp;text=Hola #{partner.name if partner else ''}, soy el mensajero de #{shipment.company_id.name}, estoy en camino con tu pedido #{shipment.name}." 
                                    class="btn-contact btn-whatsapp">
                                     <i class="fa fa-whatsapp"/> <span>WhatsApp</span>
                                 </a>
@@ -118,9 +129,6 @@
 
                 <div class="amount-box">
                     <div class="amount-label">Monto a Cobrar</div>
-                    <t t-set="mode" t-value="shipment.shipment_mode or (shipment.sale_order_id.shipment_mode if shipment.sale_order_id else 'cod')"/>
-                    <t t-set="is_cod" t-value="mode == 'cod'"/>
-                    <t t-set="amount_to_collect" t-value="(shipment.order_id.amount_total if shipment.order_id else (shipment.sale_order_id.amount_total if shipment.sale_order_id else 0.0)) if is_cod else (0.0 if mode == 'paid' else (shipment.shipping_charge or 0.0))"/>
                     <div class="amount-value" t-esc="amount_to_collect" t-options='{"widget": "monetary", "display_currency": shipment.currency_id}'/>
                 </div>
 
@@ -129,7 +137,7 @@
                         <input type="hidden" name="token" t-att-value="shipment.secure_token"/>
                         <input type="hidden" name="action" id="form_action" value="confirm"/>
                         <div id="confirm_section">
-                            <t t-set="mode" t-value="shipment.shipment_mode or (shipment.sale_order_id.shipment_mode if shipment.sale_order_id else 'cod')"/>
+                            <t t-set="mode" t-value="shipment.shipment_mode or (shipment.sale_order_id.shipment_mode if shipment.sale_order_id else 'none')"/>
                             <t t-set="is_paid_order" t-value="shipment.is_paid"/>
                             <t t-set="is_cod" t-value="mode == 'cod'"/>
                             <t t-set="is_ready" t-value="is_paid_order or is_cod"/>
@@ -227,6 +235,12 @@
     <template id="shipment_customer_success">
         <t t-call="web.layout">
             <t t-set="head">
+                <title>Renace Logística — Seguimiento <t t-esc="shipment.name"/></title>
+                <meta property="og:title" t-attf-content="Seguimiento: #{shipment.name}"/>
+                <meta property="og:description" t-attf-content="Sigue tu pedido en tiempo real — #{shipment.dynamic_eta}"/>
+                <meta property="og:image" content="https://renace.tech/logo.png"/>
+                <meta property="og:type" content="website"/>
+                <meta name="description" t-attf-content="Seguimiento en tiempo real para #{shipment.name}"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&amp;display=swap" rel="stylesheet"/>
                 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
