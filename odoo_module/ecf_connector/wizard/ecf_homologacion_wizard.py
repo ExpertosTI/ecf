@@ -159,6 +159,20 @@ class EcfHomologacionWizard(models.TransientModel):
                     'price_unit': total_val,
                     'tax_ids': False,
                 }))
+            else:
+                positive = sum(
+                    float(cmd[2].get('quantity') or 0) * float(cmd[2].get('price_unit') or 0)
+                    for cmd in line_ids if cmd[0] == 0 and float(cmd[2].get('price_unit') or 0) > 0
+                )
+                if positive <= 0 and total_idx != -1 and r[total_idx] not in (None, '#e'):
+                    total_val = float(r[total_idx])
+                    if total_val > 0:
+                        line_ids = [(0, 0, {
+                            'name': f'Servicio de Homologación DGII {ncf_esperado}',
+                            'quantity': 1.0,
+                            'price_unit': total_val,
+                            'tax_ids': False,
+                        })]
 
             # Create Draft Invoice
             invoice_vals = {
@@ -174,8 +188,11 @@ class EcfHomologacionWizard(models.TransientModel):
                 self.env['account.move'].create(invoice_vals)
                 invoices_created += 1
             except Exception as e:
-                # Log error and continue to create other test cases
-                pass
+                import logging
+                logging.getLogger(__name__).exception(
+                    'Homologación DGII: error creando fila %s (NCF %s): %s',
+                    r_idx, ncf_esperado, e,
+                )
 
         return {
             'type': 'ir.actions.client',

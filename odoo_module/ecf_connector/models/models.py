@@ -250,6 +250,8 @@ class ECFTipo(models.Model):
     _name = 'ecf.tipo'
     _description = 'Tipos de Comprobante Fiscal Electrónico'
     _order = 'codigo'
+    _rec_name = 'nombre'
+    _inherit = ['pos.load.mixin']
 
     codigo  = fields.Integer(string='Código', required=True)
     nombre  = fields.Char(string='Nombre', required=True)
@@ -262,9 +264,9 @@ class ECFTipo(models.Model):
         help='Si es True, no se requiere RNC del comprador (ej: E32)',
     )
 
-    # ── Loader Odoo 18 (point_of_sale) ──
+    # ── Loader POS (pos.load.mixin) ──
     @api.model
-    def _load_pos_data_domain(self, data):
+    def _load_pos_data_domain(self, data, config=None):
         return [('activo', '=', True)]
 
     @api.model

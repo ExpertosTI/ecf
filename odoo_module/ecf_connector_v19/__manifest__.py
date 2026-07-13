@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'RENECF — Facturación Electrónica DGII (Odoo 19)',
-    'version': '19.0.3.2',
+    'version': '19.0.3.4',
     'category': 'Accounting/Localizations',
     'summary': 'RENECF · Facturación Electrónica DGII RD (e-CF, ITBIS, retenciones, 606/607/608, IT-1)',
     'description': """
