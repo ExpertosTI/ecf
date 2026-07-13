@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'Renace e-CF — Facturación Electrónica DGII',
+    'name': 'RENECF — Facturación Electrónica DGII',
     'version': '18.0.5.1',
     'category': 'Accounting/Localizations',
-    'summary': 'Renace e-CF · Facturación Electrónica DGII RD (e-CF, ITBIS, retenciones, 606/607/608, IT-1)',
+    'summary': 'RENECF · Facturación Electrónica DGII RD (e-CF, ITBIS, retenciones, 606/607/608, IT-1)',
     'description': """
-Renace e-CF — Conector oficial Odoo ↔ Renace e-CF Gateway
+RENECF — Conector oficial Odoo ↔ RENECF Gateway
 
 Capacidades fiscales DGII República Dominicana:
 - Emisión de los 10 tipos de e-CF (E31..E47) con XAdES-BES, validación XSD, NCF atómico.

@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field, field_validator, AliasChoices
 
 from ecf_core.cert_vault import CertVault, CertVaultError, CertVaultRepository
 from ecf_core.dgii_client import DGIIClient, DGIIClientError
+from ecf_core.platform_config import software_identity
 from ecf_core.utils import normalize_odoo_webhook_url, safe_schema as _safe_schema
 
 logger = logging.getLogger(__name__)
@@ -92,6 +93,7 @@ async def _evaluate_onboarding_gate(conn, psfe_ok: bool) -> dict:
     return {
         "can_onboard_clients": can_onboard,
         "psfe_ok": psfe_ok,
+        "software": software_identity(),
         "operator": (
             {
                 "id": str(operator["id"]),
@@ -1171,11 +1173,12 @@ async def sync_tenant_compras(
 async def generate_signed_postulacion(
     tenant_id: str,
     xml_file: UploadFile = File(...),
+    format: str = "xml",
     _: None = Depends(require_admin),
 ):
     """
-    Recibe el XML de postulación descargado de la DGII, lo firma con el certificado activo
-    del tenant, y lo devuelve con el mismo nombre y estructura sin modificaciones.
+    Recibe el XML de postulación DGII, lo firma con el .p12 activo del tenant
+    y lo descarga como XML firmado (default) o ZIP (format=zip).
     """
     db = _get_pool()
     async with db.acquire() as conn:
@@ -1222,13 +1225,53 @@ async def generate_signed_postulacion(
     except asyncpg.UndefinedColumnError:
         pass
 
+    import io
+    import zipfile
+
     from fastapi.responses import Response
+    from lxml import etree
+
+    NS_DS = "http://www.w3.org/2000/09/xmldsig#"
+    try:
+        root_chk = etree.fromstring(xml_firmado)
+        sig_chk = root_chk.find(f".//{{{NS_DS}}}Signature")
+        if sig_chk is None or sig_chk.find(f"{{{NS_DS}}}SignatureValue") is None:
+            raise HTTPException(
+                status_code=500,
+                detail="La firma no se insertó en el XML. Reintenta o verifica el certificado .p12.",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"XML firmado inválido: {exc}") from exc
+
+    base_name = (xml_file.filename or "postulacion.xml").rsplit("/", 1)[-1]
+    if not base_name.lower().endswith(".xml"):
+        base_name = f"{base_name}.xml"
+    firmado_name = base_name[:-4] + "_firmado.xml"
+    zip_name = base_name[:-4] + "_firmado.zip"
+    fmt = (format or "xml").lower().strip()
+
+    if fmt == "zip":
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr(firmado_name, xml_firmado)
+        return Response(
+            content=buf.getvalue(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{zip_name}"',
+                "X-Postulacion-Xml-Filename": firmado_name,
+            },
+        )
+
     return Response(
         content=xml_firmado,
         media_type="application/xml",
         headers={
-            "Content-Disposition": f"attachment; filename={xml_file.filename}"
-        }
+            "Content-Disposition": f'attachment; filename="{firmado_name}"',
+            "X-Postulacion-Has-Signature": "1",
+        },
     )
 
 
@@ -1292,6 +1335,7 @@ async def _emisiones_homologacion(conn, schema_name: str) -> dict:
 
 
 async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
+    software = software_identity()
     tenant_id = tenant_row["id"]
     schema_name = tenant_row.get("schema_name") or f"tenant_{tenant_row['rnc']}"
     ambiente = tenant_row.get("ambiente", "certificacion")
@@ -1344,7 +1388,7 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
         },
         {
             "id": "activo",
-            "label": "Empresa activa en Renace e-CF",
+            "label": "Empresa activa en RENECF",
             "ok": activo_ok,
         },
         {
@@ -1441,7 +1485,11 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
             "orden": 5,
             "id": "postulacion",
             "titulo": "Firmar XML de postulación DGII",
-            "descripcion": "Descarga el XML en portal DGII, fírmalo aquí con el .p12 y súbelo de vuelta a dgii.gov.do.",
+            "descripcion": (
+                f"En el portal DGII usa Nombre del software = {software['nombre']}, "
+                f"Tipo = {software['tipo']}, Versión = {software['version']}. "
+                "Descarga el XML, fírmalo aquí con el .p12 y súbelo de vuelta a dgii.gov.do."
+            ),
             "ref_dgii": "Portal DGII → Facturación Electrónica → Postulación",
             "ok": postulacion_ok,
             "accion": "postulacion",
@@ -1449,7 +1497,7 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
         {
             "orden": 6,
             "id": "odoo",
-            "titulo": "Conectar Odoo (ecf_connector)",
+            "titulo": "Conectar Odoo (ecf_connector / RENECF)",
             "descripcion": "URL SaaS, API Key, Webhook Secret y ambiente certificacion en Ajustes → e-CF DGII.",
             "ref_dgii": "Integración ERP — callbacks HMAC-SHA256",
             "ok": webhook_ok,
@@ -1475,7 +1523,7 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
             "evidencia": [
                 "Capturas de e-CF E31–E34 aprobados en CerteCF (panel Homologación)",
                 "XML firmados / Códigos de Seguridad de 6 caracteres",
-                "Constancia de PSFE Renace ante DGII",
+                f"Constancia de PSFE {software['nombre']} ante DGII",
                 "Plan de contingencia (docs/contingencia.md)",
                 "Formulario de presentación al Área de Tecnología DGII",
             ],
@@ -1503,6 +1551,7 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
         "paso_actual": paso_actual["orden"] if paso_actual else None,
         "next_blocker": next_blocker,
         "is_platform_operator": is_operator,
+        "software": software,
         "dgii": {
             "ambiente": ambiente,
             "url": _DGII_URLS.get(ambiente, _DGII_URLS["certificacion"]),
@@ -1517,7 +1566,7 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
             "nota_api_key": "El API Key se muestra solo al crear o rotar la empresa.",
         },
         "odoo_pasos": [
-            "Apps → Renace e-CF Connector → Instalar (v18 o v19 según tu Odoo)",
+            f"Apps → {software['nombre']} Connector → Instalar (v18 o v19 según tu Odoo)",
             "Ajustes → e-CF DGII: URL del SaaS, API Key, Webhook Secret, ambiente certificacion",
             "Activar emisión automática (ecf_emision_automatica)",
             "Contabilidad → Set de Pruebas DGII: importar Excel de homologación de la DGII",

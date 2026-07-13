@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Renace e-CF — Panel Admin</title>
+    <title>RENECF — Panel Admin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -781,7 +781,7 @@
     <aside class="sidebar">
         <div class="sidebar-brand">
             <img src="renacelogo.svg" alt="RENACE Tech" style="height: 32px; width: auto; object-fit: contain; margin-right: 8px;"></span>
-            <span>Renace e-CF</span>
+            <span>RENECF</span>
         </div>
         <div class="sidebar-section">Panel</div>
         <div class="nav-item active" data-page="dashboard">
@@ -1069,21 +1069,38 @@
 
 <!-- Postulacion Modal -->
 <div id="postulacionModal" class="modal-overlay">
-    <div class="modal" style="max-width: 500px;">
+    <div class="modal" style="max-width: 560px;">
         <div class="modal-header">
             <h2>Firmar XML Postulación DGII</h2>
             <button class="btn btn-ghost btn-sm" onclick="closeModal('postulacionModal')">✕</button>
         </div>
         <form id="postulacionForm" onsubmit="generatePostulacion(event)">
             <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                <div class="cert-blocker" style="margin-bottom:14px;">
+                    <strong>Datos exactos en el formulario DGII (Paso 1)</strong>
+                    <div style="font-size:0.85rem;margin-top:8px;line-height:1.6;">
+                        Nombre del software: <code id="dgiiSoftNombre">RENECF</code>
+                        <button type="button" class="copy-btn btn btn-ghost btn-sm" onclick="copyText('dgiiSoftNombre')">📋</button><br>
+                        Tipo de software: <code id="dgiiSoftTipo">PROPIO</code><br>
+                        Versión: <code id="dgiiSoftVersion">2.5</code>
+                    </div>
+                    <div class="hint" style="margin-top:8px;">Debe coincidir con el nombre registrado ante la DGII: <strong>RENECF</strong>.</div>
+                </div>
                 <p style="margin-bottom: 15px; font-size: 0.9rem; color: var(--text-muted);">
-                    Selecciona el archivo XML de postulación que descargaste desde el portal de la DGII. 
-                    El sistema le agregará la firma digital utilizando el certificado activo del tenant actual y lo descargará con el mismo nombre.
+                    1) En DGII usa versión <strong>2.5</strong> (no 2.5.0) y genera el XML.<br>
+                    2) Aquí lo firmas con el .p12 activo.<br>
+                    3) Sube a DGII el archivo <strong>*_firmado.xml</strong> (no el original ni el ZIP).
                 </p>
                 <div class="form-group">
                     <label>Archivo XML de Postulación (DGII) *</label>
                     <input type="file" id="postXmlFile" accept=".xml" required>
-                    <div class="hint">Debe ser el archivo original sin modificar (ej. 202606225704499.xml)</div>
+                    <div class="hint">El XML recién generado (sin firmar). Ej: 202607131522381.xml</div>
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;font-weight:500;">
+                        <input type="checkbox" id="postAsZip" style="width:auto;">
+                        Descargar también en ZIP
+                    </label>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1796,6 +1813,14 @@ async function loadCertificacionReadiness(id) {
     if (!id) return;
     try {
         const data = await api(`/v1/admin/tenants/${id}/certificacion`);
+        if (data.software) {
+            const n = document.getElementById('dgiiSoftNombre');
+            const t = document.getElementById('dgiiSoftTipo');
+            const v = document.getElementById('dgiiSoftVersion');
+            if (n) n.textContent = data.software.nombre || 'RENECF';
+            if (t) t.textContent = data.software.tipo || 'PROPIO';
+            if (v) v.textContent = data.software.version || '2.5';
+        }
         document.getElementById('certScore').textContent = `${data.score} / ${data.total}`;
         document.getElementById('certDgiiUrl').textContent =
             data.dgii ? `DGII ${data.dgii.ambiente} → ${data.dgii.url}` : '';
@@ -1825,7 +1850,7 @@ async function loadCertificacionReadiness(id) {
             } else {
                 blockerEl.innerHTML = `<div class="cert-blocker" style="border-color:var(--border-accent);">
                     <strong>✅ Certificación completa</strong>
-                    <div style="font-size:0.85rem;color:var(--text-muted);">Esta empresa cumple el checklist técnico Renace e-CF.</div>
+                    <div style="font-size:0.85rem;color:var(--text-muted);">Esta empresa cumple el checklist técnico RENECF.</div>
                 </div>`;
             }
         }
@@ -2106,6 +2131,34 @@ async function syncCompras() {
 // ═══════════════════════════════════════════
 // POSTULACION XML GENERATION
 // ═══════════════════════════════════════════
+async function saveBlobToDisk(blob, suggestedName, types) {
+    // Chrome/Edge: diálogo "Guardar como…" → puedes elegir Escritorio
+    if (window.showSaveFilePicker) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName,
+                types: types || [{ description: 'Archivo', accept: { 'application/octet-stream': ['.*'] } }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            return 'picker';
+        } catch (err) {
+            if (err && err.name === 'AbortError') throw err;
+            // Si el picker falla, cae a descarga clásica
+        }
+    }
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = suggestedName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    return 'download';
+}
+
 function openPostulacionModal() {
     openModal('postulacionModal');
 }
@@ -2118,16 +2171,17 @@ async function generatePostulacion(e) {
         return;
     }
     const file = fileInput.files[0];
+    const asZip = !!(document.getElementById('postAsZip') || {}).checked;
     const formData = new FormData();
     formData.append('xml_file', file);
 
     try {
         toast('Firmando XML de Postulación...');
-        const res = await fetch(`${API_URL}/v1/admin/tenants/${currentTenantId}/postulacion`, {
+        const qs = asZip ? '?format=zip' : '?format=xml';
+        const res = await fetch(`${API_URL}/v1/admin/tenants/${currentTenantId}/postulacion${qs}`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${ADMIN_KEY}`
-                // Content-Type is set automatically by the browser with correct boundary when sending FormData
             },
             body: formData
         });
@@ -2142,19 +2196,47 @@ async function generatePostulacion(e) {
         }
 
         const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name; // Preservar el nombre de archivo original
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
+        // Verificar firma antes de guardar (evita subir a DGII un XML sin firmar)
+        if (!asZip) {
+            const text = await blob.text();
+            if (!/SignatureValue/i.test(text) || !/<ds:Signature[\s>]|<Signature[\s>]/i.test(text)) {
+                throw new Error(
+                    'El archivo descargado NO tiene firma digital. No lo subas a DGII. ' +
+                    'Verifica que el certificado .p12 esté activo e inténtalo de nuevo.'
+                );
+            }
+            // Reconstruir blob (el text() consume el stream)
+            const signedBlob = new Blob([text], { type: 'application/xml' });
+            const cd = res.headers.get('Content-Disposition') || '';
+            const m = /filename\*?=(?:UTF-8'')?["']?([^"';]+)/i.exec(cd);
+            const outName = (m && m[1] ? decodeURIComponent(m[1].trim()) : null)
+                || file.name.replace(/\.xml$/i, '') + '_firmado.xml';
+            const saved = await saveBlobToDisk(signedBlob, outName, [
+                { description: 'XML firmado', accept: { 'application/xml': ['.xml'] } },
+            ]);
+            closeModal('postulacionModal');
+            fileInput.value = '';
+            toast(saved === 'picker'
+                ? 'OK: XML firmado (tiene Signature). Súbelo a DGII.'
+                : 'OK: XML firmado descargado. Súbelo a DGII (el que dice _firmado).');
+            return;
+        }
+
+        const cd = res.headers.get('Content-Disposition') || '';
+        const m = /filename\*?=(?:UTF-8'')?["']?([^"';]+)/i.exec(cd);
+        const defaultName = file.name.replace(/\.xml$/i, '') + '_firmado.zip';
+        const outName = (m && m[1] ? decodeURIComponent(m[1].trim()) : null) || defaultName;
+        const saved = await saveBlobToDisk(blob, outName, [
+            { description: 'ZIP', accept: { 'application/zip': ['.zip'] } },
+        ]);
 
         closeModal('postulacionModal');
         fileInput.value = '';
-        toast('XML de Postulación firmado y descargado correctamente');
+        toast(saved === 'picker'
+            ? 'ZIP guardado. Descomprime y sube el *_firmado.xml a DGII.'
+            : 'ZIP descargado. Descomprime y sube el *_firmado.xml a DGII.');
     } catch (err) {
+        if (err && err.name === 'AbortError') return;
         toast(err.message, 'error');
     }
 }

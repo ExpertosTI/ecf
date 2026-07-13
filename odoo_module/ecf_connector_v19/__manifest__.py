@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'Renace e-CF — Facturación Electrónica DGII (Odoo 19)',
+    'name': 'RENECF — Facturación Electrónica DGII (Odoo 19)',
     'version': '19.0.3.1',
     'category': 'Accounting/Localizations',
-    'summary': 'Renace e-CF · Facturación Electrónica DGII RD (e-CF, ITBIS, retenciones, 606/607/608, IT-1)',
+    'summary': 'RENECF · Facturación Electrónica DGII RD (e-CF, ITBIS, retenciones, 606/607/608, IT-1)',
     'description': """
-Renace e-CF — Conector oficial Odoo 19 ↔ Renace e-CF Gateway
+RENECF — Conector oficial Odoo 19 ↔ RENECF Gateway
 
 Mismas capacidades que la versión 18.x, adaptado a Odoo 19.
 Ver odoo_module/ecf_connector/__manifest__.py para el detalle.

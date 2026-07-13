@@ -1,5 +1,6 @@
-# Renace e-CF — Avances y Pendientes (2026-07-13)
+# RENECF — Avances y Pendientes (2026-07-13)
 
+> Nombre de software registrado ante DGII: **RENECF** (tipo PROPIO). Usar exactamente ese nombre en postulación.
 > Documento actualizado en la séptima sesión (onboarding asistido multi-tenant).
 > Total acumulado: **58 hallazgos / mejoras resueltas**.
 > Validación: pytest 59/59 ✅

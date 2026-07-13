@@ -1,6 +1,8 @@
 """
-Configuración de plataforma Renace e-CF — certificados PSFE (mTLS DGII).
+Configuración de plataforma RENECF — certificados PSFE (mTLS DGII).
 Almacenamiento cifrado en PostgreSQL; fallback a variables .env.
+
+Nombre de software registrado ante la DGII: RENECF (debe coincidir en postulación).
 """
 
 from __future__ import annotations
@@ -16,6 +18,22 @@ import asyncpg
 from ecf_core.cert_vault import CertVault, CertVaultError
 
 logger = logging.getLogger(__name__)
+
+# Identidad del software ante DGII (Paso 1 postulación / PSFE).
+# Debe coincidir exactamente con el nombre registrado en dgii.gov.do.
+DGII_SOFTWARE_NAME = os.environ.get("DGII_SOFTWARE_NAME", "RENECF").strip() or "RENECF"
+# XSD DGII: VersionSoftware es xs:double → un solo punto decimal (ej. 2.5), no semver 2.5.0
+DGII_SOFTWARE_VERSION = os.environ.get("DGII_SOFTWARE_VERSION", "2.5").strip() or "2.5"
+DGII_SOFTWARE_TIPO = os.environ.get("DGII_SOFTWARE_TIPO", "PROPIO").strip() or "PROPIO"
+
+
+def software_identity() -> dict:
+    """Datos oficiales del software para postulación DGII y UI."""
+    return {
+        "nombre": DGII_SOFTWARE_NAME,
+        "version": DGII_SOFTWARE_VERSION,
+        "tipo": DGII_SOFTWARE_TIPO,
+    }
 
 
 class PSFECredentials(NamedTuple):

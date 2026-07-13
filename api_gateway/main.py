@@ -107,7 +107,7 @@ if not ALLOWED_ORIGINS:
 
 app = FastAPI(
     title="RENECF — DGII Gateway",
-    version="2.5.0",
+    version=os.environ.get("DGII_SOFTWARE_VERSION", "2.5"),
     docs_url=None,          # Deshabilitar Swagger en producción
     redoc_url=None,
     lifespan=lifespan,
