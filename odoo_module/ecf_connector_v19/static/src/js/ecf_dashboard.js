@@ -73,34 +73,46 @@ export class EcfDashboard extends Component {
 
     async loadData() {
         this.state.loading = true;
-        try {
-            const context = this.dateContext;
-            
-            const [stats, fiscal, compliance, saas] = await Promise.all([
-                this.orm.call("ecf.log", "get_dashboard_stats", [[]], { context }),
-                this.orm.call("ecf.log", "get_fiscal_summary", [[]], { context }),
-                this.orm.call("ecf.log", "check_dgii_compliance", []),
-                this.orm.call("ecf.log", "get_saas_connectivity", []),
-            ]);
-            this.state.stats = stats;
-            this.state.fiscal = fiscal;
-            this.state.compliance = compliance;
-            this.state.saas = saas || {};
+        const context = this.dateContext;
 
-            if (saas && saas.status === 'online') {
-                this.state.saas_status = 'online';
-            } else if (saas && saas.status === 'warning') {
-                this.state.saas_status = 'warning';
+        // Ping SaaS aparte: un fallo en stats/fiscal NO debe marcar "Desconectado".
+        try {
+            const saas = await this.orm.call("ecf.log", "get_saas_connectivity", [], { context });
+            this.state.saas = saas || {};
+            if (saas && saas.status === "online") {
+                this.state.saas_status = "online";
+            } else if (saas && saas.status === "warning") {
+                this.state.saas_status = "warning";
             } else {
-                this.state.saas_status = 'offline';
+                this.state.saas_status = "offline";
             }
-            if (this.state.saas_status !== 'online') {
-                console.warn('RENECF SaaS:', saas);
+            if (this.state.saas_status !== "online") {
+                console.warn("RENECF SaaS:", saas);
             }
         } catch (err) {
+            console.error("Error ping SaaS", err);
+            this.state.saas_status = "offline";
+            this.state.saas = {
+                status: "offline",
+                reason: String((err && (err.data && err.data.message || err.message)) || err),
+            };
+        }
+
+        try {
+            const [stats, fiscal, compliance] = await Promise.all([
+                this.orm.call("ecf.log", "get_dashboard_stats", [], { context }),
+                this.orm.call("ecf.log", "get_fiscal_summary", [], { context }),
+                this.orm.call("ecf.log", "check_dgii_compliance", [], { context }),
+            ]);
+            this.state.stats = stats || {};
+            this.state.fiscal = fiscal || {};
+            this.state.compliance = compliance || {};
+        } catch (err) {
             console.error("Error loading dashboard data", err);
-            this.state.saas_status = 'offline';
-            this.state.saas = { status: 'offline', reason: String(err && err.message || err) };
+            this.notification.add(
+                _t("Error al cargar métricas del panel") + ": " + String((err && err.message) || err),
+                { type: "warning" },
+            );
         } finally {
             this.state.loading = false;
             this.renderCharts();

@@ -484,8 +484,10 @@ class ECFLog(models.Model):
         return date_from, date_to
 
     @api.model
-    def get_dashboard_stats(self, domain=None):
+    def get_dashboard_stats(self, domain=None, *_args, **_kwargs):
         """Estadísticas para el dashboard e-CF — usa read_group (escalable)."""
+        if domain is not None and not isinstance(domain, (list, tuple)):
+            domain = None
         domain = list(domain or [])
         date_from, date_to = self._ecf_report_dates()
         domain.append(('create_date', '>=', fields.Datetime.to_datetime(date_from)))
@@ -507,16 +509,29 @@ class ECFLog(models.Model):
                 stats_tipo[codigo_to_prefijo[codigo]] = grp['tipo_ecf_count']
 
         date_limit = fields.Datetime.now() - timedelta(days=30)
-        daily_groups = self.read_group(
-            domain + [('create_date', '>=', date_limit)],
-            ['create_date:day'],
-            ['create_date:day'],
-            orderby='create_date',
-        )
-        daily_volume = [{
-            'day': str(grp.get('create_date:day') or ''),
-            'count': grp.get('create_date_count', 0),
-        } for grp in daily_groups]
+        daily_volume = []
+        try:
+            daily_groups = self.read_group(
+                domain + [('create_date', '>=', date_limit)],
+                ['__count'],
+                ['create_date:day'],
+                orderby='create_date:day',
+                lazy=False,
+            )
+            for grp in daily_groups:
+                day_key = next(
+                    (grp[k] for k in grp if isinstance(k, str) and k.startswith('create_date')),
+                    None,
+                )
+                if isinstance(day_key, (list, tuple)):
+                    day_key = day_key[1] if len(day_key) > 1 else day_key[0]
+                daily_volume.append({
+                    'day': str(day_key or ''),
+                    'count': grp.get('__count') or grp.get('create_date_count') or 0,
+                })
+        except Exception:
+            _logger.exception('Dashboard daily_volume read_group falló; se omite serie')
+            daily_volume = []
 
         moves_domain = [
             ('company_id', '=', self.env.company.id),
@@ -551,8 +566,10 @@ class ECFLog(models.Model):
         }
 
     @api.model
-    def get_fiscal_summary(self, period='month'):
+    def get_fiscal_summary(self, period='month', *_args, **_kwargs):
         """Resumen fiscal 606/607 para el rango del dashboard."""
+        if not isinstance(period, str):
+            period = 'month'
         company_id = self.env.company[:1].id
         start_date, end_date = self._ecf_report_dates()
 
