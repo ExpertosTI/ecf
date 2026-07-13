@@ -208,8 +208,8 @@ $DC "${COMPOSE_ARGS[@]}" up -d postgres redis traefik
 
 # Esperar a que DB y Redis esten saludables (no solo "Up")
 for i in $(seq 1 60); do
-    PG_HEALTH=$($DC "${COMPOSE_ARGS[@]}" ps postgres 2>/dev/null | grep -c "(healthy)" || echo 0)
-    RD_HEALTH=$($DC "${COMPOSE_ARGS[@]}" ps redis 2>/dev/null | grep -c "(healthy)" || echo 0)
+    PG_HEALTH=$($DC "${COMPOSE_ARGS[@]}" ps postgres 2>/dev/null | grep -c "(healthy)" || true)
+    RD_HEALTH=$($DC "${COMPOSE_ARGS[@]}" ps redis 2>/dev/null | grep -c "(healthy)" || true)
     PG_HEALTH=${PG_HEALTH:-0}
     RD_HEALTH=${RD_HEALTH:-0}
 
@@ -266,6 +266,15 @@ for i in $(seq 1 30); do
     fi
     sleep 2
 done
+
+# Verificar la misma autenticación TCP que usará la API. El psql por socket del
+# contenedor puede funcionar aunque DB_PASSWORD ya no coincida con el volumen.
+log "Verificando credenciales PostgreSQL desde la API..."
+if ! $DC "${COMPOSE_ARGS[@]}" run --rm --no-deps api python -c \
+    'import asyncio, os, asyncpg; asyncio.run(asyncpg.connect(os.environ["DATABASE_URL"]))' \
+    &>/dev/null; then
+    error "DB_PASSWORD no autentica contra PostgreSQL. Alinea la contraseña del rol renace_ecf antes de continuar."
+fi
 
 # Ejecutar migraciones SQL pendientes
 log "Ejecutando migraciones SQL..."
