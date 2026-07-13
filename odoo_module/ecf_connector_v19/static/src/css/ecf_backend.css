@@ -1,6 +1,6 @@
-/* RENECF Dashboard — ejecutivo, moderno, minimalista */
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=Fraunces:opsz,wght@9..144,600&display=swap");
-
+/* RENECF Dashboard — ejecutivo, moderno, minimalista
+   NO usar @import de fuentes externas aquí: en web.assets_backend
+   rompe el bundle CSS completo de Odoo (UI sin estilos). */
 :root {
     --ecf-ink: #0c1222;
     --ecf-muted: #64748b;
@@ -13,8 +13,8 @@
     --ecf-warn: #b45309;
     --ecf-bad: #dc2626;
     --ecf-radius: 14px;
-    --ecf-font: "DM Sans", "Segoe UI", system-ui, sans-serif;
-    --ecf-display: "Fraunces", "Georgia", serif;
+    --ecf-font: "Segoe UI", system-ui, -apple-system, sans-serif;
+    --ecf-display: Georgia, "Times New Roman", serif;
 }
 
 .ecf-dash {
