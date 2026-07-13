@@ -219,6 +219,8 @@ class ECFCompraRecibida(models.Model):
             'res_model': 'account.move',
             'res_id':    move.id,
             'view_mode': 'form',
+            'views':     [(False, 'form')],
+            'target':    'current',
         }
 
     def action_ver_factura(self):
@@ -231,6 +233,8 @@ class ECFCompraRecibida(models.Model):
             'res_model': 'account.move',
             'res_id':    self.move_id.id,
             'view_mode': 'form',
+            'views':     [(False, 'form')],
+            'target':    'current',
         }
 
     def action_registrar_pago(self):

@@ -137,8 +137,10 @@ class ResPartner(models.Model):
             'type': 'ir.actions.act_window',
             'res_model': 'ecf.log',
             'view_mode': 'list,form',
+            'views': [(False, 'list'), (False, 'form')],
             'domain': [('move_id.partner_id', '=', self.id)],
             'context': {'default_partner_id': self.id},
+            'target': 'current',
         }
 
 
@@ -458,10 +460,12 @@ class ECFLog(models.Model):
         self.ensure_one()
         return {
             'name': _('Factura Relacionada'),
-            'view_mode': 'form',
+            'type': 'ir.actions.act_window',
             'res_model': 'account.move',
             'res_id': self.move_id.id,
-            'type': 'ir.actions.act_window',
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+            'target': 'current',
         }
 
     @api.model
@@ -626,12 +630,15 @@ class ECFLog(models.Model):
         return rows
 
     @api.model
-    def get_saas_connectivity(self):
-        """Estado de conexión al SaaS (ping /v1/health)."""
-        return self.env.company[:1].get_ecf_saas_connectivity()
+    def get_saas_connectivity(self, *_args, **_kwargs):
+        """Estado de conexión al SaaS (ping /health + /v1/health)."""
+        company = self.env.company[:1]
+        if not company:
+            return {'status': 'offline', 'reason': 'Sin compañía activa'}
+        return company.get_ecf_saas_connectivity()
 
     @api.model
-    def check_dgii_compliance(self):
+    def check_dgii_compliance(self, *_args, **_kwargs):
         """Verifica el estado de salud del sistema consultando el SaaS Renace e-CF."""
         company = self.env.company[:1]
         issues = []
@@ -1133,6 +1140,7 @@ class AccountMove(models.Model):
             'type':      'ir.actions.act_window',
             'res_model': 'ecf.anular.wizard',
             'view_mode': 'form',
+            'views':     [(False, 'form')],
             'target':    'new',
             'context':   {'default_move_id': self.id},
         }

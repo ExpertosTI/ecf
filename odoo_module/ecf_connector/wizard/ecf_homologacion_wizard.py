@@ -256,8 +256,10 @@ class EcfHomologacionWizard(models.TransientModel):
                 'name': _('Facturas Set DGII'),
                 'res_model': 'account.move',
                 'view_mode': 'list,form',
+                'views': [(False, 'list'), (False, 'form')],
                 'domain': [('id', 'in', created_moves.ids)],
                 'context': {'create': False},
+                'target': 'current',
             }
         return {
             'type': 'ir.actions.client',
