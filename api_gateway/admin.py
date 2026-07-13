@@ -80,7 +80,10 @@ async def _evaluate_onboarding_gate(conn, psfe_ok: bool) -> dict:
 
     blockers = []
     if not psfe_ok:
-        blockers.append("Sube el certificado PSFE en Plataforma (mTLS Renace → DGII).")
+        blockers.append(
+            "PSFE pendiente: no bloquea certificación CerteCF del operador; "
+            "sí hace falta para onboardear clientes y para producción."
+        )
     if not operator:
         blockers.append(
             f"Registra primero la empresa operadora Renace (RNC {_operator_rnc()})."
@@ -1382,9 +1385,10 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
     checks = [
         {
             "id": "psfe",
-            "label": "PSFE plataforma (mTLS → CerteCF)",
+            "label": "PSFE plataforma (mTLS) — opcional en certificación",
             "ok": psfe_ok,
-            "hint": "Menú Plataforma — certificado cliente Renace (Manual Técnico §2.1)",
+            "optional": True,
+            "hint": "Obligatorio en producción. En CerteCF basta el .p12 del contribuyente.",
         },
         {
             "id": "activo",
@@ -1444,10 +1448,15 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
         {
             "orden": 1,
             "id": "psfe",
-            "titulo": "Configurar PSFE (mTLS plataforma)",
-            "descripcion": "Sube cert.pem, key.pem y ca.pem que entrega la DGII al registrar Renace como PSFE.",
-            "ref_dgii": "Manual Técnico e-CF — Autenticación mTLS",
+            "titulo": "PSFE mTLS (plataforma) — opcional en certificación",
+            "descripcion": (
+                "Los .pem PSFE NO son el siguiente paso de DGII. "
+                "Sirven para mTLS de plataforma; en CerteCF basta el .p12 del contribuyente. "
+                "Obligatorio al pasar a producción / operar como PSFE."
+            ),
+            "ref_dgii": "Manual Técnico — mTLS (producción / proveedor)",
             "ok": psfe_ok,
+            "optional": True,
             "accion": "plataforma",
         },
         {
@@ -1476,7 +1485,10 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
             "orden": 4,
             "id": "test_dgii",
             "titulo": "Probar conexión con CerteCF",
-            "descripcion": "Valida mTLS PSFE y autenticación semilla con el .p12 del contribuyente.",
+            "descripcion": (
+                "Autenticación semilla + .p12 del contribuyente. "
+                "PSFE no es requisito en certificación."
+            ),
             "ref_dgii": "API Autenticación — GET /fe/autenticacion/api/semilla",
             "ok": dgii_test_ok,
             "accion": "test_dgii",
@@ -1530,7 +1542,7 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
         },
     ]
 
-    paso_actual = next((p for p in pasos if not p["ok"]), None)
+    paso_actual = next((p for p in pasos if not p["ok"] and not p.get("optional")), None)
     next_blocker = None
     if paso_actual:
         next_blocker = {
@@ -1790,13 +1802,14 @@ async def test_tenant_dgii_auth(
     tenant_id: str,
     _: None = Depends(require_admin),
 ):
-    """Prueba autenticación completa DGII (semilla + firma .p12 → token)."""
+    """Prueba autenticación completa DGII (semilla + firma .p12 → token).
+
+    En certificacion el mTLS PSFE es opcional. En produccion es obligatorio.
+    """
     from ecf_core.platform_config import psfe_status
 
     db = _get_pool()
     psfe = await psfe_status(db)
-    if not psfe["configured"]:
-        raise HTTPException(status_code=422, detail="PSFE no configurado en Plataforma")
 
     async with db.acquire() as conn:
         row = await conn.fetchrow(
@@ -1815,6 +1828,12 @@ async def test_tenant_dgii_auth(
             detail="Prueba DGII solo aplica en ambiente certificacion o produccion",
         )
 
+    if row["ambiente"] == "produccion" and not psfe["configured"]:
+        raise HTTPException(
+            status_code=422,
+            detail="PSFE obligatorio en producción. Sube certificado/llave/CA en Plataforma.",
+        )
+
     try:
         vault = CertVault()
         cert_repo = CertVaultRepository(db, vault)
@@ -1829,14 +1848,26 @@ async def test_tenant_dgii_auth(
         async with DGIIClient(ambiente=row["ambiente"]) as client:
             client.set_certificate(cert_info["cert_data"], cert_info["cert_password"].encode("utf-8"))
             mtls = await client.probar_conexion_mtls()
-            if not mtls["ok"]:
+            if not mtls["ok"] and psfe["configured"]:
                 raise HTTPException(
                     status_code=502,
                     detail=f"mTLS falló: HTTP {mtls['status_code']}",
                 )
+            if not mtls["ok"]:
+                logger.warning(
+                    "Semilla mTLS no OK sin PSFE (HTTP %s) — se prueba auth .p12 en %s",
+                    mtls.get("status_code"),
+                    row["ambiente"],
+                )
             auth = await client.probar_autenticacion_contribuyente()
     except DGIIClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if not auth.get("ok"):
+        raise HTTPException(
+            status_code=502,
+            detail=auth.get("detalle") or "Autenticación DGII fallida",
+        )
 
     try:
         async with db.acquire() as conn:
@@ -1852,6 +1883,14 @@ async def test_tenant_dgii_auth(
         "rnc": row["rnc"],
         "ambiente": row["ambiente"],
         "mtls": mtls,
-        "mensaje": "Autenticación DGII OK. Paso «Probar CerteCF» marcado como completado.",
+        "psfe_configured": psfe["configured"],
+        "mensaje": (
+            "Autenticación DGII OK (.p12). Paso «Probar CerteCF» marcado."
+            + (
+                ""
+                if psfe["configured"]
+                else " PSFE pendiente (no bloquea certificación; sí producción)."
+            )
+        ),
     }
 

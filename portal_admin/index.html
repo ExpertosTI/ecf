@@ -819,8 +819,8 @@
                 <button class="btn btn-secondary btn-sm" onclick="loadDashboard()">↻ Actualizar</button>
             </div>
             <div id="psfeBanner" class="alert-banner" style="display:none;">
-                <span id="psfeBannerText">PSFE no configurado — la plataforma no puede comunicarse con DGII.</span>
-                <button class="btn btn-primary btn-sm" onclick="showPage('plataforma')">Configurar PSFE →</button>
+                <span id="psfeBannerText">PSFE no configurado — opcional en certificación CerteCF; obligatorio en producción.</span>
+                <button class="btn btn-primary btn-sm" onclick="showPage('plataforma')">Ver PSFE →</button>
             </div>
             <div class="stats-grid" id="statsGrid">
                 <div class="stat-card"><div class="stat-label">Empresas Activas</div><div class="stat-value" id="statActivos">—</div></div>
@@ -873,7 +873,8 @@
                     <div>
                         <h2 style="font-size:1.05rem; font-weight:700;">Certificado PSFE (mTLS DGII)</h2>
                         <p style="font-size:0.85rem; color:var(--text-muted); margin-top:6px;">
-                            Un solo PSFE para Renace como proveedor autorizado. Cada cliente usa su propio .p12 de contribuyente.
+                            PSFE = mTLS de plataforma (producción / proveedor). En certificación CerteCF
+                            el siguiente paso DGII usa el <strong>.p12</strong> del contribuyente, no estos .pem.
                         </p>
                     </div>
                     <span id="platformPsfeBadge" class="badge badge-suspendido">No configurado</span>
@@ -1418,7 +1419,7 @@ async function loadDashboard() {
         } else {
             banner.style.display = 'flex';
             document.getElementById('psfeBannerText').textContent =
-                'PSFE no configurado — sube certificado, llave y CA DGII antes de emitir a CerteCF.';
+                'PSFE no configurado — opcional en certificación CerteCF; obligatorio al pasar a producción.';
         }
 
         const readyTenants = readiness.tenants.filter(t => t.ready);

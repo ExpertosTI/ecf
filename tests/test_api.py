@@ -393,6 +393,25 @@ class TestAdminAPI:
 class TestPlatformAdmin:
     ADMIN_HEADERS = {"Authorization": "Bearer test-admin-key-12345"}
 
+    async def test_onboarding_requires_psfe_for_clients(self, fake_pool):
+        from api_gateway.admin import _evaluate_onboarding_gate
+
+        fake_pool.conn.fetchrow.return_value = make_record(
+            id=TENANT_ID,
+            rnc="132842316",
+            razon_social="RENACE SRL",
+            dgii_test_ok_at=datetime.now(timezone.utc),
+            postulacion_firmada_at=None,
+            estado="activo",
+        )
+        fake_pool.conn.fetchval.return_value = True
+
+        with patch("api_gateway.admin.ALLOW_CLIENT_ONBOARDING", False):
+            gate = await _evaluate_onboarding_gate(fake_pool.conn, psfe_ok=False)
+
+        assert not gate["can_onboard_clients"]
+        assert any("PSFE pendiente" in blocker for blocker in gate["blockers"])
+
     def test_platform_psfe_status(self, client, fake_pool):
         fake_pool.conn.fetchval.return_value = None
         fake_pool.conn.fetchrow.return_value = None
