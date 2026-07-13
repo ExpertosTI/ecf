@@ -1005,6 +1005,25 @@ class AccountMove(models.Model):
         qr = data.get('qr_url') or data.get('qr_code')
         if qr:
             vals['ecf_qr'] = qr
+        err = data.get('error_msg') or data.get('ultimo_error')
+        detalles = data.get('detalles') or []
+        if isinstance(detalles, list) and detalles and not err:
+            parts = []
+            for d in detalles:
+                if isinstance(d, dict):
+                    parts.append(f"{d.get('codigo', '')}: {d.get('mensaje', d)}".strip(': '))
+                else:
+                    parts.append(str(d))
+            err = '\n'.join(p for p in parts if p)
+        if not err and data.get('estado') == 'rechazado':
+            err = _(
+                'Rechazado por DGII/SaaS sin detalle. '
+                'Verifique Probar CerteCF en el portal y la cola de errores.'
+            )
+        if err:
+            vals['ecf_ultimo_error'] = err
+        elif data.get('estado') == 'aprobado':
+            vals['ecf_ultimo_error'] = False
         self.sudo().write(vals)
 
         log = self.env['ecf.log'].sudo().search(
@@ -1017,18 +1036,42 @@ class AccountMove(models.Model):
                 log_vals['codigo_seguridad'] = codigo
             if qr:
                 log_vals['qr_code'] = qr
+            if err:
+                log_vals['error_msg'] = err
             if data.get('estado') == 'aprobado' and not log.approved_at:
                 log_vals['approved_at'] = fields.Datetime.now()
             log.write(log_vals)
+
+        if err or data.get('estado') == 'rechazado':
+            self.message_post(
+                body=_('❌ e-CF %s — %s', (data.get('estado') or '').upper(), err or 'Sin detalle'),
+                message_type='comment',
+            )
+
+        notif_type = 'success' if data.get('estado') == 'aprobado' else (
+            'danger' if data.get('estado') == 'rechazado' else 'info'
+        )
+        msg = _('NCF %s: %s%s', self.ecf_ncf, (data.get('estado') or '').upper(),
+                f' — Cód. {codigo}' if codigo else '')
+        if err:
+            msg = f'{msg}\n{err}'
 
         return {
             'type': 'ir.actions.client',
             'tag':  'display_notification',
             'params': {
                 'title':   _('Estado e-CF'),
-                'message': _('NCF %s: %s%s', self.ecf_ncf, (data.get('estado') or '').upper(),
-                             f' — Cód. {codigo}' if codigo else ''),
-                'type':    'success' if data.get('estado') == 'aprobado' else 'info',
+                'message': msg,
+                'type':    notif_type,
+                'sticky':  bool(err) or data.get('estado') == 'rechazado',
+                'next': {
+                    'type': 'ir.actions.act_window',
+                    'res_model': 'account.move',
+                    'res_id': self.id,
+                    'view_mode': 'form',
+                    'views': [(False, 'form')],
+                    'target': 'current',
+                },
             },
         }
 

@@ -39,6 +39,17 @@ TIPOS_ECF = {
 
 PREFIJOS_ECF = {t: f"E{t}" for t in TIPOS_ECF}
 
+# Campos IdDoc / Totales / Items varían por XSD oficial (ECF-NN.xsd).
+TIPOS_CON_INDICADOR_MONTO_GRAVADO = frozenset({31, 32, 33, 34, 41, 45})
+TIPOS_CON_TIPO_INGRESOS = frozenset({31, 32, 33, 34, 44, 45, 46})
+TIPOS_SIN_COMPRADOR = frozenset({43})  # Emisor → Totales
+TIPOS_COMPRADOR_EXTRANJERO = frozenset({47})  # IdentificadorExtranjero, no RNCComprador
+TIPOS_ITEM_CON_RETENCION = frozenset({41, 47})
+# E46 exportaciones: tasa 0% = ITBIS3 (IndicadorFacturacion=3), no MontoExento.
+TIPOS_CERO_COMO_ITBIS3 = frozenset({46})
+# Totales solo MontoExento + MontoTotal (sin bloques gravados ITBIS1/2).
+TIPOS_TOTALES_SOLO_EXENTO = frozenset({43, 44, 47})
+
 # Los XSD oficiales de la DGII no declaran targetNamespace; los elementos del
 # e-CF se emiten sin namespace y `ds:Signature` se inserta en el slot xs:any.
 NAMESPACE_DS    = "http://www.w3.org/2000/09/xmldsig#"
@@ -62,17 +73,18 @@ class ItemECF:
     unidad: str = "43"
     indicador_bien_servicio: int = 2    # 1=Bien, 2=Servicio
 
-    @property
-    def indicador_facturacion(self) -> int:
-        """1=ITBIS 18%, 2=ITBIS 16%, 3=ITBIS otro, 4=Exento"""
+    def indicador_facturacion(self, tipo_ecf: int | None = None) -> int:
+        """1=ITBIS 18%, 2=ITBIS 16%, 3=ITBIS 0%/otro, 4=Exento."""
         if self.itbis_tasa == Decimal("18"):
             return 1
-        elif self.itbis_tasa == Decimal("16"):
+        if self.itbis_tasa == Decimal("16"):
             return 2
-        elif self.itbis_tasa == Decimal("0"):
+        if self.itbis_tasa == Decimal("0"):
+            # ECF-46: 0% va como ITBIS3, no como Exento (no existe MontoExento).
+            if tipo_ecf in TIPOS_CERO_COMO_ITBIS3:
+                return 3
             return 4
-        else:
-            return 3
+        return 3
 
     @property
     def subtotal_bruto(self) -> Decimal:
@@ -160,8 +172,20 @@ class FacturaECF:
 
     @property
     def monto_exento(self) -> Decimal:
-        """Monto exento (tasa 0%)"""
+        """Monto exento (tasa 0%) — no aplica a tipos que usan ITBIS3 (p.ej. E46)."""
+        if self.tipo_ecf in TIPOS_CERO_COMO_ITBIS3:
+            return Decimal("0")
         return sum(i.subtotal_bruto for i in self.items if i.itbis_tasa == Decimal("0"))
+
+    @property
+    def monto_gravado_i3(self) -> Decimal:
+        """Monto a tasa ITBIS3 / 0% (exportaciones E46)."""
+        if self.tipo_ecf in TIPOS_CERO_COMO_ITBIS3:
+            return sum(i.subtotal_bruto for i in self.items if i.itbis_tasa == Decimal("0"))
+        return sum(
+            i.subtotal_bruto for i in self.items
+            if i.itbis_tasa not in (Decimal("0"), Decimal("16"), Decimal("18"))
+        )
 
     @property
     def total_itbis1(self) -> Decimal:
@@ -172,6 +196,16 @@ class FacturaECF:
     def total_itbis2(self) -> Decimal:
         """Total ITBIS a 16%"""
         return sum(i.itbis_monto for i in self.items if i.itbis_tasa == Decimal("16"))
+
+    @property
+    def total_itbis3(self) -> Decimal:
+        """Total ITBIS a tasa 3 (0% en exportaciones)."""
+        if self.tipo_ecf in TIPOS_CERO_COMO_ITBIS3:
+            return Decimal("0")
+        return sum(
+            i.itbis_monto for i in self.items
+            if i.itbis_tasa not in (Decimal("0"), Decimal("16"), Decimal("18"))
+        )
 
     @property
     def total_paginas(self) -> int:
@@ -229,7 +263,7 @@ class ECFXMLGenerator:
         # Version (REQUIRED) — primer elemento de Encabezado por XSD.
         self._e(enc, "Version", "1.0")
 
-        # IdDoc
+        # IdDoc — secuencia distinta por tipo (ver ECF-NN.xsd).
         id_doc = self._e(enc, "IdDoc")
         self._e(id_doc, "TipoeCF", str(f.tipo_ecf))
         self._e(id_doc, "eNCF", f.ncf)
@@ -245,17 +279,23 @@ class ECFXMLGenerator:
                 date(f.fecha_emision.year, 12, 31).strftime("%d-%m-%Y"),
             )
         # IndicadorEnvioDiferido sólo admite valor 1 — omitir cuando no aplica.
-        if f.indicador_envio_diferido == 1:
+        if f.indicador_envio_diferido == 1 and f.tipo_ecf not in (41, 43, 47):
             self._e(id_doc, "IndicadorEnvioDiferido", "1")
-        self._e(
-            id_doc, "IndicadorMontoGravado",
-            "1" if f.indicador_itbis_incluido else "0",
-        )
-        self._e(id_doc, "TipoIngresos", f.tipo_ingresos)
-        self._e(id_doc, "TipoPago", f.tipo_pago)
+        # IndicadorMontoGravado: NO existe en E43/E44/E46/E47.
+        if f.tipo_ecf in TIPOS_CON_INDICADOR_MONTO_GRAVADO:
+            self._e(
+                id_doc, "IndicadorMontoGravado",
+                "1" if f.indicador_itbis_incluido else "0",
+            )
+        # TipoIngresos: NO existe en E41/E43/E47.
+        if f.tipo_ecf in TIPOS_CON_TIPO_INGRESOS:
+            self._e(id_doc, "TipoIngresos", f.tipo_ingresos)
+        # TipoPago: obligatorio en la mayoría; opcional en 41/43/47 — siempre emitir.
+        if f.tipo_ecf != 43 or f.tipo_pago:
+            self._e(id_doc, "TipoPago", f.tipo_pago)
         # FechaLimitePago es opcional (XSD minOccurs=0). Solo emitir si hay
         # vencimiento real — nunca sustituir con fecha_emision.
-        if f.tipo_pago == "2" and f.fecha_limite_pago:
+        if f.tipo_pago == "2" and f.fecha_limite_pago and f.tipo_ecf not in (43,):
             self._e(
                 id_doc, "FechaLimitePago",
                 f.fecha_limite_pago.strftime("%d-%m-%Y"),
@@ -277,25 +317,73 @@ class ECFXMLGenerator:
             self._e(emisor, "Provincia", f.provincia)
         self._e(emisor, "FechaEmision", f.fecha_emision.strftime("%d-%m-%Y"))
 
-        # Comprador — los XSD ECF-31, 32, 41, 44, 45, 46 lo exigen presente
-        # (sus children son opcionales: el RNC puede faltar para consumidor
-        # final). En 33, 34, 43 y 47 es opcional. El XSD no define
-        # TipoIdentificacion (el RNC distingue: 9=RNC, 11=Cédula).
-        comprador_obligatorio = f.tipo_ecf in (31, 32, 41, 44, 45, 46)
-        if f.rnc_comprador or comprador_obligatorio:
-            comprador = self._e(enc, "Comprador")
-            if f.rnc_comprador:
-                self._e(comprador, "RNCComprador", f.rnc_comprador)
-            if f.nombre_comprador:
-                self._e(comprador, "RazonSocialComprador", f.nombre_comprador)
-            if f.direccion_comprador:
-                self._e(comprador, "DireccionComprador", f.direccion_comprador)
+        # Comprador — E43 no lo incluye; E47 usa IdentificadorExtranjero.
+        if f.tipo_ecf not in TIPOS_SIN_COMPRADOR:
+            if f.tipo_ecf in TIPOS_COMPRADOR_EXTRANJERO:
+                if f.rnc_comprador or f.nombre_comprador:
+                    comprador = self._e(enc, "Comprador")
+                    if f.rnc_comprador:
+                        self._e(comprador, "IdentificadorExtranjero", f.rnc_comprador[:20])
+                    if f.nombre_comprador:
+                        self._e(comprador, "RazonSocialComprador", f.nombre_comprador)
+            else:
+                comprador_obligatorio = f.tipo_ecf in (31, 32, 41, 44, 45, 46)
+                if f.rnc_comprador or comprador_obligatorio:
+                    comprador = self._e(enc, "Comprador")
+                    if f.rnc_comprador:
+                        self._e(comprador, "RNCComprador", f.rnc_comprador)
+                    if f.nombre_comprador:
+                        self._e(comprador, "RazonSocialComprador", f.nombre_comprador)
+                    if f.direccion_comprador:
+                        self._e(comprador, "DireccionComprador", f.direccion_comprador)
 
-        # Totales — los campos ITBIS1/ITBIS2/ITBIS3 son TASAS (Integer2),
-        # no montos. Los montos van en TotalITBIS / TotalITBIS1 / TotalITBIS2.
-        # MontoGravadoTotal = SOLO montos gravados (18% + 16% + otras tasas);
-        # los montos exentos van únicamente en MontoExento (Manual Técnico DGII).
-        totales = self._e(enc, "Totales")
+        enc.append(self._build_totales(f))
+
+        # OtraMoneda — bloque con todos los datos en moneda extranjera.
+        if f.moneda != "DOP":
+            otra = self._e(enc, "OtraMoneda")
+            self._e(otra, "TipoMoneda", f.moneda)
+            self._e(otra, "TipoCambio", str(f.tipo_cambio))
+            self._e(
+                otra, "MontoTotalOtraMoneda",
+                str((f.total * f.tipo_cambio).quantize(Decimal("0.01"), ROUND_HALF_UP)),
+            )
+
+        return enc
+
+    def _build_totales(self, f: FacturaECF) -> _Element:
+        """Totales según XSD del tipo (E43/E44/E47 ≠ E31/E32 ≠ E46)."""
+        totales = etree.Element("Totales")
+
+        if f.tipo_ecf in TIPOS_TOTALES_SOLO_EXENTO:
+            # Solo MontoExento (+ opcionales) y MontoTotal.
+            montox = f.subtotal if f.total_itbis == 0 else f.monto_exento
+            if montox > 0 or f.tipo_ecf in (43, 44, 47):
+                # Régimen especial / gastos menores / exterior: monto base como exento.
+                if f.tipo_ecf in (43, 44, 47) and f.total_itbis == 0:
+                    montox = f.subtotal
+                if montox > 0:
+                    self._e(totales, "MontoExento", str(montox))
+            self._e(totales, "MontoTotal", str(f.total))
+            return totales
+
+        if f.tipo_ecf == 46:
+            # Exportación: MontoGravadoTotal / I3 / ITBIS3 — sin MontoExento.
+            monto_i3 = f.monto_gravado_i3
+            monto_gravado_total = f.monto_gravado_i1 + f.monto_gravado_i2 + monto_i3
+            if monto_gravado_total > 0:
+                self._e(totales, "MontoGravadoTotal", str(monto_gravado_total))
+            if monto_i3 > 0:
+                self._e(totales, "MontoGravadoI3", str(monto_i3))
+                self._e(totales, "ITBIS3", "0")
+            if f.total_itbis > 0:
+                self._e(totales, "TotalITBIS", str(f.total_itbis))
+            if f.total_itbis3 > 0:
+                self._e(totales, "TotalITBIS3", str(f.total_itbis3))
+            self._e(totales, "MontoTotal", str(f.total))
+            return totales
+
+        # Estándar E31/E32/E33/E34/E41/E45
         monto_gravado_total = f.subtotal - f.monto_exento
         if monto_gravado_total > 0:
             self._e(totales, "MontoGravadoTotal", str(monto_gravado_total))
@@ -316,30 +404,25 @@ class ECFXMLGenerator:
         if f.total_itbis2 > 0:
             self._e(totales, "TotalITBIS2", str(f.total_itbis2))
         self._e(totales, "MontoTotal", str(f.total))
-
-        # OtraMoneda — bloque con todos los datos en moneda extranjera.
-        if f.moneda != "DOP":
-            otra = self._e(enc, "OtraMoneda")
-            self._e(otra, "TipoMoneda", f.moneda)
-            self._e(otra, "TipoCambio", str(f.tipo_cambio))
-            self._e(
-                otra, "MontoTotalOtraMoneda",
-                str((f.total * f.tipo_cambio).quantize(Decimal("0.01"), ROUND_HALF_UP)),
-            )
-
-        return enc
+        return totales
 
     def _build_detalles(self, f: FacturaECF) -> _Element:
-        # Orden de campos por XSD: NumeroLinea, IndicadorFacturacion, NombreItem,
-        # IndicadorBienoServicio, [DescripcionItem], CantidadItem, [UnidadMedida],
-        # ..., PrecioUnitarioItem, [DescuentoMonto], MontoItem.
+        # Orden de campos por XSD: NumeroLinea, IndicadorFacturacion,
+        # [Retencion E41/E47], NombreItem, IndicadorBienoServicio, ...
         detalles = etree.Element("DetallesItems")
 
         for item in f.items:
             linea = self._e(detalles, "Item")
             self._e(linea, "NumeroLinea", str(item.linea))
-            self._e(linea, "IndicadorFacturacion", str(item.indicador_facturacion))
-            self._e(linea, "NombreItem", item.descripcion)
+            self._e(linea, "IndicadorFacturacion", str(item.indicador_facturacion(f.tipo_ecf)))
+            if f.tipo_ecf in TIPOS_ITEM_CON_RETENCION:
+                ret = self._e(linea, "Retencion")
+                # 1=Retención, 2=Percepción — requerido aunque montos sean 0.
+                self._e(ret, "IndicadorAgenteRetencionoPercepcion", "1")
+                if f.tipo_ecf == 47:
+                    # ECF-47 exige MontoISRRetenido (minOccurs=1).
+                    self._e(ret, "MontoISRRetenido", "0.00")
+            self._e(linea, "NombreItem", (item.descripcion or "")[:80])
             self._e(linea, "IndicadorBienoServicio", str(item.indicador_bien_servicio))
             self._e(linea, "CantidadItem", str(item.cantidad))
             if item.unidad:

@@ -556,7 +556,7 @@ async def consultar_estado(
     async with db.acquire() as conn:
         row = await conn.fetchrow(
             f"SELECT ncf, estado, codigo_seguridad, track_id, security_code, qr_url, "
-            f"intentos_envio, ultimo_error, created_at, approved_at "
+            f"intentos_envio, ultimo_error, respuesta_dgii, created_at, approved_at "
             f"FROM {schema}.ecf WHERE ncf = $1",
             ncf
         )
@@ -564,8 +564,35 @@ async def consultar_estado(
         raise HTTPException(status_code=404, detail="NCF no encontrado")
 
     data = dict(row)
-    # Alias para Odoo / clientes
-    data["error_msg"] = data.get("ultimo_error")
+    # Serializar timestamps
+    for k in ("created_at", "approved_at"):
+        if data.get(k) is not None and hasattr(data[k], "isoformat"):
+            data[k] = data[k].isoformat()
+
+    # Extraer mensaje legible de respuesta_dgii (JSON DGII / error worker)
+    resp = data.pop("respuesta_dgii", None)
+    mensaje_dgii = None
+    detalles = []
+    if isinstance(resp, str):
+        try:
+            resp = json.loads(resp)
+        except Exception:
+            resp = {"raw": resp}
+    if isinstance(resp, dict):
+        mensaje_dgii = (
+            resp.get("mensaje")
+            or resp.get("message")
+            or resp.get("error")
+            or (resp.get("raw") if isinstance(resp.get("raw"), str) else None)
+        )
+        detalles = resp.get("errores") or resp.get("mensajes") or resp.get("detalles") or []
+        if not mensaje_dgii and resp.get("fuente"):
+            mensaje_dgii = str(resp.get("error") or resp)
+
+    err = data.get("ultimo_error") or mensaje_dgii
+    data["error_msg"] = err
+    data["ultimo_error"] = data.get("ultimo_error") or err
+    data["detalles"] = detalles if isinstance(detalles, list) else []
     data["codigo_seguridad"] = data.get("codigo_seguridad") or data.get("security_code")
     return data
 

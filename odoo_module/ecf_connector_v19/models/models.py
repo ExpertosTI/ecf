@@ -1182,6 +1182,20 @@ class AccountMove(models.Model):
         if qr:
             vals['ecf_qr'] = qr
         err = data.get('error_msg') or data.get('ultimo_error')
+        detalles = data.get('detalles') or []
+        if isinstance(detalles, list) and detalles and not err:
+            parts = []
+            for d in detalles:
+                if isinstance(d, dict):
+                    parts.append(f"{d.get('codigo', '')}: {d.get('mensaje', d)}".strip(': '))
+                else:
+                    parts.append(str(d))
+            err = '\n'.join(p for p in parts if p)
+        if not err and data.get('estado') == 'rechazado':
+            err = _(
+                'Rechazado por DGII/SaaS sin detalle. '
+                'Verifique Probar CerteCF en el portal y la cola de errores.'
+            )
         if err:
             vals['ecf_ultimo_error'] = err
         elif data.get('estado') == 'aprobado':
@@ -1204,9 +1218,9 @@ class AccountMove(models.Model):
                 log_vals['approved_at'] = fields.Datetime.now()
             log.write(log_vals)
 
-        if err:
+        if err or data.get('estado') == 'rechazado':
             self.message_post(
-                body=_('❌ Error SaaS/DGII: %s', err),
+                body=_('❌ e-CF %s — %s', (data.get('estado') or '').upper(), err or 'Sin detalle'),
                 message_type='comment',
             )
 
@@ -1225,7 +1239,15 @@ class AccountMove(models.Model):
                 'title':   _('Estado e-CF'),
                 'message': msg,
                 'type':    notif_type,
-                'sticky':  bool(err),
+                'sticky':  bool(err) or data.get('estado') == 'rechazado',
+                'next': {
+                    'type': 'ir.actions.act_window',
+                    'res_model': 'account.move',
+                    'res_id': self.id,
+                    'view_mode': 'form',
+                    'views': [(False, 'form')],
+                    'target': 'current',
+                },
             },
         }
 
