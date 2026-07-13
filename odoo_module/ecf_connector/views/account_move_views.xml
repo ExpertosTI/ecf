@@ -58,6 +58,22 @@
                        invisible="not ecf_estado"/>
             </xpath>
 
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="ecf_tipo_id"
+                         string="Tipo e-CF DGII"
+                         options="{'no_create': True, 'no_open': True}"
+                         domain="[('activo', '=', True)]"
+                         readonly="ecf_ncf or ecf_estado in ('enviado','aprobado','condicionado','anulacion_pendiente','anulado')"
+                         groups="ecf_connector.group_ecf_user"/>
+                <field name="reversed_entry_id"
+                         string="Factura original (E33/E34)"
+                         options="{'no_create': True}"
+                         domain="[('move_type', 'in', ('out_invoice', 'out_refund')), ('ecf_ncf', '!=', False), ('company_id', '=', company_id)]"
+                         readonly="ecf_ncf or ecf_estado in ('enviado','aprobado','condicionado','anulacion_pendiente','anulado')"
+                         invisible="not ecf_tipo_id or ecf_tipo_id.codigo not in (33, 34)"
+                         groups="ecf_connector.group_ecf_user"/>
+            </xpath>
+
             <!-- Banner informativo de e-CF bajo la barra de botones -->
             <xpath expr="//sheet" position="before">
                 <!-- NCF aprobado: mostrar badge verde con NCF -->
@@ -100,10 +116,18 @@
                     <group>
                         <group string="Comprobante Fiscal">
                             <field name="ecf_tipo_id"
+                                   string="Tipo e-CF DGII"
+                                   options="{'no_create': True, 'no_open': True}"
+                                   domain="[('activo', '=', True)]"
+                                   readonly="ecf_ncf or ecf_estado in ('enviado','aprobado','condicionado','anulacion_pendiente','anulado')"/>
+                            <field name="reversed_entry_id"
+                                   string="Factura original (NCF referencia)"
                                    options="{'no_create': True}"
-                                   readonly="state != 'draft'"/>
+                                   domain="[('move_type', 'in', ('out_invoice', 'out_refund')), ('ecf_ncf', '!=', False), ('company_id', '=', company_id)]"
+                                   readonly="ecf_ncf or ecf_estado in ('enviado','aprobado','condicionado','anulacion_pendiente','anulado')"
+                                   invisible="not ecf_tipo_id or ecf_tipo_id.codigo not in (33, 34)"/>
                             <field name="ecf_modo"
-                                   readonly="state != 'draft'"/>
+                                   readonly="ecf_ncf or ecf_estado in ('enviado','aprobado','condicionado','anulacion_pendiente','anulado')"/>
                             <field name="ecf_ncf" readonly="1"/>
                             <field name="ecf_estado" readonly="1" widget="ecf_status"/>
                             <field name="partner_rnc" readonly="1" string="RNC/Cédula cliente"/>

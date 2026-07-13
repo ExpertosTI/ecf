@@ -61,6 +61,24 @@
                        decoration-warning="ecf_estado in ('condicionado', 'pendiente')"/>
             </xpath>
 
+            <!-- Tipo e-CF visible en cabecera (no confundir con Factura/Recibo de Odoo) -->
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="ecf_tipo_id"
+                         string="Tipo e-CF DGII"
+                         options="{'no_create': True, 'no_open': True}"
+                         domain="[('activo', '=', True)]"
+                         readonly="ecf_ncf or ecf_estado in ('enviado','aprobado','condicionado','anulacion_pendiente','anulado')"
+                         placeholder="E31, E32, E33…"
+                         groups="ecf_connector_v19.group_ecf_user"/>
+                <field name="reversed_entry_id"
+                         string="Factura original (E33/E34)"
+                         options="{'no_create': True}"
+                         domain="[('move_type', 'in', ('out_invoice', 'out_refund')), ('ecf_ncf', '!=', False), ('company_id', '=', company_id)]"
+                         readonly="ecf_ncf or ecf_estado in ('enviado','aprobado','condicionado','anulacion_pendiente','anulado')"
+                         invisible="not ecf_tipo_id or ecf_tipo_id.codigo not in (33, 34)"
+                         groups="ecf_connector_v19.group_ecf_user"/>
+            </xpath>
+
             <!-- Ribbons Premium de Estado -->
             <xpath expr="//sheet" position="inside">
                 <widget name="web_ribbon" title="e-CF Aprobado" bg_color="bg-success" invisible="ecf_estado != 'aprobado'"/>
@@ -70,6 +88,14 @@
 
             <!-- Banner informativo de e-CF bajo la barra de botones -->
             <xpath expr="//sheet" position="before">
+                <div class="alert alert-info"
+                     role="alert"
+                     invisible="move_type not in ('out_invoice', 'out_refund') or ecf_ncf"
+                     style="margin: 0; border-radius: 0;">
+                    <strong>Tipo de comprobante DGII:</strong>
+                    use el campo <em>Tipo e-CF DGII</em> (E31–E47).
+                    Los botones Factura/Recibo son el documento Odoo, no el tipo e-CF.
+                </div>
                 <div class="alert alert-success d-flex align-items-center gap-2" role="alert" invisible="ecf_estado != 'aprobado'" style="margin: 0; border-radius: 0;">
                     <strong>✅ e-CF Aprobado DGII</strong>
                     <span>· NCF: <field name="ecf_ncf" readonly="1" nolabel="1" class="fw-bold"/></span>
@@ -87,10 +113,18 @@
                     <group>
                         <group string="Comprobante Fiscal">
                             <field name="ecf_tipo_id"
+                                   string="Tipo e-CF DGII"
+                                   options="{'no_create': True, 'no_open': True}"
+                                   domain="[('activo', '=', True)]"
+                                   readonly="ecf_ncf or ecf_estado in ('enviado','aprobado','condicionado','anulacion_pendiente','anulado')"/>
+                            <field name="reversed_entry_id"
+                                   string="Factura original (NCF referencia)"
                                    options="{'no_create': True}"
-                                   readonly="state != 'draft'"/>
+                                   domain="[('move_type', 'in', ('out_invoice', 'out_refund')), ('ecf_ncf', '!=', False), ('company_id', '=', company_id)]"
+                                   readonly="ecf_ncf or ecf_estado in ('enviado','aprobado','condicionado','anulacion_pendiente','anulado')"
+                                   invisible="not ecf_tipo_id or ecf_tipo_id.codigo not in (33, 34)"/>
                             <field name="ecf_modo"
-                                   readonly="state != 'draft'"/>
+                                   readonly="ecf_ncf or ecf_estado in ('enviado','aprobado','condicionado','anulacion_pendiente','anulado')"/>
                             <field name="ecf_ncf" readonly="1"/>
                             <field name="ecf_estado" readonly="1" widget="ecf_status"/>
                             <field name="partner_rnc" readonly="1" string="RNC/Cédula cliente"/>

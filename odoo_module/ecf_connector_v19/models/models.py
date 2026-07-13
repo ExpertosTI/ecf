@@ -396,6 +396,12 @@ class ECFTipo(models.Model):
         help='Si es True, no se requiere RNC del comprador (ej: E32)',
     )
 
+    @api.depends('prefijo', 'nombre', 'codigo')
+    def _compute_display_name(self):
+        for rec in self:
+            pref = rec.prefijo or (f'E{rec.codigo}' if rec.codigo else '')
+            rec.display_name = f"{pref} — {rec.nombre}" if pref else (rec.nombre or '')
+
     # ── Loader POS (Odoo 18/19 via pos.load.mixin) ──
     @api.model
     def _load_pos_data_domain(self, data, config):
