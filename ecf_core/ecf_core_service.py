@@ -58,6 +58,22 @@ NAMESPACE_DS    = "http://www.w3.org/2000/09/xmldsig#"
 XSD_DIR = Path(__file__).parent.parent / "xsd"
 
 
+def _fmt_dgii_decimal(value, max_frac: int = 2) -> str:
+    """Formatea montos/cantidades al patrón XSD DGII ``[0-9]+(\\.[0-9]{1,N})?``.
+
+    ``str(Decimal('15.0000'))`` produce 4 decimales y DGII rechaza CantidadItem
+    (máx. 2). PrecioUnitario admite hasta 4.
+    """
+    d = value if isinstance(value, Decimal) else Decimal(str(value))
+    quant = Decimal(1).scaleb(-max_frac)
+    d = d.quantize(quant, rounding=ROUND_HALF_UP)
+    text = f"{d:.{max_frac}f}"
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text or "0"
+
+
+
 # Modelos de datos
 
 @dataclass
@@ -363,8 +379,8 @@ class ECFXMLGenerator:
                 if f.tipo_ecf in (43, 44, 47) and f.total_itbis == 0:
                     montox = f.subtotal
                 if montox > 0:
-                    self._e(totales, "MontoExento", str(montox))
-            self._e(totales, "MontoTotal", str(f.total))
+                    self._e(totales, "MontoExento", _fmt_dgii_decimal(montox))
+            self._e(totales, "MontoTotal", _fmt_dgii_decimal(f.total))
             return totales
 
         if f.tipo_ecf == 46:
@@ -372,38 +388,38 @@ class ECFXMLGenerator:
             monto_i3 = f.monto_gravado_i3
             monto_gravado_total = f.monto_gravado_i1 + f.monto_gravado_i2 + monto_i3
             if monto_gravado_total > 0:
-                self._e(totales, "MontoGravadoTotal", str(monto_gravado_total))
+                self._e(totales, "MontoGravadoTotal", _fmt_dgii_decimal(monto_gravado_total))
             if monto_i3 > 0:
-                self._e(totales, "MontoGravadoI3", str(monto_i3))
+                self._e(totales, "MontoGravadoI3", _fmt_dgii_decimal(monto_i3))
                 self._e(totales, "ITBIS3", "0")
             if f.total_itbis > 0:
-                self._e(totales, "TotalITBIS", str(f.total_itbis))
+                self._e(totales, "TotalITBIS", _fmt_dgii_decimal(f.total_itbis))
             if f.total_itbis3 > 0:
-                self._e(totales, "TotalITBIS3", str(f.total_itbis3))
-            self._e(totales, "MontoTotal", str(f.total))
+                self._e(totales, "TotalITBIS3", _fmt_dgii_decimal(f.total_itbis3))
+            self._e(totales, "MontoTotal", _fmt_dgii_decimal(f.total))
             return totales
 
         # Estándar E31/E32/E33/E34/E41/E45
         monto_gravado_total = f.subtotal - f.monto_exento
         if monto_gravado_total > 0:
-            self._e(totales, "MontoGravadoTotal", str(monto_gravado_total))
+            self._e(totales, "MontoGravadoTotal", _fmt_dgii_decimal(monto_gravado_total))
         if f.monto_gravado_i1 > 0:
-            self._e(totales, "MontoGravadoI1", str(f.monto_gravado_i1))
+            self._e(totales, "MontoGravadoI1", _fmt_dgii_decimal(f.monto_gravado_i1))
         if f.monto_gravado_i2 > 0:
-            self._e(totales, "MontoGravadoI2", str(f.monto_gravado_i2))
+            self._e(totales, "MontoGravadoI2", _fmt_dgii_decimal(f.monto_gravado_i2))
         if f.monto_exento > 0:
-            self._e(totales, "MontoExento", str(f.monto_exento))
+            self._e(totales, "MontoExento", _fmt_dgii_decimal(f.monto_exento))
         if f.total_itbis1 > 0:
             self._e(totales, "ITBIS1", "18")
         if f.total_itbis2 > 0:
             self._e(totales, "ITBIS2", "16")
         if f.total_itbis > 0:
-            self._e(totales, "TotalITBIS", str(f.total_itbis))
+            self._e(totales, "TotalITBIS", _fmt_dgii_decimal(f.total_itbis))
         if f.total_itbis1 > 0:
-            self._e(totales, "TotalITBIS1", str(f.total_itbis1))
+            self._e(totales, "TotalITBIS1", _fmt_dgii_decimal(f.total_itbis1))
         if f.total_itbis2 > 0:
-            self._e(totales, "TotalITBIS2", str(f.total_itbis2))
-        self._e(totales, "MontoTotal", str(f.total))
+            self._e(totales, "TotalITBIS2", _fmt_dgii_decimal(f.total_itbis2))
+        self._e(totales, "MontoTotal", _fmt_dgii_decimal(f.total))
         return totales
 
     def _build_detalles(self, f: FacturaECF) -> _Element:
@@ -424,13 +440,13 @@ class ECFXMLGenerator:
                     self._e(ret, "MontoISRRetenido", "0.00")
             self._e(linea, "NombreItem", (item.descripcion or "")[:80])
             self._e(linea, "IndicadorBienoServicio", str(item.indicador_bien_servicio))
-            self._e(linea, "CantidadItem", str(item.cantidad))
+            self._e(linea, "CantidadItem", _fmt_dgii_decimal(item.cantidad, 2))
             if item.unidad:
                 self._e(linea, "UnidadMedida", item.unidad)
-            self._e(linea, "PrecioUnitarioItem", str(item.precio_unitario))
+            self._e(linea, "PrecioUnitarioItem", _fmt_dgii_decimal(item.precio_unitario, 4))
             if item.descuento > 0:
-                self._e(linea, "DescuentoMonto", str(item.descuento))
-            self._e(linea, "MontoItem", str(item.subtotal_bruto))
+                self._e(linea, "DescuentoMonto", _fmt_dgii_decimal(item.descuento, 2))
+            self._e(linea, "MontoItem", _fmt_dgii_decimal(item.subtotal_bruto, 2))
 
         return detalles
 

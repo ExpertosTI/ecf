@@ -80,3 +80,29 @@ def test_e41_emite_retencion_antes_de_nombre():
     text = xml.decode()
     assert "TipoIngresos" not in text.split("IdDoc")[1].split("/IdDoc")[0]
     assert text.index("<Retencion>") < text.index("<NombreItem>")
+
+
+def test_cantidad_item_max_2_decimales():
+    """DGII rechaza CantidadItem con 4 decimales (p.ej. 15.0000)."""
+    from datetime import date
+
+    from ecf_core.ecf_core_service import _fmt_dgii_decimal
+
+    assert _fmt_dgii_decimal(Decimal("15.0000"), 2) == "15"
+    assert _fmt_dgii_decimal(Decimal("12.5000"), 2) == "12.5"
+    assert _fmt_dgii_decimal("10000.0000", 2) == "10000"
+
+    f = FacturaECF(
+        tipo_ecf=31,
+        ncf="E310000000099",
+        rnc_emisor="132842316",
+        razon_social_emisor="Test",
+        direccion_emisor="Calle 1",
+        fecha_emision=date(2026, 7, 13),
+        rnc_comprador="131880681",
+        nombre_comprador="Cliente",
+        items=[ItemECF(1, "ASW", Decimal("15.0000"), Decimal("400.0000"), itbis_tasa=Decimal("18"))],
+    )
+    xml = ECFXMLGenerator().generar(f).decode()
+    assert "<CantidadItem>15</CantidadItem>" in xml
+    assert "15.0000" not in xml
