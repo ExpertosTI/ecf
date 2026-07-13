@@ -87,9 +87,10 @@ export class EcfDashboard extends Component {
             this.state.compliance = compliance;
             this.state.saas = saas;
 
+            // online | warning (API Key/config) | offline (host caído)
             if (saas.status === 'online') {
                 this.state.saas_status = 'online';
-            } else if (compliance.status === 'warning') {
+            } else if (saas.status === 'warning') {
                 this.state.saas_status = 'warning';
             } else {
                 this.state.saas_status = 'offline';
@@ -104,9 +105,9 @@ export class EcfDashboard extends Component {
     }
 
     iconForIssue(type) {
-        if (type === 'error') return 'oi-x-circle text-danger';
-        if (type === 'warning') return 'oi-warning-triangle text-warning';
-        return 'oi-check-circle text-white-50';
+        if (type === 'error') return 'fa-times-circle';
+        if (type === 'warning') return 'fa-exclamation-triangle';
+        return 'fa-check-circle';
     }
 
     async openReportDetail(type) {
@@ -155,11 +156,13 @@ export class EcfDashboard extends Component {
                     datasets: [{
                         label: 'Comprobantes',
                         data: stats.daily_volume.map(d => d.count),
-                        borderColor: '#0087ff',
-                        borderWidth: 3,
-                        tension: 0.4,
+                        borderColor: '#0d9488',
+                        borderWidth: 2,
+                        tension: 0.35,
                         fill: true,
-                        backgroundColor: 'rgba(0, 135, 255, 0.05)',
+                        backgroundColor: 'rgba(13, 148, 136, 0.06)',
+                        pointRadius: 3,
+                        pointBackgroundColor: '#0d9488',
                     }]
                 },
                 options: { responsive: true, maintainAspectRatio: false }

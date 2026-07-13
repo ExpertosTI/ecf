@@ -94,8 +94,11 @@ class ECFWebhookController(http.Controller):
             if data.get('event') == 'ping':
                 return request.make_response('OK', status=200)
 
-            self._procesar_callback(data, company)
-
+            status = self._procesar_callback(data, company)
+            if status == 404:
+                return request.make_response('Not Found', status=404)
+            if status == 403:
+                return request.make_response('Forbidden', status=403)
             return request.make_response('OK', status=200)
 
         except Exception as e:
@@ -126,7 +129,7 @@ class ECFWebhookController(http.Controller):
             return False
 
     def _procesar_callback(self, data: dict, company):
-        """Actualiza la factura y el log con el resultado de la DGII."""
+        """Actualiza la factura y el log con el resultado de la DGII. Retorna HTTP status hint."""
         odoo_move_id = data.get('odoo_move_id')
         ncf          = data.get('ncf')
         estado       = data.get('estado')
@@ -137,14 +140,14 @@ class ECFWebhookController(http.Controller):
 
         if not odoo_move_id or not ncf:
             _logger.warning("Callback ECF sin odoo_move_id o ncf: %s", data)
-            return
+            return 404
 
         env  = request.env(su=True)
         move = env['account.move'].browse(int(odoo_move_id))
 
         if not move.exists():
             _logger.warning("account.move %s no encontrado en callback ECF", odoo_move_id)
-            return
+            return 404
 
         # Verificar que la factura pertenece a la compañía del RNC (anti-IDOR)
         if move.company_id and _rnc_solo_digitos(move.company_id.vat) != _rnc_solo_digitos(company.vat):
@@ -152,7 +155,7 @@ class ECFWebhookController(http.Controller):
                 "Callback IDOR rechazado: move %s (company %s) no coincide con RNC %s",
                 odoo_move_id, move.company_id.vat, company.vat,
             )
-            return
+            return 403
 
         # Actualizar factura
         vals = {'ecf_estado': estado}
@@ -187,14 +190,17 @@ class ECFWebhookController(http.Controller):
         # Mensaje en el chatter
         icono = {'aprobado': '✅', 'rechazado': '❌', 'condicionado': '⚠️'}.get(estado, 'ℹ️')
         error_text = f" — Error: {error_msg}" if error_msg else ""
+        track_text = f" — Track: <code>{track_id}</code>" if track_id else ""
         move.message_post(
             body=f"{icono} e-CF {estado.upper()}. NCF: <strong>{ncf}</strong>"
                  + (f" — Cód. Seguridad: <strong>{codigo_seguridad}</strong>" if codigo_seguridad else "")
+                 + track_text
                  + error_text,
             message_type='comment',
         )
 
-        _logger.info("Callback procesado: move=%s ncf=%s estado=%s", odoo_move_id, ncf, estado)
+        _logger.info("Callback procesado: move=%s ncf=%s estado=%s track_id=%s", odoo_move_id, ncf, estado, track_id)
+        return 200
 
     # ─────────────────────────────────────────────────────────────────────────
     # Webhook: e-CF RECIBIDAS (Compras desde DGII)

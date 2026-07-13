@@ -365,16 +365,22 @@ class ECFQueueWorker:
         except TypeError as e:
             logger.exception("TypeError procesando ECF %s: %s. Revisa la estructura de los datos.", ecf_id, e)
             error_msg = f"TypeError (Posible dato mal formado): {e}"
+            schema_release = mensaje.get("schema_name") or ""
+            if schema_release:
+                await self._release_claim(schema_release, ecf_id)
             await self._enviar_a_dlq(mensaje, error_msg)
             await self._marcar_error(
-                schema=mensaje.get("schema_name", ""), ecf_id=ecf_id, error=error_msg
+                schema=schema_release, ecf_id=ecf_id, error=error_msg, terminal=True,
             )
 
         except Exception as e:
             logger.exception("Error fatal procesando ECF %s: %s", ecf_id, e)
+            schema_release = mensaje.get("schema_name") or ""
+            if schema_release:
+                await self._release_claim(schema_release, ecf_id)
             await self._enviar_a_dlq(mensaje, str(e))
             await self._marcar_error(
-                schema=mensaje.get("schema_name", ""), ecf_id=ecf_id, error=str(e)
+                schema=schema_release, ecf_id=ecf_id, error=str(e), terminal=True,
             )
 
     def _estado_dgii_a_local(self, estado: EstadoDGII) -> str:
@@ -465,7 +471,43 @@ class ECFQueueWorker:
                 schema=mensaje.get("schema_name", ""),
                 ecf_id=mensaje["ecf_id"],
                 error=f"DLQ tras {intento} intentos: {error}",
+                terminal=True,
             )
+            # Notificar Odoo del rechazo definitivo
+            try:
+                tenant = await self._get_tenant(mensaje["tenant_id"])
+                ecf_data = {
+                    "id": mensaje["ecf_id"],
+                    "ncf": mensaje.get("ncf"),
+                    "odoo_move_id": mensaje.get("odoo_move_id"),
+                    "tipo_ecf": mensaje.get("tipo_ecf"),
+                }
+                # Cargar odoo_move_id desde DB si falta
+                schema = mensaje.get("schema_name") or ""
+                if schema and not ecf_data.get("odoo_move_id"):
+                    s = _safe_schema(schema)
+                    async with self.db.acquire() as conn:
+                        row = await conn.fetchrow(
+                            f"SELECT odoo_move_id, ncf, tipo_ecf FROM {s}.ecf WHERE id=$1",
+                            uuid.UUID(mensaje["ecf_id"]),
+                        )
+                        if row:
+                            ecf_data["odoo_move_id"] = row["odoo_move_id"]
+                            ecf_data["ncf"] = row["ncf"] or ecf_data.get("ncf")
+                            ecf_data["tipo_ecf"] = row["tipo_ecf"] or ecf_data.get("tipo_ecf")
+                from ecf_core.dgii_client import RespuestaDGII, EstadoDGII
+                fake = RespuestaDGII(
+                    estado=EstadoDGII.RECHAZADO,
+                    track_id=None,
+                    codigo_seguridad=None,
+                    mensaje=error,
+                    qr_code=None,
+                    detalles=[],
+                    raw={"error": error, "fuente": "dlq"},
+                )
+                await self._callback_odoo(tenant, ecf_data, fake, "rechazado")
+            except Exception as cb_err:
+                logger.warning("Webhook DLQ no enviado para %s: %s", mensaje.get("ecf_id"), cb_err)
             return
 
         delay = RETRY_DELAYS[min(intento - 1, len(RETRY_DELAYS) - 1)]
@@ -647,13 +689,21 @@ class ECFQueueWorker:
             """, estado, codigo_seguridad, xml_original, xml_firmado, json.dumps(respuesta), intento,
                 track_id, security_code, qr_url, uuid.UUID(ecf_id))
 
-    async def _marcar_error(self, schema, ecf_id, error):
+    async def _marcar_error(self, schema, ecf_id, error, terminal: bool = False):
         if not schema:
             return
         s = _safe_schema(schema)
         async with self.db.acquire() as conn:
-            await conn.execute(
-                f"UPDATE {s}.ecf SET ultimo_error=$1, updated_at=NOW() WHERE id=$2"
-                f"  AND estado NOT IN ('aprobado', 'anulado')",
-                error, uuid.UUID(ecf_id)
-            )
+            if terminal:
+                # 'rechazado' es estado terminal válido en el CHECK del schema
+                await conn.execute(
+                    f"UPDATE {s}.ecf SET estado='rechazado', ultimo_error=$1, updated_at=NOW() "
+                    f"WHERE id=$2 AND estado NOT IN ('aprobado', 'anulado')",
+                    error, uuid.UUID(ecf_id),
+                )
+            else:
+                await conn.execute(
+                    f"UPDATE {s}.ecf SET ultimo_error=$1, updated_at=NOW() WHERE id=$2"
+                    f"  AND estado NOT IN ('aprobado', 'anulado')",
+                    error, uuid.UUID(ecf_id),
+                )

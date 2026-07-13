@@ -39,9 +39,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-CHECK_INTERVAL        = 3600   # 1 hora para cert alerts / reset
+CHECK_INTERVAL        = int(os.environ.get("SCHEDULER_CHECK_INTERVAL", "120"))  # poll/requeue default 2 min
 RECIBIDAS_INTERVAL    = 1800   # 30 minutos para sync e-CF recibidas
+CERT_ALERT_INTERVAL   = 3600   # alertas de cert / reset mensual
 _last_recibidas_sync  = 0.0    # timestamp de la última sync
+_last_cert_jobs       = 0.0
 
 
 def _send_email_sync(smtp_host: str, smtp_port: int, smtp_user: str, smtp_pass: str, msg: MIMEText):
@@ -251,7 +253,8 @@ async def reencolar_pendientes(redis: aioredis.Redis | None, db_pool: asyncpg.Po
                 rows = await conn.fetch(
                     f"SELECT id, ncf, tipo_ecf FROM {schema}.ecf "
                     f"WHERE ("
-                    f"  (estado = 'pendiente' AND created_at < NOW() - INTERVAL '10 minutes')"
+                    f"  (estado = 'pendiente' AND created_at < NOW() - INTERVAL '10 minutes'"
+                    f"   AND (ultimo_error IS NULL OR intentos_envio < 5))"
                     f"  OR (estado = 'enviado' AND track_id IS NULL "
                     f"      AND updated_at < NOW() - INTERVAL '10 minutes')"
                     f") "
@@ -341,7 +344,7 @@ async def poll_ecf_en_proceso(db_pool: asyncpg.Pool, redis=None):
                             "Polling DGII: NCF %s → %s (track %s)",
                             row["ncf"], estado_local, row["track_id"],
                         )
-                        if row["odoo_move_id"] and t.get("odoo_webhook_url"):
+                        if t.get("odoo_webhook_url"):
                             codigo = resp.codigo_seguridad or row["codigo_seguridad"] or row["security_code"]
                             qr_url = resp.qr_code or row["qr_url"]
                             if not qr_url and codigo:

@@ -197,29 +197,87 @@ class ResCompany(models.Model):
             return {'status': 'offline'}
 
     def get_ecf_saas_connectivity(self):
-        """Ping real a GET /v1/health — usado por el dashboard (independiente del checklist)."""
+        """Ping SaaS: /health (liveness) + /v1/health (API Key).
+
+        - online:  /v1/health OK con API Key
+        - warning: SaaS responde pero falta/falla la API Key
+        - offline: no hay URL o el host no responde
+        """
         import time
         self.ensure_one()
-        if not self.ecf_saas_url or not self.ecf_api_key:
-            return {'status': 'offline', 'reason': 'URL o API Key no configurados'}
+        if not self.ecf_saas_url:
+            return {'status': 'offline', 'reason': 'URL del SaaS no configurada'}
+
+        base = self.ecf_saas_url.rstrip('/')
+
+        # 1) Liveness pública (no requiere API Key)
+        live_ok = False
+        live_latency = None
+        try:
+            t0 = time.monotonic()
+            live = requests.get(f"{base}/health", timeout=6)
+            live_latency = int((time.monotonic() - t0) * 1000)
+            live_ok = live.ok
+        except requests.Timeout:
+            return {'status': 'offline', 'reason': 'Timeout al contactar el SaaS'}
+        except requests.ConnectionError:
+            return {'status': 'offline', 'reason': 'No se pudo conectar al SaaS (DNS/red)'}
+        except Exception as exc:
+            return {'status': 'offline', 'reason': str(exc)}
+
+        if not self.ecf_api_key:
+            if live_ok:
+                return {
+                    'status': 'warning',
+                    'reason': 'API Key no configurada',
+                    'latency_ms': live_latency,
+                }
+            return {'status': 'offline', 'reason': 'SaaS no responde y falta API Key'}
+
+        # 2) Health autenticado del tenant
         try:
             t0 = time.monotonic()
             resp = requests.get(
-                f"{self.ecf_saas_url.rstrip('/')}/v1/health",
+                f"{base}/v1/health",
                 headers={'X-API-Key': self.ecf_api_key},
                 timeout=8,
             )
             latency_ms = int((time.monotonic() - t0) * 1000)
             if resp.ok:
-                data = resp.json()
+                data = resp.json() if resp.content else {}
                 return {
                     'status': 'online',
                     'latency_ms': latency_ms,
                     'ambiente': data.get('ambiente'),
                     'version': data.get('version'),
                 }
-            return {'status': 'offline', 'reason': f'HTTP {resp.status_code}', 'latency_ms': latency_ms}
+            if resp.status_code in (401, 403):
+                return {
+                    'status': 'warning',
+                    'reason': 'API Key inválida o sin permiso',
+                    'http_code': resp.status_code,
+                    'latency_ms': latency_ms,
+                }
+            if live_ok:
+                return {
+                    'status': 'warning',
+                    'reason': f'/v1/health HTTP {resp.status_code}',
+                    'latency_ms': latency_ms,
+                }
+            return {
+                'status': 'offline',
+                'reason': f'HTTP {resp.status_code}',
+                'latency_ms': latency_ms,
+            }
+        except requests.Timeout:
+            if live_ok:
+                return {'status': 'warning', 'reason': 'Timeout en /v1/health', 'latency_ms': live_latency}
+            return {'status': 'offline', 'reason': 'Timeout al conectar con el SaaS'}
+        except requests.ConnectionError:
+            return {'status': 'offline', 'reason': 'Conexión rechazada al SaaS'}
         except Exception as exc:
+            if live_ok:
+                return {'status': 'warning', 'reason': str(exc), 'latency_ms': live_latency}
             return {'status': 'offline', 'reason': str(exc)}
 
 
@@ -746,6 +804,7 @@ class AccountMove(models.Model):
             emision_auto = move.company_id.ecf_emision_automatica
             if emision_auto:
                 try:
+                    move._validar_pre_emision()
                     move._emitir_ecf()
                 except Exception as e:
                     _logger.exception('Error emitiendo e-CF para %s: %s', move.name, e)
@@ -790,15 +849,16 @@ class AccountMove(models.Model):
         if not self.ecf_tipo_id:
             raise UserError(_('Debe seleccionar un Tipo e-CF antes de emitir'))
 
-        # E31 (Crédito Fiscal) requiere RNC del comprador con dígito verificador válido
-        if self.ecf_tipo_id.codigo == 31:
+        # Tipos distintos de E32 requieren RNC/Cédula del comprador
+        if self.ecf_tipo_id.codigo != 32:
             vat = ''.join(filter(str.isdigit, (self.partner_id.vat or '').strip()))
             if len(vat) not in (9, 11):
                 raise UserError(_(
-                    'El tipo E31 (Crédito Fiscal) requiere el RNC o Cédula del comprador. '
-                    'Configure el campo "NIF/RNC" del cliente (9 u 11 dígitos).'
+                    'El tipo E%(tipo)s requiere el RNC o Cédula del comprador. '
+                    'Configure el campo "NIF/RNC" del cliente (9 u 11 dígitos).',
+                    tipo=self.ecf_tipo_id.codigo,
                 ))
-            if not _validar_rnc_o_cedula(vat):
+            if self.ecf_tipo_id.codigo == 31 and not _validar_rnc_o_cedula(vat):
                 raise UserError(_(
                     'El RNC o Cédula del cliente "%s" no pasa la validación oficial DGII '
                     '(dígito verificador mod-11 incorrecto). Verifique el dato en el partner.',
@@ -895,9 +955,16 @@ class AccountMove(models.Model):
 
         product_lines = self.invoice_line_ids.filtered(lambda l: l.display_type == 'product')
 
-        # Construir items del payload
+        # Construir items del payload (líneas negativas = descuento global del Excel DGII)
         items = []
-        for idx, line in enumerate(product_lines, 1):
+        descuento_global = 0.0
+        for line in product_lines:
+            if line.price_unit < 0:
+                descuento_global += abs(float(line.price_unit) * float(line.quantity or 1.0))
+                continue
+            if line.price_unit <= 0 or line.quantity <= 0:
+                continue
+
             price_unit = line.price_unit
             discount   = line.discount / 100.0 * price_unit * line.quantity
 
@@ -924,6 +991,11 @@ class AccountMove(models.Model):
                 'unidad':                  _uom_to_dgii_code(line.product_uom_id.name),
                 'indicador_bien_servicio': indicador,
             })
+
+        if not items:
+            raise UserError(_('No hay líneas positivas para emitir el e-CF'))
+        if descuento_global > 0:
+            items[0]['descuento'] = str(float(items[0]['descuento']) + descuento_global)
 
         # Detectar tipo de identificación del comprador
         partner_vat = ''.join(c for c in (self.partner_id.vat or '') if c.isdigit())
@@ -958,8 +1030,8 @@ class AccountMove(models.Model):
         }
         payload.update(self._dgii_campos_emision())
 
-        # Nota de crédito: incluir NCF de referencia
-        if self.move_type == 'out_refund' and self.reversed_entry_id:
+        # E33/E34: NCF de referencia (no solo out_refund)
+        if self.ecf_tipo_id.codigo in (33, 34) and self.reversed_entry_id and self.reversed_entry_id.ecf_ncf:
             payload['ncf_referencia'] = self.reversed_entry_id.ecf_ncf
             payload['fecha_ncf_referencia'] = (
                 self.reversed_entry_id.invoice_date.isoformat()
@@ -1072,15 +1144,39 @@ class AccountMove(models.Model):
         except requests.RequestException as e:
             raise UserError(_('Error de conexión con el Renace e-CF: %s', str(e)))
 
-        self.sudo().write({'ecf_estado': data['estado']})
+        vals = {'ecf_estado': data.get('estado')}
+        codigo = data.get('codigo_seguridad') or data.get('security_code') or data.get('cufe')
+        if codigo:
+            vals['ecf_codigo_seguridad'] = codigo
+        if data.get('track_id'):
+            vals['ecf_track_id'] = data['track_id']
+        qr = data.get('qr_url') or data.get('qr_code')
+        if qr:
+            vals['ecf_qr'] = qr
+        self.sudo().write(vals)
+
+        log = self.env['ecf.log'].sudo().search(
+            [('move_id', '=', self.id), ('ncf', '=', self.ecf_ncf)],
+            limit=1, order='create_date desc',
+        )
+        if log:
+            log_vals = {'estado': data.get('estado')}
+            if codigo:
+                log_vals['codigo_seguridad'] = codigo
+            if qr:
+                log_vals['qr_code'] = qr
+            if data.get('estado') == 'aprobado' and not log.approved_at:
+                log_vals['approved_at'] = fields.Datetime.now()
+            log.write(log_vals)
 
         return {
             'type': 'ir.actions.client',
             'tag':  'display_notification',
             'params': {
                 'title':   _('Estado e-CF'),
-                'message': _('NCF %s: %s', self.ecf_ncf, data['estado'].upper()),
-                'type':    'info',
+                'message': _('NCF %s: %s%s', self.ecf_ncf, (data.get('estado') or '').upper(),
+                             f' — Cód. {codigo}' if codigo else ''),
+                'type':    'success' if data.get('estado') == 'aprobado' else 'info',
             },
         }
 

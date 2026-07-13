@@ -1267,6 +1267,8 @@ let currentTenantId = null;
 let tenantsCache = [];
 let lastCreatedTenantId = null;
 let platformOnboarding = null;
+let dlqMessagesCache = [];
+let dlqSelected = new Set();
 
 // ═══════════════════════════════════════════
 // API HELPERS
@@ -1989,32 +1991,127 @@ document.getElementById('uploadCertForm').addEventListener('submit', async (e) =
 async function loadDLQ() {
     try {
         const data = await api('/v1/admin/dlq');
-        const el = document.getElementById('dlqContent');
-        if (!data.messages.length) {
-            el.innerHTML = '<div class="empty-state"><div class="icon">✅</div><p>No hay mensajes en la cola de errores</p></div>';
-            return;
-        }
-        el.innerHTML = `<p style="margin-bottom:16px; color:var(--text-muted); font-size:0.85rem;">${data.total} mensaje(s) en DLQ</p>` +
-            data.messages.map((msg, i) => `
-                <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:12px;">
-                    <div style="display:flex; justify-content:space-between; align-items:start; gap:12px;">
-                        <div style="flex:1;">
-                            <div style="font-family:var(--font-mono); font-size:0.8rem; color:var(--text-dim); margin-bottom:6px;">#${i}</div>
-                            <div style="font-size:0.85rem;"><strong>ECF:</strong> ${esc(msg.ecf_id || '—')}</div>
-                            <div style="font-size:0.85rem;"><strong>Tenant:</strong> ${esc(msg.tenant_id || '—')}</div>
-                            <div style="font-size:0.85rem; color:var(--danger);"><strong>Error:</strong> ${esc(msg.error || msg.ultimo_error || '—')}</div>
-                            <div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">Intentos: ${msg.intento || '?'}</div>
-                        </div>
-                        <div style="display:flex; gap:6px;">
-                            <button class="btn btn-secondary btn-sm" onclick="retryDLQ(${i})">↻ Reintentar</button>
-                            <button class="btn btn-danger btn-sm" onclick="removeDLQ(${i})">✕ Descartar</button>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
+        dlqMessagesCache = Array.isArray(data.messages) ? data.messages : [];
+        dlqSelected = new Set();
+        renderDLQ(data.total || dlqMessagesCache.length);
     } catch (err) {
         toast('Error cargando DLQ: ' + err.message, 'error');
     }
+}
+
+function _dlqDisplayValue(msg, key, fallback = '—') {
+    if (!msg || typeof msg !== 'object') return fallback;
+    const val = msg[key];
+    if (val === undefined || val === null || val === '') return fallback;
+    return String(val);
+}
+
+function renderDLQ(total) {
+    const el = document.getElementById('dlqContent');
+    if (!dlqMessagesCache.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">✅</div><p>No hay mensajes en la cola de errores</p></div>';
+        return;
+    }
+
+    const allChecked = dlqSelected.size > 0 && dlqSelected.size === dlqMessagesCache.length;
+    const selectedCount = dlqSelected.size;
+
+    el.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+            <p style="margin:0; color:var(--text-muted); font-size:0.85rem;">${total} mensaje(s) en DLQ</p>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; color:var(--text-muted); cursor:pointer;">
+                    <input type="checkbox" ${allChecked ? 'checked' : ''} onchange="toggleAllDLQ(this.checked)">
+                    Seleccionar todo
+                </label>
+                <span style="font-size:0.8rem; color:var(--text-dim); min-width:100px;">${selectedCount} seleccionado(s)</span>
+                <button class="btn btn-secondary btn-sm" onclick="retrySelectedDLQ()" ${selectedCount ? '' : 'disabled'}>↻ Reintentar selección</button>
+                <button class="btn btn-danger btn-sm" onclick="removeSelectedDLQ()" ${selectedCount ? '' : 'disabled'}>✕ Descartar selección</button>
+            </div>
+        </div>
+    ` + dlqMessagesCache.map((msg, i) => {
+        const isChecked = dlqSelected.has(i);
+        const ecf = _dlqDisplayValue(msg, 'ecf_id');
+        const tenant = _dlqDisplayValue(msg, 'tenant_id');
+        const err = _dlqDisplayValue(msg, 'error', _dlqDisplayValue(msg, 'ultimo_error', _dlqDisplayValue(msg, 'raw')));
+        const intento = _dlqDisplayValue(msg, 'intento', '?');
+        return `
+            <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:start; gap:12px;">
+                    <div style="display:flex; gap:10px; flex:1; min-width:0;">
+                        <input type="checkbox" style="margin-top:3px;" ${isChecked ? 'checked' : ''} onchange="toggleDLQ(${i}, this.checked)">
+                        <div style="flex:1; min-width:0;">
+                            <div style="font-family:var(--font-mono); font-size:0.8rem; color:var(--text-dim); margin-bottom:6px;">#${i}</div>
+                            <div style="font-size:0.85rem;"><strong>ECF:</strong> ${esc(ecf)}</div>
+                            <div style="font-size:0.85rem;"><strong>Tenant:</strong> ${esc(tenant)}</div>
+                            <div style="font-size:0.85rem; color:var(--danger); word-break:break-word;"><strong>Error:</strong> ${esc(err)}</div>
+                            <div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">Intentos: ${esc(intento)}</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+                        <button class="btn btn-secondary btn-sm" onclick="retryDLQ(${i})">↻ Reintentar</button>
+                        <button class="btn btn-danger btn-sm" onclick="removeDLQ(${i})">✕ Descartar</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function toggleDLQ(index, checked) {
+    if (checked) dlqSelected.add(index);
+    else dlqSelected.delete(index);
+    renderDLQ(dlqMessagesCache.length);
+}
+
+function toggleAllDLQ(checked) {
+    dlqSelected = new Set();
+    if (checked) {
+        for (let i = 0; i < dlqMessagesCache.length; i++) dlqSelected.add(i);
+    }
+    renderDLQ(dlqMessagesCache.length);
+}
+
+async function retrySelectedDLQ() {
+    const indices = [...dlqSelected].sort((a, b) => b - a);
+    if (!indices.length) {
+        toast('Selecciona al menos un mensaje', 'warning');
+        return;
+    }
+    let ok = 0;
+    for (const idx of indices) {
+        try {
+            await api(`/v1/admin/dlq/${idx}/retry`, { method: 'POST' });
+            ok++;
+        } catch (_) {
+            // Continúa con los demás índices.
+        }
+    }
+    if (ok) toast(`${ok} mensaje(s) reencolado(s)`);
+    if (ok !== indices.length) toast(`Fallaron ${indices.length - ok} elemento(s)`, 'warning');
+    await loadDLQ();
+}
+
+async function removeSelectedDLQ() {
+    const indices = [...dlqSelected].sort((a, b) => b - a);
+    if (!indices.length) {
+        toast('Selecciona al menos un mensaje', 'warning');
+        return;
+    }
+    if (!confirm(`¿Descartar ${indices.length} mensaje(s)? No se podrán recuperar.`)) return;
+
+    let ok = 0;
+    for (const idx of indices) {
+        try {
+            await api(`/v1/admin/dlq/${idx}`, { method: 'DELETE' });
+            ok++;
+        } catch (_) {
+            // Continúa con los demás índices.
+        }
+    }
+    if (ok) toast(`${ok} mensaje(s) descartado(s)`);
+    if (ok !== indices.length) toast(`Fallaron ${indices.length - ok} elemento(s)`, 'warning');
+    await loadDLQ();
 }
 
 async function retryDLQ(index) {
