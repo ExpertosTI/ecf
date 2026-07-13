@@ -300,7 +300,7 @@ $DC "${COMPOSE_ARGS[@]}" up -d --scale worker=2 worker
 # Esperar a que la API este saludable
 log "Esperando a que la API responda..."
 for i in $(seq 1 20); do
-    API_CONTAINER=$($DC "${COMPOSE_ARGS[@]}" ps api --format "{{.ID}}" 2>/dev/null | head -1)
+    API_CONTAINER=$($DC "${COMPOSE_ARGS[@]}" ps -q api 2>/dev/null | head -1)
     if [ -n "$API_CONTAINER" ]; then
         if docker exec "$API_CONTAINER" curl -sf http://localhost:8000/health &>/dev/null; then
             log "API respondiendo correctamente"
@@ -332,7 +332,7 @@ info "Servicios en red ecf_network: ${NETWORK_SERVICES}"
 
 # Verificar health de la API (vía puerto interno)
 sleep 3
-API_CONTAINER=$($DC "${COMPOSE_ARGS[@]}" ps api --format "{{.ID}}" 2>/dev/null | head -1)
+API_CONTAINER=$($DC "${COMPOSE_ARGS[@]}" ps -q api 2>/dev/null | head -1)
 if [ -n "$API_CONTAINER" ] && docker exec "$API_CONTAINER" curl -sf http://localhost:8000/health &>/dev/null; then
     log "API respondiendo correctamente (Internal Health OK)"
 else
@@ -340,7 +340,7 @@ else
 fi
 
 # Verificar workers
-WORKER_COUNT=$($DC "${COMPOSE_ARGS[@]}" ps worker --format json 2>/dev/null | grep -c "running" || echo 0)
+WORKER_COUNT=$($DC "${COMPOSE_ARGS[@]}" ps -q worker 2>/dev/null | wc -l)
 info "Workers activos: ${WORKER_COUNT}"
 
 # 6. RESUMEN
