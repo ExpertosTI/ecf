@@ -11,7 +11,7 @@ services:
       - "--api.dashboard=false"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=ecf_net"
+      - "--providers.docker.network=ecf_network"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       # Redirigir HTTP a HTTPS (obligatorio DGII)
