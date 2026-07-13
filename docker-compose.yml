@@ -5,7 +5,7 @@ services:
 
   # Traefik — Reverse Proxy & TLS termination
   traefik:
-    image: traefik:v3.1
+    image: traefik:v3.7
     restart: unless-stopped
     command:
       - "--api.dashboard=false"
