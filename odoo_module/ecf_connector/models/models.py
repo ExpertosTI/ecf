@@ -697,21 +697,29 @@ class AccountMove(models.Model):
         if not self.ecf_tipo_id:
             raise UserError(_('Debe seleccionar un Tipo e-CF antes de emitir'))
 
-        # Tipos distintos de E32 requieren RNC/Cédula del comprador
-        if self.ecf_tipo_id.codigo != 32:
+        # E32 CF y E43 gastos menores: RNC opcional. E47: ID extranjero (ref).
+        # Resto: RNC/Cédula 9 u 11 dígitos.
+        codigo = self.ecf_tipo_id.codigo
+        if codigo not in (32, 43, 47):
             vat = ''.join(filter(str.isdigit, (self.partner_id.vat or '').strip()))
             if len(vat) not in (9, 11):
                 raise UserError(_(
                     'El tipo E%(tipo)s requiere el RNC o Cédula del comprador. '
                     'Configure el campo "NIF/RNC" del cliente (9 u 11 dígitos).',
-                    tipo=self.ecf_tipo_id.codigo,
+                    tipo=codigo,
                 ))
-            if self.ecf_tipo_id.codigo == 31 and not _validar_rnc_o_cedula(vat):
+            if codigo == 31 and not _validar_rnc_o_cedula(vat):
                 raise UserError(_(
                     'El RNC o Cédula del cliente "%s" no pasa la validación oficial DGII '
                     '(dígito verificador mod-11 incorrecto). Verifique el dato en el partner.',
                     vat,
                 ))
+        elif codigo == 47 and not (
+            (self.partner_id.vat or '').strip() or (self.partner_id.ref or '').strip()
+        ):
+            raise UserError(_(
+                'El tipo E47 requiere Identificador Extranjero (campo Ref del cliente).'
+            ))
 
         # Fecha emisión no puede ser futura
         if self.invoice_date and self.invoice_date > date.today():

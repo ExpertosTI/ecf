@@ -8,19 +8,28 @@
                 <sheet>
                     <div class="alert alert-info" role="alert" style="margin-bottom: 20px;">
                         <h4 class="alert-heading">Cargador de Set de Pruebas de la DGII</h4>
-                        <p style="margin-bottom: 0;">
-                            Sube el archivo Excel (<code>.xlsx</code>) descargado directamente desde el portal de certificación de la DGII (Paso 2).
-                            El sistema creará automáticamente los 26 borradores de facturas con los clientes, productos, tasas de ITBIS y montos correspondientes.
+                        <p style="margin-bottom: 8px;">
+                            Sube el Excel (<code>.xlsx</code>) de <b>DESCARGAR COMPROBANTES</b> (Paso 2 certificación).
+                            El sistema crea cada tipo e-CF (E31–E47), vincula E33/E34 a la factura original,
+                            confirma y emite en el orden correcto (bases → notas).
+                        </p>
+                        <p style="margin-bottom: 0; font-size: 0.9em;">
+                            Tras emitir, use <b>Actualizar Estado</b> en cada factura hasta <b>Aprobado</b>
+                            (o espere el webhook). Los E32 &lt; RD$250k se procesan como RFCE en el SaaS.
                         </p>
                     </div>
                     <group>
                         <field name="xlsx_file" filename="filename"/>
                         <field name="filename" invisible="1"/>
                     </group>
+                    <group string="Automatización">
+                        <field name="auto_confirm"/>
+                        <field name="auto_emit"/>
+                    </group>
                 </sheet>
                 <footer>
                     <button name="action_importar_set_pruebas" type="object"
-                            string="Importar y Generar Facturas" class="btn-primary"
+                            string="Importar, Confirmar y Emitir" class="btn-primary"
                             icon="fa-upload"/>
                     <button string="Cancelar" class="btn-secondary" special="cancel"/>
                 </footer>
@@ -35,7 +44,6 @@
         <field name="target">new</field>
     </record>
 
-    <!-- Menú bajo el menú raíz de e-CF -->
     <menuitem id="menu_ecf_homologacion_wizard"
               name="Set de Pruebas DGII"
               parent="ecf_menu_root"

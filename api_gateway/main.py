@@ -384,7 +384,8 @@ class FacturaPayload(BaseModel):
 
     @model_validator(mode="after")
     def validar_referencias(self):
-        if self.tipo_ecf != 32 and not self.rnc_comprador:
+        # E32 CF, E43 gastos menores y E47 exterior: RNC comprador opcional
+        if self.tipo_ecf not in (32, 43, 47) and not self.rnc_comprador:
             raise ValueError(f"RNC comprador es requerido para e-CF tipo {self.tipo_ecf}")
         if self.ncf_referencia and not (self.ncf_referencia.startswith("E") and len(self.ncf_referencia) == 13):
             raise ValueError("NCF de referencia debe tener formato E + 12 dígitos")
@@ -1330,7 +1331,7 @@ async def validar_ecf(
     errores = []
 
     # Validaciones de negocio
-    if payload.tipo_ecf != 32 and not payload.rnc_comprador:
+    if payload.tipo_ecf not in (32, 43, 47) and not payload.rnc_comprador:
         errores.append("RNC comprador es requerido para e-CF tipo " + str(payload.tipo_ecf))
 
     if payload.tipo_ecf in (33, 34) and not payload.ncf_referencia:
