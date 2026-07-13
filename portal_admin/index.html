@@ -687,7 +687,32 @@
             border: 1px solid var(--border);
         }
         .cert-wizard-step.done { border-color: var(--border-accent); }
-        .cert-wizard-step.pending { opacity: 0.92; }
+        .cert-wizard-step.pending { opacity: 0.55; }
+        .cert-wizard-step.current {
+            opacity: 1;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent-glow, rgba(56,189,248,0.25));
+        }
+        .cert-blocker {
+            padding: 14px 16px;
+            margin-bottom: 16px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-deep);
+            border: 1px solid var(--accent);
+        }
+        .cert-blocker strong { display: block; margin-bottom: 6px; }
+        .onboard-gate {
+            padding: 12px 14px;
+            margin-bottom: 16px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-card-alt);
+            border: 1px solid var(--border);
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .onboard-gate.ready { border-color: var(--border-accent); color: var(--text); }
+        .flow-step.done { opacity: 1; border-color: var(--border-accent); }
+        .flow-step.done .step-num { background: var(--accent); color: var(--bg-deep); }
         .cert-step-num {
             width: 28px;
             height: 28px;
@@ -817,11 +842,11 @@
                 <div class="flow-container" id="certFlowSteps">
                     <div class="flow-step" data-step="psfe"><div class="step-num">1</div> PSFE Plataforma</div>
                     <div class="flow-divider"></div>
-                    <div class="flow-step" data-step="tenant"><div class="step-num">2</div> Empresa + .p12</div>
+                    <div class="flow-step" data-step="operador"><div class="step-num">2</div> Empresa Renace</div>
                     <div class="flow-divider"></div>
-                    <div class="flow-step" data-step="odoo"><div class="step-num">3</div> Set Pruebas Odoo</div>
+                    <div class="flow-step" data-step="auth"><div class="step-num">3</div> Probar CerteCF</div>
                     <div class="flow-divider"></div>
-                    <div class="flow-step" data-step="emit"><div class="step-num">4</div> Emisión CerteCF</div>
+                    <div class="flow-step" data-step="clientes"><div class="step-num">4</div> Empresas cliente</div>
                 </div>
             </div>
             <div class="page-header" style="margin-top:8px;">
@@ -891,8 +916,9 @@
         <div id="page-tenants" class="page" style="display:none;">
             <div class="page-header">
                 <h1 class="page-title">Empresas</h1>
-                <button class="btn btn-primary" onclick="openNewTenantModal()">+ Registrar Empresa</button>
+                <button class="btn btn-primary" id="btnNewTenant" onclick="openNewTenantModal()">+ Registrar Empresa</button>
             </div>
+            <div id="onboardGateBanner" class="onboard-gate" style="display:none;"></div>
             <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
                 <button class="btn btn-sm btn-secondary filter-btn active" data-filter="">Todas</button>
                 <button class="btn btn-sm btn-secondary filter-btn" data-filter="activo">Activas</button>
@@ -957,7 +983,15 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label>Límite e-CF/mes</label><input type="number" id="editMaxEcf" min="100" max="1000000"></div>
-                        <div class="form-group" style="visibility:hidden;"></div>
+                        <div class="form-group">
+                            <label>Ambiente DGII</label>
+                            <select id="editAmbiente">
+                                <option value="">— sin cambio —</option>
+                                <option value="simulacion">Simulación</option>
+                                <option value="certificacion">Certificación (CerteCF)</option>
+                                <option value="produccion">Producción</option>
+                            </select>
+                        </div>
                     </div>
                     <button type="submit" class="btn btn-primary btn-sm">Guardar Cambios</button>
                 </form>
@@ -974,6 +1008,7 @@
                     </div>
                     <div class="readiness-score" id="certScore">—</div>
                 </div>
+                <div id="certNextBlocker"></div>
                 <div id="certWizard"></div>
                 <div id="certHomologacion" style="margin-top:16px;"></div>
                 <div id="odooConfigBox" class="odoo-config-box" style="display:none;"></div>
@@ -1162,13 +1197,14 @@
             </div>
             <div style="margin-top:16px; padding:12px; background:var(--bg-deep); border-radius:var(--radius-sm); font-size:0.8rem; color:var(--text-muted);">
                 <strong>Próximos pasos:</strong><br>
-                1. Comparte el API Key y Webhook Secret con el contador/desarrollador<br>
-                2. Pestaña <strong>Certificación DGII</strong>: revisa el checklist y sube el .p12<br>
-                3. En Odoo: Set de Pruebas DGII → confirmar facturas → emisión a CerteCF
+                1. Guarda API Key y Webhook Secret<br>
+                2. Continúa al asistente de <strong>Certificación DGII</strong> (paso resaltado)<br>
+                3. Sube .p12 → Probar CerteCF → Firmar postulación → Odoo Set de Pruebas
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-primary" onclick="closeModal('credentialsModal'); showPage('tenants');">Entendido</button>
+            <button class="btn btn-secondary" onclick="closeModal('credentialsModal'); showPage('tenants');">Más tarde</button>
+            <button class="btn btn-primary" id="credContinueBtn" onclick="continueAfterCredentials()">Continuar a Certificación →</button>
         </div>
     </div>
 </div>
@@ -1211,6 +1247,8 @@ let API_URL = '';
 let ADMIN_KEY = '';
 let currentTenantId = null;
 let tenantsCache = [];
+let lastCreatedTenantId = null;
+let platformOnboarding = null;
 
 // ═══════════════════════════════════════════
 // API HELPERS
@@ -1225,8 +1263,18 @@ async function api(path, opts = {}) {
     const res = await fetch(url, { ...opts, headers: { ...headers, ...opts.headers } });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
-        const msg = data?.detail || `Error ${res.status}`;
-        throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        const detail = data?.detail;
+        let msg;
+        if (typeof detail === 'string') msg = detail;
+        else if (detail && typeof detail === 'object') {
+            msg = detail.mensaje || detail.siguiente || JSON.stringify(detail);
+            if (Array.isArray(detail.blockers) && detail.blockers.length) {
+                msg = detail.blockers.join(' ');
+            }
+        } else {
+            msg = `Error ${res.status}`;
+        }
+        throw new Error(msg);
     }
     return data;
 }
@@ -1357,16 +1405,20 @@ async function loadDashboard() {
         }
 
         const readyTenants = readiness.tenants.filter(t => t.ready);
-        const firstReady = readyTenants[0];
+        platformOnboarding = readiness.onboarding || null;
         document.getElementById('certFlowBadge').textContent =
-            `${readiness.summary.listos} / ${readiness.summary.total} empresas listas`;
+            readiness.summary.can_onboard_clients
+                ? `Listo para clientes · ${readiness.summary.listos}/${readiness.summary.total}`
+                : `${readiness.summary.listos} / ${readiness.summary.total} listas`;
 
+        const flujo = readiness.flujo || [];
         document.querySelectorAll('#certFlowSteps .flow-step').forEach(step => {
-            step.classList.remove('active');
+            step.classList.remove('active', 'done');
             const name = step.dataset.step;
-            if (name === 'psfe' && psfeOk) step.classList.add('active');
-            if (name === 'tenant' && firstReady) step.classList.add('active');
-            if (name === 'odoo' && firstReady) step.classList.add('active');
+            const item = flujo.find(f => f.id === name);
+            if (item && item.ok) step.classList.add('done');
+            const firstPending = flujo.find(f => !f.ok);
+            if (firstPending && firstPending.id === name) step.classList.add('active');
         });
 
         const rows = list.tenants.slice(0, 8);
@@ -1374,8 +1426,9 @@ async function loadDashboard() {
             ? rows.map(t => {
                 const rt = readiness.tenants.find(r => r.id === t.id);
                 const prog = rt ? `${rt.score}/${rt.total}` : '—';
+                const op = rt && rt.is_platform_operator ? ' ★' : '';
                 return `<tr class="clickable" onclick="openTenantDetail('${t.id}')">
-                <td class="mono">${esc(t.rnc)}</td>
+                <td class="mono">${esc(t.rnc)}${op}</td>
                 <td>${esc(t.razon_social)}</td>
                 <td>${esc(t.plan)}</td>
                 <td><span class="badge badge-${t.ambiente}">${esc(t.ambiente)}</span></td>
@@ -1383,7 +1436,7 @@ async function loadDashboard() {
                 <td class="mono">${t.ecf_emitidos_mes} / ${t.max_ecf_mensual} · cert ${prog}</td>
               </tr>`;
             }).join('')
-            : '<tr><td colspan="6" class="empty-state"><p>Aún no hay empresas registradas</p></td></tr>';
+            : '<tr><td colspan="6" class="empty-state"><p>Registra Renace primero (RNC operadora) tras configurar PSFE</p></td></tr>';
     } catch (err) {
         toast('Error cargando dashboard: ' + err.message, 'error');
     }
@@ -1394,43 +1447,73 @@ async function loadDashboard() {
 // ═══════════════════════════════════════════
 async function loadTenants(estado = '') {
     try {
-        const path = estado ? `/v1/admin/tenants?estado=${estado}` : '/v1/admin/tenants';
-        const data = await api(path);
+        const [data, readiness] = await Promise.all([
+            api(estado ? `/v1/admin/tenants?estado=${estado}` : '/v1/admin/tenants'),
+            api('/v1/admin/platform/readiness'),
+        ]);
         tenantsCache = data.tenants;
+        platformOnboarding = readiness.onboarding || null;
+        updateOnboardGateUI(readiness);
+
         const tbody = document.getElementById('tenantRows');
         if (!tenantsCache.length) {
-            tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="icon">🏢</div><p>No hay empresas registradas</p></div></td></tr>';
+            const rnc = (platformOnboarding && platformOnboarding.operator_rnc_esperado) || '132842316';
+            tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">🏢</div>
+                <p>No hay empresas. Configura PSFE y registra Renace (${esc(rnc)}) primero.</p>
+                <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="openNewTenantModal(true)">Registrar Renace →</button>
+            </div></td></tr>`;
             return;
         }
-        tbody.innerHTML = tenantsCache.map(t => `
+        tbody.innerHTML = tenantsCache.map(t => {
+            const rt = readiness.tenants.find(r => r.id === t.id);
+            const star = rt && rt.is_platform_operator ? ' ★' : '';
+            return `
             <tr class="clickable" onclick="openTenantDetail('${t.id}')">
-                <td class="mono">${esc(t.rnc)}</td>
+                <td class="mono">${esc(t.rnc)}${star}</td>
                 <td><strong>${esc(t.razon_social)}</strong></td>
                 <td>${esc(t.plan)}</td>
                 <td><span class="badge badge-${t.ambiente}">${esc(t.ambiente)}</span></td>
                 <td><span class="badge badge-${t.estado}">${esc(t.estado)}</span></td>
                 <td class="mono">${t.ecf_emitidos_mes} / ${t.max_ecf_mensual}</td>
                 <td style="font-size:0.8rem;">${fmtDate(t.created_at)}</td>
-                <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openTenantDetail('${t.id}')">Ver →</button></td>
-            </tr>
-        `).join('');
+                <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openTenantDetail('${t.id}', 'certificacion')">Certificar →</button></td>
+            </tr>`;
+        }).join('');
     } catch (err) {
         toast('Error cargando empresas: ' + err.message, 'error');
+    }
+}
+
+function updateOnboardGateUI(readiness) {
+    const banner = document.getElementById('onboardGateBanner');
+    if (!banner) return;
+    const onb = readiness.onboarding || {};
+    const can = readiness.summary && readiness.summary.can_onboard_clients;
+    if (can) {
+        banner.style.display = 'block';
+        banner.className = 'onboard-gate ready';
+        banner.innerHTML = '✅ Plataforma lista para registrar empresas cliente.';
+    } else {
+        banner.style.display = 'block';
+        banner.className = 'onboard-gate';
+        const blockers = (onb.blockers || []).map(b => `• ${esc(b)}`).join('<br>');
+        banner.innerHTML = `<strong>Completa el onboarding primero:</strong><br>${blockers || 'PSFE + empresa Renace + Probar CerteCF.'}`;
     }
 }
 
 // ═══════════════════════════════════════════
 // TENANT DETAIL
 // ═══════════════════════════════════════════
-async function openTenantDetail(id) {
+async function openTenantDetail(id, tab = 'info') {
     currentTenantId = id;
     showPage('tenant-detail');
-    // Reset to info tab
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelector('.tab[data-tab="info"]').classList.add('active');
+    const tabEl = document.querySelector(`.tab[data-tab="${tab}"]`) || document.querySelector('.tab[data-tab="info"]');
+    if (tabEl) tabEl.classList.add('active');
     document.querySelectorAll('[id^="tab-"]').forEach(c => c.style.display = 'none');
-    document.getElementById('tab-info').style.display = 'block';
-
+    const panel = document.getElementById(`tab-${tab}`) || document.getElementById('tab-info');
+    if (panel) panel.style.display = 'block';
+    if (tab === 'certificacion') loadCertificacionReadiness(id);
     try {
         const t = await api(`/v1/admin/tenants/${id}`);
         document.getElementById('detailTitle').textContent = t.razon_social;
@@ -1461,6 +1544,8 @@ async function openTenantDetail(id) {
         document.getElementById('editWebhookUrl').value = t.odoo_webhook_url || '';
         document.getElementById('editPlan').value = '';
         document.getElementById('editMaxEcf').value = t.max_ecf_mensual;
+        const editAmb = document.getElementById('editAmbiente');
+        if (editAmb) editAmb.value = '';
 
         // Load sequences
         loadSequences(id);
@@ -1545,6 +1630,8 @@ document.getElementById('editTenantForm').addEventListener('submit', async (e) =
     if (wh) updates.odoo_webhook_url = wh;
     if (pl) updates.plan = pl;
     if (mx) updates.max_ecf_mensual = parseInt(mx);
+    const amb = document.getElementById('editAmbiente').value;
+    if (amb) updates.ambiente = amb;
     
     if (!Object.keys(updates).length) { toast('No hay cambios', 'error'); return; }
     try {
@@ -1578,7 +1665,15 @@ async function deactivateTenant() {
 // ═══════════════════════════════════════════
 // CREATE TENANT
 // ═══════════════════════════════════════════
-function openNewTenantModal() { openModal('newTenantModal'); }
+function openNewTenantModal(asOperator = false) {
+    openModal('newTenantModal');
+    const rncInput = document.getElementById('newRnc');
+    const amb = document.getElementById('newAmbiente');
+    if (asOperator && platformOnboarding && platformOnboarding.operator_rnc_esperado) {
+        rncInput.value = platformOnboarding.operator_rnc_esperado;
+        if (amb) amb.value = 'certificacion';
+    }
+}
 
 document.getElementById('newTenantForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1602,15 +1697,24 @@ document.getElementById('newTenantForm').addEventListener('submit', async (e) =>
         const data = await api('/v1/admin/tenants', { method: 'POST', body });
         closeModal('newTenantModal');
         document.getElementById('newTenantForm').reset();
-        // Show credentials
+        lastCreatedTenantId = data.tenant_id;
         document.getElementById('credApiKey').textContent = data.api_key;
         document.getElementById('credWebhookSecret').textContent = data.webhook_secret;
         openModal('credentialsModal');
-        toast('Empresa creada: ' + data.razon_social);
+        toast(data.mensaje || ('Empresa creada: ' + data.razon_social));
     } catch (err) {
         toast(err.message, 'error');
     }
 });
+
+function continueAfterCredentials() {
+    closeModal('credentialsModal');
+    if (lastCreatedTenantId) {
+        openTenantDetail(lastCreatedTenantId, 'certificacion');
+    } else {
+        showPage('tenants');
+    }
+}
 
 // ═══════════════════════════════════════════
 // PLATAFORMA (PSFE + readiness multi-tenant)
@@ -1629,21 +1733,30 @@ async function loadPlatform() {
         document.getElementById('platformPsfeMeta').textContent = meta.join(' · ') || 'Sin PSFE en base de datos ni .env';
 
         document.getElementById('platformSummary').textContent =
-            `${data.summary.listos} listas · ${data.summary.pendientes} pendientes`;
+            `${data.summary.listos} listas · ${data.summary.pendientes} pendientes` +
+            (data.summary.can_onboard_clients ? ' · clientes OK' : ' · onboarding pendiente');
+
+        platformOnboarding = data.onboarding || null;
+        if (data.flujo) {
+            // Mirror dashboard flow on platform page if present
+        }
 
         const tbody = document.getElementById('platformTenantRows');
         if (!data.tenants.length) {
-            tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>No hay empresas. Registra Renace (132842316) primero.</p></div></td></tr>';
+            const rnc = (data.onboarding && data.onboarding.operator_rnc_esperado) || '132842316';
+            tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><p>Registra Renace (${esc(rnc)}) primero.</p>
+                <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="showPage('tenants'); openNewTenantModal(true)">Registrar operadora →</button>
+            </div></td></tr>`;
             return;
         }
         tbody.innerHTML = data.tenants.map(t => `
-            <tr class="clickable" onclick="openTenantDetail('${t.id}')">
-                <td class="mono">${esc(t.rnc)}</td>
+            <tr class="clickable" onclick="openTenantDetail('${t.id}', 'certificacion')">
+                <td class="mono">${esc(t.rnc)}${t.is_platform_operator ? ' ★' : ''}</td>
                 <td><strong>${esc(t.razon_social)}</strong></td>
                 <td><span class="badge badge-${t.ambiente}">${esc(t.ambiente)}</span></td>
                 <td class="mono">${t.score} / ${t.total}</td>
-                <td><span class="badge ${t.ready ? 'badge-activo' : 'badge-certificacion'}">${t.ready ? 'Lista' : 'Pendiente'}</span></td>
-                <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openTenantDetail('${t.id}')">Checklist →</button></td>
+                <td><span class="badge ${t.ready ? 'badge-activo' : 'badge-certificacion'}">${t.ready ? 'Lista' : (t.next_blocker ? 'Paso ' + t.next_blocker.paso : 'Pendiente')}</span></td>
+                <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openTenantDetail('${t.id}', 'certificacion')">Checklist →</button></td>
             </tr>
         `).join('');
     } catch (err) {
@@ -1694,21 +1807,45 @@ async function loadCertificacionReadiness(id) {
                 postulacion: `<button class="btn btn-secondary btn-sm" onclick="openPostulacionModal()">Firmar postulación</button>`,
                 test_dgii: `<button class="btn btn-secondary btn-sm" onclick="testTenantDgii()">Probar CerteCF</button>`,
                 odoo_config: `<button class="btn btn-secondary btn-sm" onclick="toggleOdooConfig()">Ver config Odoo</button>`,
+                evidencia: `<button class="btn btn-secondary btn-sm" onclick="toggleEvidencia()">Ver checklist evidencia</button>`,
             };
             return accion && map[accion] ? map[accion] : '';
         };
 
-        document.getElementById('certWizard').innerHTML = (data.pasos || []).map(p => `
-            <div class="cert-wizard-step ${p.ok ? 'done' : 'pending'}">
+        const blocker = data.next_blocker;
+        const blockerEl = document.getElementById('certNextBlocker');
+        if (blockerEl) {
+            if (blocker) {
+                blockerEl.innerHTML = `
+                    <div class="cert-blocker">
+                        <strong>Siguiente paso (${blocker.paso}/8): ${esc(blocker.titulo)}</strong>
+                        <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px;">${esc(blocker.descripcion)}</div>
+                        ${actionBtn(blocker.accion)}
+                    </div>`;
+            } else {
+                blockerEl.innerHTML = `<div class="cert-blocker" style="border-color:var(--border-accent);">
+                    <strong>✅ Certificación completa</strong>
+                    <div style="font-size:0.85rem;color:var(--text-muted);">Esta empresa cumple el checklist técnico Renace e-CF.</div>
+                </div>`;
+            }
+        }
+
+        document.getElementById('certWizard').innerHTML = (data.pasos || []).map(p => {
+            const isCurrent = blocker && p.id === blocker.id;
+            const cls = p.ok ? 'done' : (isCurrent ? 'current' : 'pending');
+            const evidencia = (p.evidencia || []).map(e => `<li>${esc(e)}</li>`).join('');
+            return `
+            <div class="cert-wizard-step ${cls}" id="paso-${p.id}">
                 <div class="cert-step-num">${p.ok ? '✓' : p.orden}</div>
                 <div class="cert-step-body">
-                    <div class="cert-step-title">${esc(p.titulo)}</div>
+                    <div class="cert-step-title">${esc(p.titulo)}${data.is_platform_operator && p.orden === 2 ? ' ★' : ''}</div>
                     <div class="cert-step-desc">${esc(p.descripcion)}</div>
                     <div class="cert-step-ref">${esc(p.ref_dgii || '')}</div>
-                    <div style="margin-top:8px;">${actionBtn(p.accion)}</div>
+                    ${evidencia ? `<ul style="margin:8px 0 0 18px;font-size:0.8rem;color:var(--text-muted);">${evidencia}</ul>` : ''}
+                    <div style="margin-top:8px;">${isCurrent || !p.ok ? actionBtn(p.accion) : ''}</div>
                 </div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
 
         if (data.dgii && data.dgii.homologacion) {
             const rows = Object.entries(data.dgii.homologacion).map(([tipo, h]) => `
@@ -1732,7 +1869,7 @@ async function loadCertificacionReadiness(id) {
                 URL SaaS: <code id="odooCfgUrl">${esc(API_URL)}</code>
                 <button class="copy-btn btn btn-ghost btn-sm" onclick="copyText('odooCfgUrl')">📋</button><br>
                 RNC emisor: <code>${esc(c.rnc)}</code><br>
-                Ambiente: <code>certificacion</code> (CerteCF)<br>
+                Ambiente: <code>${esc(c.ambiente || 'certificacion')}</code><br>
                 Webhook: <code>${esc(c.webhook_url || '— configurar en pestaña Información —')}</code><br>
                 <span style="color:var(--warning); font-size:0.78rem;">${esc(c.nota_api_key)}</span>
             `;
@@ -1752,6 +1889,11 @@ async function loadCertificacionReadiness(id) {
         document.getElementById('certWizard').innerHTML =
             `<p style="color:var(--danger);">Error: ${esc(err.message)}</p>`;
     }
+}
+
+function toggleEvidencia() {
+    const el = document.getElementById('paso-presentar');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function toggleOdooConfig() {
@@ -1939,10 +2081,10 @@ async function loadCompras(id) {
         el.innerHTML = data.received.map(c => `
             <tr>
                 <td class="mono">${esc(c.ncf)}</td>
-                <td><div style="font-size:0.85rem;">${esc(c.nombre_proveedor)}</div><div style="font-size:0.7rem; color:var(--text-dim);">RNC: ${c.rnc_proveedor}</div></td>
+                <td><div style="font-size:0.85rem;">${esc(c.nombre_proveedor)}</div><div style="font-size:0.7rem; color:var(--text-dim);">RNC: ${esc(c.rnc_proveedor)}</div></td>
                 <td>${fmtDate(c.fecha_comprobante)}</td>
                 <td class="mono">RD$ ${c.total_monto.toLocaleString(undefined, {minimumFractionDigits:2})}</td>
-                <td><span class="badge ${c.estado_odoo === 'procesada' ? 'badge-activo' : 'badge-pendiente'}">${c.estado_odoo}</span></td>
+                <td><span class="badge ${c.estado_odoo === 'procesada' ? 'badge-activo' : 'badge-pendiente'}">${esc(c.estado_odoo)}</span></td>
             </tr>
         `).join('');
     } catch (err) {

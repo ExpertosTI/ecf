@@ -7,7 +7,7 @@ import hashlib
 import logging
 import os
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -17,6 +17,8 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.serialization import pkcs12
 from lxml import etree
 from lxml.etree import _Element
+
+from ecf_core.utils import fmt_fecha_hora_dgii, now_rd
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +107,7 @@ class FacturaECF:
     tipo_rnc_comprador: str = "1"     # 1=RNC, 2=Cédula, 3=Pasaporte
 
     # Items
-    items: list[ItemECF] = None
+    items: list[ItemECF] = field(default_factory=list)
 
     # Referencia (notas de crédito/débito)
     ncf_referencia: str | None = None
@@ -128,12 +130,11 @@ class FacturaECF:
     # Comprador adicional
     direccion_comprador: str | None = None
 
+    # Crédito: FechaLimitePago (opcional en XSD; no inventar = fecha_emision)
+    fecha_limite_pago: date | None = None
+
     # Para 606/607 (compras)
     tipo_bienes_servicios: int | None = None
-
-    def __post_init__(self):
-        if self.items is None:
-            self.items = []
 
     @property
     def subtotal(self) -> Decimal:
@@ -252,11 +253,12 @@ class ECFXMLGenerator:
         )
         self._e(id_doc, "TipoIngresos", f.tipo_ingresos)
         self._e(id_doc, "TipoPago", f.tipo_pago)
-        if f.tipo_pago == "2":
-            # FechaLimitePago aplica a crédito; en contado/gratuito se omite.
+        # FechaLimitePago es opcional (XSD minOccurs=0). Solo emitir si hay
+        # vencimiento real — nunca sustituir con fecha_emision.
+        if f.tipo_pago == "2" and f.fecha_limite_pago:
             self._e(
                 id_doc, "FechaLimitePago",
-                f.fecha_emision.strftime("%d-%m-%Y"),
+                f.fecha_limite_pago.strftime("%d-%m-%Y"),
             )
         # TotalPaginas tiene minExclusive=1 — sólo emitir cuando > 1.
         if f.total_paginas > 1:
@@ -291,9 +293,12 @@ class ECFXMLGenerator:
 
         # Totales — los campos ITBIS1/ITBIS2/ITBIS3 son TASAS (Integer2),
         # no montos. Los montos van en TotalITBIS / TotalITBIS1 / TotalITBIS2.
+        # MontoGravadoTotal = SOLO montos gravados (18% + 16% + otras tasas);
+        # los montos exentos van únicamente en MontoExento (Manual Técnico DGII).
         totales = self._e(enc, "Totales")
-        if f.subtotal > 0:
-            self._e(totales, "MontoGravadoTotal", str(f.subtotal))
+        monto_gravado_total = f.subtotal - f.monto_exento
+        if monto_gravado_total > 0:
+            self._e(totales, "MontoGravadoTotal", str(monto_gravado_total))
         if f.monto_gravado_i1 > 0:
             self._e(totales, "MontoGravadoI1", str(f.monto_gravado_i1))
         if f.monto_gravado_i2 > 0:
@@ -399,10 +404,10 @@ class ECFSigner:
         parser = etree.XMLParser(remove_blank_text=True)
         root = etree.fromstring(xml_bytes, parser)
 
-        # 3. Sincronizar FechaHoraFirma del Resumen con el SigningTime XAdES
-        signing_time = datetime.now(timezone.utc)
-        signing_time_iso = signing_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        signing_time_dgii = signing_time.strftime("%d-%m-%Y %H:%M:%S")
+        # 3. Sincronizar FechaHoraFirma (AST DGII) con SigningTime XAdES (UTC ISO)
+        signing_time_utc = datetime.now(timezone.utc)
+        signing_time_iso = signing_time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+        signing_time_dgii = fmt_fecha_hora_dgii(now_rd())
         for elem in root.iter():
             tag_local = etree.QName(elem.tag).localname
             if tag_local == "FechaHoraFirma" and (elem.text or "").strip() in {"", "PENDING_SIGN"}:

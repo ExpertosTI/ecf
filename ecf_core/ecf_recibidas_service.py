@@ -27,8 +27,24 @@ from lxml import etree
 
 from ecf_core.cert_vault import CertVaultRepository
 from ecf_core.dgii_client import DGIIClient, DGIIClientError
+from ecf_core.utils import normalize_odoo_webhook_url, safe_schema, format_fecha_dgii
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_fecha_dgii(fecha_str: str) -> date:
+    """Parsea fechas DGII (dd-mm-yyyy) con fallback ISO (yyyy-mm-dd)."""
+    if fecha_str:
+        for fmt in ("%d-%m-%Y", "%d/%m/%Y"):
+            try:
+                return datetime.strptime(fecha_str, fmt).date()
+            except ValueError:
+                pass
+        try:
+            return date.fromisoformat(fecha_str[:10])
+        except ValueError:
+            pass
+    return date.today()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Estructuras de datos
@@ -95,10 +111,7 @@ def _parse_recibidas_xml(xml_text: str) -> list[ECFRecibida]:
                 continue
 
             fecha_str = _get(node, "FechaEmision", "Fecha")
-            try:
-                fecha = date.fromisoformat(fecha_str) if fecha_str else date.today()
-            except ValueError:
-                fecha = date.today()
+            fecha = _parse_fecha_dgii(fecha_str)
 
             def _decimal(s: str) -> Decimal:
                 try:
@@ -277,8 +290,8 @@ class ECFRecibidasService:
             self.EP_RECIBIDAS,
             params={
                 "RncReceptor": rnc_receptor,
-                "FechaDesde":  fecha_desde.isoformat(),
-                "FechaHasta":  fecha_hasta.isoformat(),
+                "FechaDesde":  format_fecha_dgii(fecha_desde),
+                "FechaHasta":  format_fecha_dgii(fecha_hasta),
             },
             headers=client._auth_headers(),
         )
@@ -311,10 +324,7 @@ class ECFRecibidasService:
         for item in items:
             try:
                 fecha_str = item.get("fechaEmision") or item.get("FechaEmision", "")
-                try:
-                    fecha = date.fromisoformat(fecha_str[:10]) if fecha_str else date.today()
-                except ValueError:
-                    fecha = date.today()
+                fecha = _parse_fecha_dgii(fecha_str)
 
                 recibidas.append(ECFRecibida(
                     ncf=item.get("encf") or item.get("ENCF", ""),
@@ -325,7 +335,11 @@ class ECFRecibidasService:
                     total_monto=Decimal(str(item.get("montoTotal", 0))),
                     itbis_facturado=Decimal(str(item.get("itbis", 0))),
                     subtotal=Decimal(str(item.get("subtotal", 0))),
-                    codigo_seguridad=item.get("cufe") or item.get("CUFE"),
+                    codigo_seguridad=item.get("codigoSeguridad")
+                    or item.get("CodigoSeguridad")
+                    or item.get("codigo_seguridad")
+                    or item.get("cufe")
+                    or item.get("CUFE"),
                 ))
             except Exception as e:
                 logger.warning("Error parseando e-CF recibida JSON: %s — %s", e, item)
@@ -347,7 +361,7 @@ class ECFRecibidasService:
         Intenta descargar el XML original de la DGII para cada nueva.
         Retorna (nuevos, duplicados).
         """
-        schema   = tenant["schema_name"]
+        schema   = safe_schema(tenant["schema_name"])
         ambiente = tenant["ambiente"]
         nuevos = 0
         duplicados = 0
@@ -423,11 +437,22 @@ class ECFRecibidasService:
         Usa HMAC-SHA256 para autenticación.
         Retorna el número de notificaciones exitosas.
         """
-        webhook_url    = tenant.get("odoo_webhook_url", "")
-        webhook_secret = tenant.get("odoo_webhook_secret", "")
-
+        webhook_url = tenant.get("odoo_webhook_url", "")
         if not webhook_url:
             return 0
+
+        schema = safe_schema(schema)
+
+        # El secret está cifrado con el CertVault (AES-GCM) — igual que en
+        # queue_worker._callback_odoo. Firmar con el blob cifrado rompe el HMAC.
+        webhook_secret = ""
+        raw_secret = tenant.get("odoo_webhook_secret") or ""
+        if raw_secret:
+            try:
+                webhook_secret = self.cert_repo.vault.descifrar_campo(raw_secret)
+            except Exception:
+                # Compat: instalaciones antiguas con secret en texto plano
+                webhook_secret = raw_secret
 
         # Obtener compras nuevas
         async with self.db.acquire() as conn:
@@ -464,24 +489,33 @@ class ECFRecibidasService:
         }
         payload_bytes = json.dumps(payload, ensure_ascii=False).encode("utf-8")
 
-        # Firma HMAC-SHA256
-        headers = {
-            "Content-Type": "application/json",
-            "X-ECF-Event":  "ecf_recibidas",
-        }
-        if webhook_secret:
-            sig = hmac.new(
-                webhook_secret.encode("utf-8"),
-                payload_bytes,
-                hashlib.sha256,
-            ).hexdigest()
-            headers["X-ECF-Signature"] = f"sha256={sig}"
+        # Firma HMAC-SHA256 — obligatoria: sin secret no se notifica (el
+        # controller de Odoo rechaza payloads sin firma).
+        if not webhook_secret:
+            logger.error(
+                "[%s] Webhook secret vacío — notificación de compras abortada",
+                tenant.get("rnc"),
+            )
+            return 0
 
-        target_url = webhook_url
-        if webhook_url.endswith(("/ecf/webhook", "/ecf/webhook/")):
-            target_url = webhook_url.rstrip("/") + "/recibida"
-        elif not any(p in webhook_url for p in ("/ecf/webhook/recibida", "/webhook/recibida")) and "odoo" in webhook_url.lower():
-            target_url = webhook_url.rstrip("/") + "/ecf/webhook/recibida"
+        sig = hmac.new(
+            webhook_secret.encode("utf-8"),
+            payload_bytes,
+            hashlib.sha256,
+        ).hexdigest()
+        headers = {
+            "Content-Type":     "application/json",
+            "X-ECF-Event":      "ecf_recibidas",
+            "X-ECF-Signature":  f"sha256={sig}",
+            "X-ECF-Tenant-RNC": tenant["rnc"],
+        }
+
+        # Ruta /ecf/webhook/recibida derivada de la URL normalizada del callback
+        target_url = normalize_odoo_webhook_url(webhook_url)
+        if target_url.endswith("/ecf/webhook/callback"):
+            target_url = target_url[: -len("/callback")] + "/recibida"
+        elif not target_url.endswith("/recibida"):
+            target_url = target_url.rstrip("/") + "/ecf/webhook/recibida"
 
         notificados = 0
         try:
@@ -510,6 +544,7 @@ class ECFRecibidasService:
 
     async def _obtener_ultima_fecha(self, schema: str) -> date:
         """Obtiene la última fecha consultada. Por defecto retorna ayer."""
+        schema = safe_schema(schema)
         async with self.db.acquire() as conn:
             row = await conn.fetchrow(
                 f"SELECT ultima_fecha_consultada FROM {schema}.ecf_recibidas_sync "
@@ -529,6 +564,7 @@ class ECFRecibidasService:
         error_msg: str | None = None,
     ):
         """Registra el resultado de la sincronización."""
+        schema = safe_schema(schema)
         async with self.db.acquire() as conn:
             await conn.execute(f"""
                 INSERT INTO {schema}.ecf_recibidas_sync

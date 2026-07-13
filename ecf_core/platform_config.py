@@ -122,6 +122,33 @@ async def save_psfe_to_db(
     await load_psfe_from_db(pool)
 
 
+async def signal_psfe_reload(redis) -> None:
+    """Avisa a workers/scheduler que deben recargar PSFE desde DB."""
+    if redis is None:
+        return
+    try:
+        await redis.set("ecf:psfe:reload", "1", ex=86400)
+    except Exception as exc:
+        logger.warning("No se pudo señalizar reload PSFE en Redis: %s", exc)
+
+
+async def maybe_reload_psfe_from_redis(pool: asyncpg.Pool, redis) -> bool:
+    """Si hay bandera Redis, recarga PSFE. Retorna True si recargó."""
+    if redis is None:
+        return False
+    try:
+        flag = await redis.get("ecf:psfe:reload")
+        if not flag:
+            return False
+        await load_psfe_from_db(pool)
+        await redis.delete("ecf:psfe:reload")
+        logger.info("PSFE recargado desde DB por señal Redis")
+        return True
+    except Exception as exc:
+        logger.warning("Reload PSFE vía Redis falló: %s", exc)
+        return False
+
+
 async def psfe_status(pool: asyncpg.Pool) -> dict:
     """Estado PSFE sin exponer secretos."""
     await load_psfe_from_db(pool)

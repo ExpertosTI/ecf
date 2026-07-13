@@ -76,6 +76,19 @@ class DGIIClient:
         "simulacion":    "http://127.0.0.1:9999/mock_dgii", # Mock server local
     }
 
+    # Host separado de la DGII para Facturas de Consumo < RD$250,000 (RFCE).
+    # Manual Técnico e-CF: la recepción del resumen (RFCE) y la consulta de
+    # timbre de consumo viven en fc.dgii.gov.do, no en ecf.dgii.gov.do.
+    URLS_FC = {
+        "TesteCF":       "https://fc.dgii.gov.do/testecf",
+        "CerteCF":       "https://fc.dgii.gov.do/certecf",
+        "eCF":           "https://fc.dgii.gov.do/ecf",
+        "certificacion": "https://fc.dgii.gov.do/certecf",
+        "produccion":    "https://fc.dgii.gov.do/ecf",
+        "pruebas":       "https://fc.dgii.gov.do/testecf",
+        "simulacion":    "http://127.0.0.1:9999/mock_dgii_fc",
+    }
+
     # Endpoints de la API DGII
     EP_SEMILLA = (
         "/Autenticacion/api/Autenticacion/Semilla",
@@ -86,27 +99,36 @@ class DGIIClient:
         "/fe/autenticacion/api/validacioncertificado",
     )
     EP_RECEPCION        = "/fe/recepcion/api/ecf"
+    EP_RECEPCION_FC     = "/recepcionfc/api/recepcion/ecf"   # RFCE (consumo < 250k) en fc.dgii.gov.do
     EP_CONSULTA_RESULT  = "/fe/recepcion/api/consultaresultado/{track_id}"
     EP_CONSULTA_TIMBRE  = "/fe/consultas/api/consultatimbre"
     EP_ANULACION_RANGO  = "/fe/anulacion/api/anulacionrangos"
     EP_DIR_RECEPTORES   = "/fe/consultas/api/directorioreceptores"
 
-    # Token cache
-    _access_token: str | None = None
-    _token_expires_at: float = 0
-
     def __init__(self, ambiente: str = "certificacion"):
         if ambiente not in self.URLS:
             raise ValueError(f"Ambiente inválido: {ambiente}. Válidos: {list(self.URLS)}")
+        self.ambiente = ambiente
         self.base_url = self.URLS[ambiente]
+        self.base_url_fc = self.URLS_FC[ambiente]
         self._client: httpx.AsyncClient | None = None
         self._p12_data: bytes | None = None
         self._p12_password: bytes | None = None
+        # Token cache POR INSTANCIA — nunca compartido entre tenants.
+        self._access_token: str | None = None
+        self._token_expires_at: float = 0
         # Lock disponible incluso si el cliente se usa sin `async with` (tests).
         self._token_lock = asyncio.Lock()
 
     def set_certificate(self, p12_data: bytes, p12_password: bytes):
-        """Configura el certificado .p12 para autenticación."""
+        """Configura el certificado .p12 para autenticación.
+
+        Invalida el token Bearer si el certificado cambia: el token de la DGII
+        está ligado al contribuyente que firmó la semilla.
+        """
+        if self._p12_data is not None and self._p12_data != p12_data:
+            self._access_token = None
+            self._token_expires_at = 0
         self._p12_data = p12_data
         self._p12_password = p12_password
 
@@ -427,6 +449,51 @@ class DGIIClient:
             f"Falló el envío a DGII después de 3 intentos. Último error: {last_error}"
         )
 
+    async def enviar_rfce(self, xml_firmado: bytes, ncf: str = "") -> RespuestaDGII:
+        """Envía un RFCE (Resumen Factura Consumo < RD$250,000) a fc.dgii.gov.do.
+
+        La DGII exige que las facturas de consumo bajo el umbral se reporten
+        con el resumen RFCE en el host fc.dgii.gov.do, no con el XML completo
+        en ecf.dgii.gov.do (Manual Técnico e-CF §Factura de Consumo).
+        """
+        await self._authenticate()
+
+        url = f"{self.base_url_fc}{self.EP_RECEPCION_FC}"
+        last_error = None
+        for intento in range(1, 4):
+            try:
+                logger.info("Enviando RFCE %s a DGII (fc) — intento %d", ncf, intento)
+                resp = await self._client.post(
+                    url,
+                    content=xml_firmado,
+                    headers=self._auth_headers(),
+                )
+                if resp.status_code in (200, 201, 202):
+                    return self._parsear_respuesta(resp.json())
+                if resp.status_code == 401:
+                    self._access_token = None
+                    self._token_expires_at = 0
+                    await self._authenticate()
+                    continue
+                if resp.status_code in (429, 503):
+                    espera = 2 ** intento
+                    logger.warning("DGII fc respondió %d. Esperando %ds...", resp.status_code, espera)
+                    await asyncio.sleep(espera)
+                    last_error = f"HTTP {resp.status_code}"
+                    continue
+                raise DGIIClientError(f"Error DGII RFCE {resp.status_code}: {resp.text}")
+            except httpx.TimeoutException:
+                espera = 2 ** intento
+                logger.warning("Timeout enviando RFCE a DGII. Esperando %ds...", espera)
+                await asyncio.sleep(espera)
+                last_error = "Timeout"
+            except httpx.ConnectError as e:
+                raise DGIIClientError(f"No se pudo conectar a la DGII (fc): {e}")
+
+        raise DGIIClientError(
+            f"Falló el envío del RFCE después de 3 intentos. Último error: {last_error}"
+        )
+
     # -------------------------------------------------------
     # Consultas
     # -------------------------------------------------------
@@ -553,7 +620,14 @@ class DGIIClient:
             "4": EstadoDGII.PROCESANDO,
             "recibido": EstadoDGII.RECIBIDO,
         }
-        estado = estado_map.get(str(raw_estado).lower().strip(), EstadoDGII.RECHAZADO)
+        raw_key = str(raw_estado).lower().strip()
+        estado = estado_map.get(raw_key)
+        if estado is None:
+            # Un estado desconocido NO debe marcar el e-CF como rechazado:
+            # puede ser una variante nueva de la DGII. Se deja en proceso y el
+            # polling por track_id resolverá el estado final.
+            logger.warning("Estado DGII desconocido %r — mapeado a EnProceso", raw_estado)
+            estado = EstadoDGII.PROCESANDO
 
         track_id = data.get("trackId") or data.get("track_id") or data.get("TrackId")
 
@@ -604,25 +678,45 @@ def generar_qr_url(
     security_code: str,
     rnc_comprador: str = "",
     tipo_ecf: int = 31,
+    fecha_emision: str = "",
 ) -> str:
     """
     Genera la URL de consulta de timbre para el código QR.
-    Formato según especificación DGII.
+    Parámetros según Descripción Técnica DGII (consultatimbre / consultatimbrefc).
     """
-    base = DGIIClient.URLS.get(ambiente, DGIIClient.URLS.get("certificacion"))
+    # Hosts API usan casing mixto (CerteCF); la consulta de timbre pública
+    # documentada por DGII usa paths en minúsculas.
+    URLS_TIMBRE = {
+        "TesteCF":       "https://ecf.dgii.gov.do/testecf",
+        "CerteCF":       "https://ecf.dgii.gov.do/certecf",
+        "eCF":           "https://ecf.dgii.gov.do/ecf",
+        "certificacion": "https://ecf.dgii.gov.do/certecf",
+        "produccion":    "https://ecf.dgii.gov.do/ecf",
+        "pruebas":       "https://ecf.dgii.gov.do/testecf",
+        "simulacion":    "http://127.0.0.1:9999/mock_dgii",
+    }
+    base = URLS_TIMBRE.get(ambiente, URLS_TIMBRE.get("certificacion"))
 
-    # e-CF 32 (consumo) usa endpoint diferente sin RncComprador
+    # e-CF 32 (consumo / RFCE): host fc — params: RncEmisor, ENCF, MontoTotal, CodigoSeguridad
     if tipo_ecf == 32:
+        base_fc = DGIIClient.URLS_FC.get(ambiente, DGIIClient.URLS_FC.get("certificacion"))
         return (
-            f"{base}/consultatimbrefc?"
+            f"{base_fc}/consultatimbrefc?"
             f"RncEmisor={rnc_emisor}&ENCF={ncf}"
-            f"&MontoTotal={total}&FechaFirma={fecha_firma}"
-            f"&CodigoSeguridad={security_code}"
+            f"&MontoTotal={total}&CodigoSeguridad={security_code}"
         )
 
-    return (
-        f"{base}/consultatimbre?"
+    # Timbre e-CF estándar exige FechaEmision además de FechaFirma
+    qs = (
         f"RncEmisor={rnc_emisor}&RncComprador={rnc_comprador}"
         f"&ENCF={ncf}&MontoTotal={total}"
         f"&FechaFirma={fecha_firma}&CodigoSeguridad={security_code}"
     )
+    if fecha_emision:
+        qs = (
+            f"RncEmisor={rnc_emisor}&RncComprador={rnc_comprador}"
+            f"&ENCF={ncf}&FechaEmision={fecha_emision}"
+            f"&MontoTotal={total}&FechaFirma={fecha_firma}"
+            f"&CodigoSeguridad={security_code}"
+        )
+    return f"{base}/consultatimbre?{qs}"

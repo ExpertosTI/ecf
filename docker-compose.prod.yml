@@ -25,8 +25,10 @@ services:
       - "--certificatesresolvers.letsencryptresolver.acme.storage=/letsencrypt/acme.json"
       - "--accesslog=true"
       - "--accesslog.format=json"
-      - "--api=true"
-      - "--api.insecure=true"
+      # Dashboard/API de Traefik deshabilitado en producción.
+      # NUNCA usar api.insecure=true aquí: expone la configuración completa
+      # del cluster (rutas, backends, certificados) sin autenticación.
+      - "--api=false"
     ports:
       - target: 80
         published: 80
@@ -34,10 +36,6 @@ services:
         mode: host
       - target: 443
         published: 443
-        protocol: tcp
-        mode: host
-      - target: 8080
-        published: 8080
         protocol: tcp
         mode: host
     volumes:
@@ -68,6 +66,18 @@ services:
       VAULT_MASTER_KEY: ${VAULT_MASTER_KEY}
       ADMIN_API_KEY: ${ADMIN_API_KEY}
       ECF_AMBIENTE: ${ECF_AMBIENTE:-produccion}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      METRICS_API_KEY: ${METRICS_API_KEY:-}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-60}
+      RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-60}
+      IP_RATE_LIMIT_MAX: ${IP_RATE_LIMIT_MAX:-30}
+      IP_RATE_LIMIT_WINDOW: ${IP_RATE_LIMIT_WINDOW:-60}
+      WEBHOOK_ROTATION_TTL: ${WEBHOOK_ROTATION_TTL:-900}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      ALERT_FROM_EMAIL: ${ALERT_FROM_EMAIL:-}
       TZ: America/Santo_Domingo
     networks:
       - RenaceNet
@@ -122,6 +132,17 @@ services:
       REDIS_URL: redis://redis:6379/0
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       VAULT_MASTER_KEY: ${VAULT_MASTER_KEY}
+      # El scheduler ahora habla con DGII (polling de track_id, RFCE, recibidas)
+      PSFE_CERT_B64: ${PSFE_CERT_B64}
+      PSFE_KEY_B64: ${PSFE_KEY_B64}
+      DGII_CA_B64: ${DGII_CA_B64}
+      ECF_AMBIENTE: ${ECF_AMBIENTE:-produccion}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      ALERT_FROM_EMAIL: ${ALERT_FROM_EMAIL:-}
+      TZ: America/Santo_Domingo
     networks:
       - RenaceNet
     deploy:

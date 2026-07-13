@@ -47,6 +47,7 @@ from decimal import Decimal
 from lxml import etree
 
 from ecf_core.ecf_core_service import ECFSigner, ECFValidator
+from ecf_core.utils import fmt_fecha_hora_dgii
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +60,7 @@ def _fmt_fecha(d) -> str:
 
 
 def _fmt_fecha_hora(dt: datetime | None = None) -> str:
-    dt = dt or datetime.now(timezone.utc)
-    return dt.strftime("%d-%m-%Y %H:%M:%S")
+    return fmt_fecha_hora_dgii(dt)
 
 
 def _fmt_monto(monto) -> str:

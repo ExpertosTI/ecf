@@ -1,144 +1,95 @@
--- Renace e-CF — Esquema multitenant PostgreSQL
--- Versión: 2.8 (estado final post-migraciones 002–014)
--- Compatible con requisitos de homologación DGII RD
--- Este archivo es la fuente de verdad para nuevos despliegues.
--- Las migraciones 002–014 solo son necesarias para instancias existentes.
+-- Migration 013: RFCE por factura (Manual Técnico DGII — consumo < RD$250,000)
+-- El RFCE es un resumen POR FACTURA tipo 32, no un batch diario:
+--   * rfce.ncf           → eNCF de la factura resumida (UNIQUE)
+--   * rfce.fecha_resumen → deja de ser UNIQUE (varias facturas por día)
+--   * ecf.rfce_id        → FK al resumen enviado a fc.dgii.gov.do
+-- También restaura crear_schema_tenant() al estado final v2.7 (la migración
+-- 010 la había sobrescrito sin las tablas RFCE).
+-- Seguro para ejecutar múltiples veces.
 
--- Extensiones necesarias
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+DO $$
+DECLARE
+    v_schema TEXT;
+BEGIN
+    FOR v_schema IN
+        SELECT schema_name FROM public.tenants WHERE deleted_at IS NULL
+    LOOP
+        -- 1. Crear tabla rfce si el schema fue creado con la función stale de 010
+        BEGIN
+            EXECUTE format('
+                CREATE TABLE IF NOT EXISTS %I.rfce (
+                    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    ncf             VARCHAR(13) UNIQUE,
+                    fecha_resumen   DATE NOT NULL,
+                    estado          VARCHAR(20) NOT NULL DEFAULT ''pendiente''
+                                    CHECK (estado IN (''pendiente'',''enviado'',''aprobado'',''rechazado'')),
+                    track_id        VARCHAR(128),
+                    secuencia_ncf   BIGINT,
+                    cantidad_facturas INTEGER NOT NULL DEFAULT 1,
+                    monto_total     NUMERIC(18,2) NOT NULL,
+                    xml_firmado     BYTEA,
+                    respuesta_dgii  JSONB,
+                    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )', v_schema);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Error creando rfce en %: %', v_schema, SQLERRM;
+        END;
 
--- SCHEMA: public — tablas del sistema / plataforma
+        -- 2. Columna ncf (schemas con la tabla rfce vieja de 007)
+        BEGIN
+            EXECUTE format('ALTER TABLE %I.rfce ADD COLUMN IF NOT EXISTS ncf VARCHAR(13)', v_schema);
+            EXECUTE format('CREATE UNIQUE INDEX IF NOT EXISTS uq_rfce_ncf ON %I.rfce(ncf)', v_schema);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Error en rfce.ncf para %: %', v_schema, SQLERRM;
+        END;
 
--- Tenants (empresas clientes del SaaS)
-CREATE TABLE public.tenants (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    rnc                 VARCHAR(11) NOT NULL UNIQUE,          -- RNC sin guiones
-    razon_social        VARCHAR(255) NOT NULL,
-    nombre_comercial    VARCHAR(255),
-    direccion           TEXT,
-    telefono            VARCHAR(20),
-    email               VARCHAR(255) NOT NULL,
-    api_key             VARCHAR(64) NOT NULL UNIQUE,          -- SHA-256 hex
-    plan                VARCHAR(30) NOT NULL DEFAULT 'basico' CHECK (plan IN ('basico','profesional','enterprise','pyme','standard','empresarial')),
-    estado              VARCHAR(20) NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','activo','suspendido','cancelado')),
-    schema_name         VARCHAR(63) NOT NULL UNIQUE,          -- schema PostgreSQL del tenant
-    ambiente            VARCHAR(20) NOT NULL DEFAULT 'certificacion' CHECK (ambiente IN ('certificacion','produccion','simulacion')),
-    odoo_webhook_url    TEXT,                                 -- URL donde notificar callbacks
-    odoo_webhook_secret VARCHAR(128),                         -- HMAC-SHA256 secret para validar
-    max_ecf_mensual     INTEGER NOT NULL DEFAULT 1000,
-    ecf_emitidos_mes    INTEGER NOT NULL DEFAULT 0,
-    cert_vencimiento    DATE,                                 -- vencimiento del .p12 del tenant
-    cert_alerta_enviada BOOLEAN NOT NULL DEFAULT FALSE,
-    cert_password       VARCHAR(255),                         -- password del .p12 (cifrado en app layer)
-    cufe_secret         VARCHAR(128),                         -- DEPRECATED v2.5: columna sin uso (era algoritmo Colombia, no DGII RD)
-    is_platform_operator BOOLEAN NOT NULL DEFAULT FALSE,      -- empresa operadora Renace (PSFE)
-    dgii_test_ok_at     TIMESTAMPTZ,                          -- última auth CerteCF OK
-    postulacion_firmada_at TIMESTAMPTZ,                       -- última postulación firmada
-    onboarding_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    deleted_at          TIMESTAMPTZ                          -- soft delete
-);
+        -- 3. fecha_resumen deja de ser UNIQUE
+        BEGIN
+            EXECUTE format('ALTER TABLE %I.rfce DROP CONSTRAINT IF EXISTS rfce_fecha_resumen_key', v_schema);
+            EXECUTE format('CREATE INDEX IF NOT EXISTS idx_rfce_fecha ON %I.rfce(fecha_resumen)', v_schema);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Error quitando UNIQUE fecha_resumen en %: %', v_schema, SQLERRM;
+        END;
 
-CREATE INDEX idx_tenants_rnc        ON public.tenants(rnc);
-CREATE INDEX idx_tenants_api_key    ON public.tenants(api_key);
-CREATE INDEX idx_tenants_estado     ON public.tenants(estado);
-CREATE INDEX idx_tenants_cert_venc  ON public.tenants(cert_vencimiento) WHERE deleted_at IS NULL;
-CREATE UNIQUE INDEX uq_tenants_one_platform_operator
-    ON public.tenants (is_platform_operator)
-    WHERE is_platform_operator = TRUE AND deleted_at IS NULL;
+        -- 4. cantidad_facturas con default 1
+        BEGIN
+            EXECUTE format('ALTER TABLE %I.rfce ALTER COLUMN cantidad_facturas SET DEFAULT 1', v_schema);
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
 
--- Certificados .p12 de los tenants (Cert Vault)
--- La columna cert_data almacena el .p12 cifrado con AES-256-GCM
--- La llave de cifrado vive en variable de entorno VAULT_MASTER_KEY
-CREATE TABLE public.tenant_certs (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id       UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    cert_data       BYTEA NOT NULL,              -- .p12 cifrado AES-256-GCM
-    iv              BYTEA NOT NULL,              -- IV de 12 bytes para GCM
-    tag             BYTEA NOT NULL,              -- tag de autenticación GCM
-    cert_serial     VARCHAR(64),                 -- número de serie del certificado
-    cert_subject    TEXT,                        -- CN del certificado
-    valid_from      DATE NOT NULL,
-    valid_to        DATE NOT NULL,
-    activo          BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+        -- 5. ecf.rfce_id + FK + índice
+        BEGIN
+            EXECUTE format('ALTER TABLE %I.ecf ADD COLUMN IF NOT EXISTS rfce_id UUID', v_schema);
+            EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_rfce_id ON %I.ecf(rfce_id)', v_schema);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Error en ecf.rfce_id para %: %', v_schema, SQLERRM;
+        END;
+        BEGIN
+            EXECUTE format('
+                ALTER TABLE %I.ecf
+                ADD CONSTRAINT fk_ecf_rfce
+                FOREIGN KEY (rfce_id) REFERENCES %I.rfce(id) ON DELETE SET NULL
+            ', v_schema, v_schema);
+        EXCEPTION
+            WHEN duplicate_object THEN NULL;
+            WHEN OTHERS THEN
+                RAISE NOTICE 'Error FK fk_ecf_rfce en %: %', v_schema, SQLERRM;
+        END;
 
-CREATE INDEX idx_tenant_certs_tenant ON public.tenant_certs(tenant_id);
-CREATE INDEX idx_tenant_certs_activo ON public.tenant_certs(tenant_id, activo);
+        -- 6. motivo_rechazo alineado a VARCHAR(250) (migración 008 usaba TEXT)
+        BEGIN
+            EXECUTE format('ALTER TABLE %I.compras ALTER COLUMN motivo_rechazo TYPE VARCHAR(250)', v_schema);
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
 
--- Usuarios del portal de administración
-CREATE TABLE public.portal_users (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id       UUID REFERENCES public.tenants(id) ON DELETE CASCADE,  -- NULL = superadmin
-    email           VARCHAR(255) NOT NULL UNIQUE,
-    password_hash   VARCHAR(128) NOT NULL,                   -- bcrypt
-    nombre          VARCHAR(255) NOT NULL,
-    rol             VARCHAR(20) NOT NULL DEFAULT 'admin' CHECK (rol IN ('superadmin','admin','viewer')),
-    activo          BOOLEAN NOT NULL DEFAULT TRUE,
-    last_login      TIMESTAMPTZ,
-    mfa_secret      VARCHAR(32),                             -- TOTP secret (opcional)
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+        RAISE NOTICE 'Schema % migrado a RFCE por factura (v2.7)', v_schema;
+    END LOOP;
+END;
+$$;
 
-CREATE INDEX idx_portal_users_tenant ON public.portal_users(tenant_id);
+-- ── Redefinición final de crear_schema_tenant (idéntica a db/001_schema.sql v2.7) ──
 
--- Sesiones / tokens de acceso al portal
-CREATE TABLE public.portal_sessions (
-    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id     UUID NOT NULL REFERENCES public.portal_users(id) ON DELETE CASCADE,
-    token_hash  VARCHAR(128) NOT NULL UNIQUE,
-    ip_address  INET,
-    user_agent  TEXT,
-    expires_at  TIMESTAMPTZ NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_sessions_token   ON public.portal_sessions(token_hash);
-CREATE INDEX idx_sessions_expires ON public.portal_sessions(expires_at);
-
--- Secuencias NCF por tenant y tipo de comprobante
--- Crítico: la DGII auditará que no haya saltos ni duplicados
-CREATE TABLE public.ncf_sequences (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id       UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    tipo_ecf        SMALLINT NOT NULL,   -- 31,32,33,34,41,43,44,45,46,47
-    prefijo         VARCHAR(3) NOT NULL, -- 'E31', 'E32', etc.
-    secuencia_actual BIGINT NOT NULL DEFAULT 0,
-    secuencia_max   BIGINT NOT NULL DEFAULT 9999999999,
-    activo          BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (tenant_id, tipo_ecf)
-);
-
-CREATE INDEX idx_ncf_sequences_tenant ON public.ncf_sequences(tenant_id);
-
--- Audit log del sistema (nivel plataforma)
-CREATE TABLE public.system_audit_log (
-    id          BIGSERIAL PRIMARY KEY,
-    tenant_id   UUID REFERENCES public.tenants(id),
-    user_id     UUID REFERENCES public.portal_users(id),
-    accion      VARCHAR(100) NOT NULL,
-    entidad     VARCHAR(100),
-    entidad_id  VARCHAR(100),
-    detalle     JSONB,
-    ip_address  INET,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_audit_tenant    ON public.system_audit_log(tenant_id);
-CREATE INDEX idx_audit_created   ON public.system_audit_log(created_at);
-CREATE INDEX idx_audit_accion    ON public.system_audit_log(accion);
-
--- FUNCIÓN: crear schema y tablas por tenant (v2.7 — estado final)
--- Se invoca al activar un tenant nuevo.
--- Refleja el estado completo tras todas las migraciones (002–013).
--- IMPORTANTE: db/013_rfce_por_factura.sql contiene la MISMA definición para
--- deployments que aplican migraciones incrementales. Mantener ambas en sync.
 CREATE OR REPLACE FUNCTION public.crear_schema_tenant(p_schema VARCHAR)
 RETURNS VOID AS $$
 BEGIN
@@ -318,71 +269,3 @@ BEGIN
     RAISE NOTICE 'Schema % creado correctamente (v2.7 — RFCE por factura)', p_schema;
 END;
 $$ LANGUAGE plpgsql;
-
--- FUNCIÓN: próximo NCF (atómica — evita duplicados)
-CREATE OR REPLACE FUNCTION public.next_ncf(
-    p_tenant_id UUID,
-    p_tipo_ecf  SMALLINT
-) RETURNS VARCHAR AS $$
-DECLARE
-    v_prefijo   VARCHAR(3);
-    v_seq       BIGINT;
-    v_ncf       VARCHAR(13);
-BEGIN
-    UPDATE public.ncf_sequences
-    SET    secuencia_actual = secuencia_actual + 1,
-           updated_at = NOW()
-    WHERE  tenant_id = p_tenant_id
-      AND  tipo_ecf  = p_tipo_ecf
-      AND  activo    = TRUE
-      AND  secuencia_actual < secuencia_max
-    RETURNING prefijo, secuencia_actual
-    INTO v_prefijo, v_seq;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Secuencia NCF agotada o inactiva para tenant % tipo %',
-                        p_tenant_id, p_tipo_ecf;
-    END IF;
-
-    -- Formato: E + tipo(2) + secuencia(10 dígitos con ceros)
-    v_ncf := v_prefijo || LPAD(v_seq::TEXT, 10, '0');
-    RETURN v_ncf;
-END;
-$$ LANGUAGE plpgsql;
-
--- TRIGGER: updated_at automático
-CREATE OR REPLACE FUNCTION public.set_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_tenants_updated_at
-    BEFORE UPDATE ON public.tenants
-    FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
-CREATE TRIGGER trg_ncf_sequences_updated_at
-    BEFORE UPDATE ON public.ncf_sequences
-    FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
--- VISTA: resumen de tenants para el superadmin
-CREATE OR REPLACE VIEW public.v_tenants_resumen AS
-SELECT
-    t.id,
-    t.rnc,
-    t.razon_social,
-    t.plan,
-    t.estado,
-    t.ambiente,
-    t.ecf_emitidos_mes,
-    t.max_ecf_mensual,
-    t.cert_vencimiento,
-    CASE WHEN t.cert_vencimiento <= CURRENT_DATE + 30 THEN TRUE ELSE FALSE END AS cert_por_vencer,
-    t.created_at,
-    COUNT(c.id) AS total_certs_activos
-FROM public.tenants t
-LEFT JOIN public.tenant_certs c ON c.tenant_id = t.id AND c.activo = TRUE
-WHERE t.deleted_at IS NULL
-GROUP BY t.id;

@@ -1,75 +1,82 @@
 # -*- coding: utf-8 -*-
-import json
 import hashlib
 import hmac
-from odoo.tests.common import TransactionCase, HttpCase
+import json
+from datetime import datetime, timezone
+
+from odoo.tests.common import HttpCase
 from odoo.tools import mute_logger
+
 
 class TestECFConnection(HttpCase):
 
     def setUp(self):
-        super(TestECFConnection, self).setUp()
+        super().setUp()
         self.company = self.env.company
         self.company.ecf_webhook_secret = 'test_secret_key'
+        if not self.company.vat:
+            self.company.vat = '131793916'
         self.webhook_url = '/ecf/webhook/recibida'
 
-    def _generate_signature(self, payload, secret):
-        payload_str = json.dumps(payload, separators=(',', ':'))
-        return hmac.new(
-            secret.encode(),
-            payload_str.encode(),
-            hashlib.sha256
-        ).hexdigest()
+    def _sign_payload(self, payload: dict, secret: str) -> str:
+        body = json.dumps(payload).encode()
+        return 'sha256=' + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 
     @mute_logger('odoo.addons.ecf_connector.controllers.webhook')
     def test_webhook_recibida_valid(self):
-        """Prueba que el webhook acepte una firma válida y cree el registro."""
+        """Webhook recibida acepta firma HMAC válida y crea el registro."""
         payload = {
-            "ncf": "E310000000001",
-            "rnc_proveedor": "131793916",
-            "nombre_proveedor": "PROVEEDOR TEST",
-            "tipo_ecf": 31,
-            "codigo_seguridad": "test_seg_123",
-            "fecha_comprobante": "2026-04-26",
-            "total_monto": 1180.00,
-            "itbis_facturado": 180.00,
-            "monto_bienes": 1000.00,
-            "monto_servicios": 0.00,
-            "ambiente": "certificacion"
+            'compras': [{
+                'ncf': 'E310000000001',
+                'rnc_proveedor': '131793916',
+                'nombre_proveedor': 'PROVEEDOR TEST',
+                'tipo_ecf': 31,
+                'codigo_seguridad': 'test_seg_123',
+                'fecha_comprobante': '2026-04-26',
+                'total_monto': 1180.00,
+                'itbis_facturado': 180.00,
+                'monto_bienes': 1000.00,
+                'monto_servicios': 0.00,
+                'ambiente': 'certificacion',
+            }],
+            'timestamp': datetime.now(timezone.utc).isoformat(),
         }
-        
-        signature = self._generate_signature(payload, self.company.ecf_webhook_secret)
-        
+        body = json.dumps(payload).encode()
+        signature = self._sign_payload(payload, self.company.ecf_webhook_secret)
+
         response = self.url_open(
             self.webhook_url,
-            data=json.dumps(payload),
+            data=body,
             headers={
                 'Content-Type': 'application/json',
-                'X-Signature': signature,
-                'X-RNC-Tenant': self.company.vat or '123456789'
-            }
+                'X-ECF-Signature': signature,
+                'X-ECF-Tenant-RNC': self.company.vat,
+            },
         )
-        
+
         self.assertEqual(response.status_code, 200)
-        result = response.json()
-        self.assertTrue(result.get('success'))
-        
-        # Verificar que se creó el registro en Odoo
-        recibida = self.env['ecf.compra.recibida'].search([('ncf', '=', 'E310000000001')], limit=1)
-        self.assertTrue(recibida, "No se creó el registro de e-CF recibida")
-        self.assertEqual(recibida.nombre_proveedor, "PROVEEDOR TEST")
+        recibida = self.env['ecf.compra.recibida'].search([
+            ('ncf', '=', 'E310000000001'),
+            ('company_id', '=', self.company.id),
+        ], limit=1)
+        self.assertTrue(recibida, 'No se creó el registro de e-CF recibida')
+        self.assertEqual(recibida.nombre_proveedor, 'PROVEEDOR TEST')
         self.assertEqual(recibida.total_monto, 1180.00)
 
+    @mute_logger('odoo.addons.ecf_connector.controllers.webhook')
     def test_webhook_invalid_signature(self):
-        """Prueba que el webhook rechace firmas inválidas."""
-        payload = {"ncf": "FAIL"}
+        """Webhook rechaza firmas inválidas."""
+        payload = {
+            'compras': [{'ncf': 'E310000000002'}],
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+        }
         response = self.url_open(
             self.webhook_url,
-            data=json.dumps(payload),
+            data=json.dumps(payload).encode(),
             headers={
                 'Content-Type': 'application/json',
-                'X-Signature': 'invalid_sig'
-            }
+                'X-ECF-Signature': 'sha256=invalid_sig',
+                'X-ECF-Tenant-RNC': self.company.vat,
+            },
         )
-        # El controlador retorna 401 para firmas inválidas
         self.assertEqual(response.status_code, 401)

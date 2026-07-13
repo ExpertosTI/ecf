@@ -22,6 +22,7 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 # VAULT_MASTER_KEY must be exactly 32 bytes after base64 decoding (256 bits)
 os.environ.setdefault("VAULT_MASTER_KEY", "YTVhNWE1YTVhNWE1YTVhNWE1YTVhNWE1YTVhNWE1YTU=") # 32 bytes of 'a'
 os.environ.setdefault("ADMIN_API_KEY", "test-admin-key-12345")
+os.environ.setdefault("ECF_AMBIENTE", "simulacion")
 
 
 # ── Mocks ──────────────────────────────────────────────

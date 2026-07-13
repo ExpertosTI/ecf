@@ -23,6 +23,7 @@ class ECFCompraRecibida(models.Model):
     _description = 'e-CF Recibida (Compra desde DGII)'
     _order       = 'fecha_comprobante desc, ncf'
     _rec_name    = 'ncf'
+    _check_company_auto = True
 
     # ─────────────────────────────────────────────────────────────────────────
     # Campos de identificación
@@ -75,12 +76,19 @@ class ECFCompraRecibida(models.Model):
         ('error',     'Error'),
     ], string='Estado', default='nueva', required=True, index=True)
 
+    estado_comercial = fields.Selection([
+        ('pendiente', 'Pendiente'),
+        ('aprobado',  'Aprobado'),
+        ('rechazado', 'Rechazado'),
+    ], string='Estado Comercial', default='pendiente', required=True, index=True)
+
     move_id = fields.Many2one(
         'account.move', string='Factura de Proveedor',
-        readonly=True, ondelete='set null',
+        readonly=True, ondelete='set null', check_company=True,
         help='Factura de proveedor creada automáticamente en Odoo',
     )
     error_mensaje = fields.Text('Error')
+    motivo_rechazo = fields.Char('Motivo de Rechazo')
 
     # ─────────────────────────────────────────────────────────────────────────
     # Computed
@@ -241,6 +249,41 @@ class ECFCompraRecibida(models.Model):
                 'sticky':  False,
             },
         }
+
+    def action_aprobar_comercial(self):
+        """Envía la Aprobación Comercial (ACECF) al SaaS."""
+        self.ensure_one()
+        company = self.env.company
+        try:
+            resp = requests.post(
+                f"{company.ecf_saas_url}/v1/compras/{self.ncf}/aprobar",
+                headers={'X-API-Key': company.ecf_api_key},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            self.write({'estado_comercial': 'aprobado'})
+        except Exception as e:
+            raise UserError(_('Error al aprobar comercialmente: %s', str(e)))
+        return True
+
+    def action_rechazar_comercial(self):
+        """Envía el Rechazo Comercial (ARECF) al SaaS."""
+        self.ensure_one()
+        if not self.motivo_rechazo:
+            raise UserError(_('Debe especificar un motivo de rechazo.'))
+        company = self.env.company
+        try:
+            resp = requests.post(
+                f"{company.ecf_saas_url}/v1/compras/{self.ncf}/rechazar",
+                json={'motivo': self.motivo_rechazo},
+                headers={'X-API-Key': company.ecf_api_key},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            self.write({'estado_comercial': 'rechazado'})
+        except Exception as e:
+            raise UserError(_('Error al rechazar comercialmente: %s', str(e)))
+        return True
 
     def action_sincronizar_dgii(self):
         """Dispara sincronización manual con la DGII desde Odoo."""

@@ -30,11 +30,16 @@ class ECFWebhookController(http.Controller):
         digits = _rnc_solo_digitos(tenant_rnc)
         if not digits:
             return request.env['res.company']
-        companies = request.env['res.company'].sudo().search([])
-        for company in companies:
+        Company = request.env['res.company'].sudo()
+        if len(digits) >= 9:
+            dashed = f"{digits[:3]}-{digits[3:8]}-{digits[8:]}" if len(digits) == 11 else None
+            domain = ['|', ('vat', 'ilike', digits), ('vat', '=', dashed)] if dashed else [('vat', 'ilike', digits)]
+        else:
+            domain = [('vat', 'ilike', digits)]
+        for company in Company.search(domain, limit=10):
             if _rnc_solo_digitos(company.vat) == digits:
                 return company
-        return request.env['res.company']
+        return Company
 
     @http.route(
         '/ecf/webhook/callback',
@@ -88,7 +93,7 @@ class ECFWebhookController(http.Controller):
             if data.get('event') == 'ping':
                 return request.make_response('OK', status=200)
 
-            self._procesar_callback(data)
+            self._procesar_callback(data, company)
 
             return request.make_response('OK', status=200)
 
@@ -119,7 +124,7 @@ class ECFWebhookController(http.Controller):
         except (ValueError, TypeError):
             return False
 
-    def _procesar_callback(self, data: dict):
+    def _procesar_callback(self, data: dict, company):
         """Actualiza la factura y el log con el resultado de la DGII."""
         odoo_move_id = data.get('odoo_move_id')
         ncf          = data.get('ncf')
@@ -138,6 +143,13 @@ class ECFWebhookController(http.Controller):
 
         if not move.exists():
             _logger.warning("account.move %s no encontrado en callback ECF", odoo_move_id)
+            return
+
+        if move.company_id and _rnc_solo_digitos(move.company_id.vat) != _rnc_solo_digitos(company.vat):
+            _logger.warning(
+                "Callback IDOR rechazado: move %s (company %s) no coincide con RNC %s",
+                odoo_move_id, move.company_id.vat, company.vat,
+            )
             return
 
         # Actualizar factura
@@ -206,19 +218,28 @@ class ECFWebhookController(http.Controller):
             sig_header  = request.httprequest.headers.get('X-ECF-Signature', '')
             tenant_rnc  = request.httprequest.headers.get('X-ECF-Tenant-RNC', '')
 
-            # Detectar compañía por RNC
-            company = self._buscar_company_por_rnc(tenant_rnc) if tenant_rnc else request.env['res.company'].sudo().browse(1)
+            # La compañía SIEMPRE se resuelve por RNC. Sin RNC no hay forma
+            # segura de saber a qué compañía pertenecen las compras (IDOR).
+            if not tenant_rnc:
+                _logger.warning("Webhook recibida sin header X-ECF-Tenant-RNC — rechazado")
+                return request.make_response('Bad Request', status=400)
 
+            company = self._buscar_company_por_rnc(tenant_rnc)
             if not company:
                 _logger.warning("Webhook recibida: compañía no encontrada para RNC %s", tenant_rnc)
                 return request.make_response('Bad Request', status=400)
 
-            # Verificar firma si hay secret configurado
+            # Firma HMAC obligatoria (mismo estándar que /callback)
             secret = company.ecf_webhook_secret or ''
-            if secret and sig_header:
-                if not self._verificar_firma(body_bytes, sig_header, secret.encode()):
-                    _logger.warning("Webhook recibida: firma HMAC inválida")
-                    return request.make_response('Unauthorized', status=401)
+            if not secret.strip():
+                _logger.error("Webhook recibida: secret no configurado — rechazado")
+                return request.make_response('Forbidden', status=403)
+            if not sig_header:
+                _logger.warning("Webhook recibida sin firma X-ECF-Signature")
+                return request.make_response('Unauthorized', status=401)
+            if not self._verificar_firma(body_bytes, sig_header, secret.encode()):
+                _logger.warning("Webhook recibida: firma HMAC inválida")
+                return request.make_response('Unauthorized', status=401)
 
             data = json.loads(body_bytes)
 

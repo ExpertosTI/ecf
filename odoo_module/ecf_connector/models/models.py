@@ -35,6 +35,29 @@ _API_KEY_RE = re.compile(r'^sk_(cert|prod)_[a-f0-9]{48}$')
 _RNC_WEIGHTS = (7, 9, 8, 6, 5, 4, 3, 2)
 _CEDULA_WEIGHTS = (1, 2, 1, 2, 1, 2, 1, 2, 1, 2)
 
+_UOM_DGII_MAP = {
+    'unidad': '43', 'unidades': '43', 'unit': '43', 'units': '43', 'und': '43',
+    'pieza': '11', 'piezas': '11', 'pz': '11',
+    'kg': '2', 'kilogramo': '2', 'kilogramos': '2',
+    'lb': '4', 'libra': '4', 'libras': '4',
+    'galón': '7', 'galon': '7', 'galones': '7', 'gal': '7',
+    'litro': '6', 'litros': '6', 'lt': '6', 'l': '6',
+    'metro': '1', 'metros': '1', 'm': '1',
+    'hora': '14', 'horas': '14', 'hr': '14', 'hrs': '14',
+    'día': '15', 'dia': '15', 'días': '15', 'dias': '15',
+    'servicio': '43', 'servicios': '43',
+    'caja': '12', 'cajas': '12',
+    'paquete': '13', 'paquetes': '13',
+}
+
+
+def _uom_to_dgii_code(uom_name: str) -> str:
+    """Convierte nombre de UoM de Odoo al código numérico DGII."""
+    if not uom_name:
+        return '43'
+    key = uom_name.strip().lower()
+    return _UOM_DGII_MAP.get(key, '43')
+
 
 def _validar_rnc(rnc):
     if not isinstance(rnc, str) or len(rnc) != 9 or not rnc.isdigit():
@@ -164,11 +187,10 @@ class ResConfigSettings(models.TransientModel):
     def set_values(self):
         super().set_values()
         api_key = self.company_id.ecf_api_key
-        # Validación flexible: debe empezar con sk_ y tener al menos 20 chars
-        if api_key and not api_key.startswith('sk_'):
+        if api_key and not _API_KEY_RE.match(api_key):
             raise ValidationError(_(
                 'La API Key debe tener formato sk_cert_... o sk_prod_... '
-                '(proporcionada al crear el tenant en el SaaS)'
+                '(48 caracteres hexadecimales, proporcionada al crear el tenant en el SaaS)'
             ))
 
     def action_test_conexion_ecf(self):
@@ -654,6 +676,15 @@ class AccountMove(models.Model):
                 'Concilie el pago primero.'
             ))
 
+        # Guard anti re-emisión: si ya tiene NCF y no fue rechazado/anulado,
+        # volver a emitir generaría un NCF duplicado ante la DGII.
+        if self.ecf_ncf and self.ecf_estado not in ('rechazado', 'anulado', 'error', False):
+            raise UserError(_(
+                'Esta factura ya tiene el NCF %(ncf)s en estado "%(estado)s". '
+                'No se puede volver a emitir. Use "Consultar Estado" o anule el e-CF primero.',
+                ncf=self.ecf_ncf, estado=self.ecf_estado,
+            ))
+
         if not self.ecf_tipo_id:
             raise UserError(_('Debe seleccionar un Tipo e-CF antes de emitir'))
 
@@ -716,6 +747,8 @@ class AccountMove(models.Model):
             'tipo_ingresos': '01',
             'indicador_envio_diferido': 0,
         }
+        if campos['tipo_pago'] == '2' and self.invoice_date_due:
+            campos['fecha_limite_pago'] = self.invoice_date_due.isoformat()
         if direccion:
             campos['direccion_comprador'] = direccion
         if self.ecf_tipo_id.codigo in (33, 34):
@@ -778,12 +811,14 @@ class AccountMove(models.Model):
                 'precio_unitario':         str(price_unit),
                 'descuento':               str(discount),
                 'itbis_tasa':              str(itbis_tasa),
-                'unidad':                  line.product_uom_id.name or 'Unidad',
+                'unidad':                  _uom_to_dgii_code(line.product_uom_id.name),
                 'indicador_bien_servicio': indicador,
             })
 
-        # Detectar tipo de identificación del comprador
-        partner_vat = self.partner_id.vat or ''
+        # Detectar tipo de identificación del comprador.
+        # Se normaliza a solo dígitos: el VAT en Odoo suele venir con guiones
+        # (132-84231-6) y la DGII exige el RNC/Cédula sin formato.
+        partner_vat = ''.join(c for c in (self.partner_id.vat or '') if c.isdigit())
         if len(partner_vat) == 9:
             tipo_rnc = '1'   # RNC
         elif len(partner_vat) == 11:
@@ -799,7 +834,7 @@ class AccountMove(models.Model):
 
         payload = {
             'tipo_ecf':           self.ecf_tipo_id.codigo,
-            'rnc_comprador':      self.partner_id.vat or None,
+            'rnc_comprador':      partner_vat or None,
             'nombre_comprador':   self.partner_id.name,
             'tipo_rnc_comprador': tipo_rnc,
             'fecha_emision':      (
@@ -822,6 +857,11 @@ class AccountMove(models.Model):
                 if self.reversed_entry_id.invoice_date else None
             )
 
+        # Idempotencia: un doble clic o retry de red no debe asignar 2 NCF.
+        # La secuencia (nº de intentos previos) permite re-emitir legítimamente
+        # tras un rechazo sin chocar con la respuesta cacheada del gateway.
+        idem_seq = self.env['ecf.log'].sudo().search_count([('move_id', '=', self.id)])
+
         try:
             response = requests.post(
                 f"{api_url}/v1/ecf/emitir",
@@ -829,6 +869,7 @@ class AccountMove(models.Model):
                 headers={
                     'X-API-Key':    api_key,
                     'Content-Type': 'application/json',
+                    'Idempotency-Key': f'odoo-{self.company_id.id}-{self.id}-{idem_seq}',
                 },
                 timeout=30,
             )
@@ -993,6 +1034,18 @@ class PosOrder(models.Model):
     ecf_ncf    = fields.Char(string='e-NCF', readonly=True, copy=False)
     ecf_codigo_seguridad = fields.Char(string='Código de Seguridad', readonly=True, copy=False)
     ecf_qr     = fields.Text(string='QR Code', readonly=True, copy=False)
+
+    @api.model
+    def _load_pos_data_fields(self, config_id):
+        fields = super()._load_pos_data_fields(config_id)
+        return fields + [
+            'ecf_tipo_id', 'ecf_ncf', 'ecf_codigo_seguridad', 'ecf_qr',
+        ]
+
+    def _order_fields(self, ui_order):
+        fields = super()._order_fields(ui_order)
+        fields['ecf_tipo_id'] = ui_order.get('ecf_tipo_id')
+        return fields
 
     def _prepare_invoice_vals(self):
         vals = super()._prepare_invoice_vals()

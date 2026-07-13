@@ -5,7 +5,28 @@ from __future__ import annotations
 import base64
 import os
 import re
+from datetime import datetime, timezone
 from decimal import Decimal
+from zoneinfo import ZoneInfo
+
+# Zona horaria oficial DGII RD (AST, UTC−4, sin DST).
+TZ_RD = ZoneInfo("America/Santo_Domingo")
+
+
+def now_rd() -> datetime:
+    """Ahora en America/Santo_Domingo (para FechaHoraFirma / eventos DGII)."""
+    return datetime.now(TZ_RD)
+
+
+def fmt_fecha_hora_dgii(dt: datetime | None = None) -> str:
+    """Formato DGII DateAndTimeValidation: ``dd-mm-yyyy HH:MM:SS`` en AST."""
+    if dt is None:
+        dt = now_rd()
+    elif dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc).astimezone(TZ_RD)
+    else:
+        dt = dt.astimezone(TZ_RD)
+    return dt.strftime("%d-%m-%Y %H:%M:%S")
 
 _SAFE_SCHEMA_RE = re.compile(r"^[a-z][a-z0-9_]{2,62}$")
 _SCHEMA_BLACKLIST = frozenset({
@@ -129,6 +150,11 @@ def q2(d: Decimal | int | float | str) -> Decimal:
 def normalize_rnc_digits(rnc: str) -> str:
     """RNC/Cédula solo dígitos (132-84231-6 → 132842316)."""
     return "".join(c for c in (rnc or "") if c.isdigit())
+
+
+def format_fecha_dgii(fecha) -> str:
+    """Formatea fecha para parámetros DGII (dd-mm-yyyy)."""
+    return fecha.strftime("%d-%m-%Y")
 
 
 def normalize_odoo_webhook_url(url: str) -> str:

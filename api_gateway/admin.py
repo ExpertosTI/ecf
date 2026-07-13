@@ -9,7 +9,7 @@ import logging
 import os
 import secrets
 import uuid
-from datetime import date, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 import asyncpg
@@ -25,6 +25,90 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
 
 ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "")
+PLATFORM_OPERATOR_RNC = os.environ.get("PLATFORM_OPERATOR_RNC", "132842316").strip()
+ALLOW_CLIENT_ONBOARDING = os.environ.get("ALLOW_CLIENT_ONBOARDING", "false").lower() in {
+    "1", "true", "yes", "on",
+}
+
+
+def _operator_rnc() -> str:
+    return "".join(c for c in PLATFORM_OPERATOR_RNC if c.isdigit()) or "132842316"
+
+
+async def _evaluate_onboarding_gate(conn, psfe_ok: bool) -> dict:
+    """Evalúa si la plataforma puede onboardear empresas cliente."""
+    try:
+        operator = await conn.fetchrow(
+            """
+            SELECT id, rnc, razon_social, dgii_test_ok_at, postulacion_firmada_at, estado
+            FROM public.tenants
+            WHERE is_platform_operator = TRUE AND deleted_at IS NULL
+            LIMIT 1
+            """
+        )
+    except asyncpg.UndefinedColumnError:
+        # Migración 014 pendiente: permitir crear (compat) pero avisar
+        return {
+            "can_onboard_clients": True,
+            "psfe_ok": psfe_ok,
+            "operator": None,
+            "operator_rnc_esperado": _operator_rnc(),
+            "blockers": [
+                "Ejecuta db/014_onboarding_asistido.sql para habilitar el onboarding asistido."
+            ],
+            "allow_bypass": True,
+            "migration_pending": True,
+        }
+
+    operator_cert = False
+    if operator:
+        operator_cert = bool(await conn.fetchval(
+            """
+            SELECT 1 FROM public.tenant_certs
+            WHERE tenant_id = $1 AND activo = TRUE AND valid_to >= CURRENT_DATE
+            LIMIT 1
+            """,
+            operator["id"],
+        ))
+
+    operator_auth_ok = bool(operator and operator["dgii_test_ok_at"])
+    can_onboard = bool(
+        ALLOW_CLIENT_ONBOARDING
+        or (psfe_ok and operator and operator_cert and operator_auth_ok)
+    )
+
+    blockers = []
+    if not psfe_ok:
+        blockers.append("Sube el certificado PSFE en Plataforma (mTLS Renace → DGII).")
+    if not operator:
+        blockers.append(
+            f"Registra primero la empresa operadora Renace (RNC {_operator_rnc()})."
+        )
+    elif not operator_cert:
+        blockers.append("Sube el .p12 vigente de la empresa operadora.")
+    elif not operator_auth_ok:
+        blockers.append("Ejecuta «Probar CerteCF» en la empresa operadora hasta que pase.")
+
+    return {
+        "can_onboard_clients": can_onboard,
+        "psfe_ok": psfe_ok,
+        "operator": (
+            {
+                "id": str(operator["id"]),
+                "rnc": operator["rnc"],
+                "razon_social": operator["razon_social"],
+                "cert_ok": operator_cert,
+                "dgii_auth_ok": operator_auth_ok,
+                "postulacion_ok": bool(operator.get("postulacion_firmada_at")),
+            }
+            if operator
+            else None
+        ),
+        "operator_rnc_esperado": _operator_rnc(),
+        "blockers": blockers,
+        "allow_bypass": ALLOW_CLIENT_ONBOARDING,
+        "migration_pending": False,
+    }
 
 
 async def require_admin(
@@ -107,6 +191,13 @@ class TenantUpdate(BaseModel):
             raise ValueError("Estado inválido")
         return v
 
+    @field_validator("ambiente")
+    @classmethod
+    def validate_ambiente(cls, v):
+        if v is not None and v not in ("simulacion", "certificacion", "produccion"):
+            raise ValueError("Ambiente inválido")
+        return v
+
 
 class NCFSequenceCreate(BaseModel):
     tipo_ecf: int
@@ -155,8 +246,19 @@ async def create_tenant(
     payload: TenantCreate,
     _: None = Depends(require_admin),
 ):
-    """Create a new tenant with schema, NCF sequences, and API key."""
+    """Create a new tenant with schema, NCF sequences, and API key.
+
+    Flujo asistido:
+    1) PSFE plataforma
+    2) Empresa operadora (PLATFORM_OPERATOR_RNC)
+    3) Auth CerteCF del operador
+    4) Empresas cliente
+    """
     db = _get_pool()
+    from ecf_core.platform_config import psfe_status
+
+    rnc = "".join(c for c in payload.rnc if c.isdigit())
+    is_operator_candidate = rnc == _operator_rnc()
 
     # Generate API key (raw) and its SHA-256 hash for storage
     raw_api_key = f"sk_{payload.ambiente[:4]}_{secrets.token_hex(24)}"
@@ -166,7 +268,7 @@ async def create_tenant(
     webhook_secret = secrets.token_hex(32)
 
     # Schema name from RNC
-    schema_name = f"tenant_{payload.rnc}"
+    schema_name = f"tenant_{rnc}"
 
     tenant_id = str(uuid.uuid4())
 
@@ -189,33 +291,90 @@ async def create_tenant(
 
     try:
         async with db.acquire() as conn:
+            psfe = await psfe_status(db)
+            gate = await _evaluate_onboarding_gate(conn, psfe["configured"])
+
+            existing_operator = gate["operator"] is not None
+            mark_as_operator = is_operator_candidate and not existing_operator
+
+            if not mark_as_operator and not gate["can_onboard_clients"]:
+                detail = " ".join(gate["blockers"]) or (
+                    "Completa el onboarding de la plataforma antes de registrar clientes."
+                )
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "mensaje": detail,
+                        "blockers": gate["blockers"],
+                        "operator_rnc_esperado": gate["operator_rnc_esperado"],
+                        "siguiente": (
+                            "Plataforma → PSFE, luego Empresas → registrar "
+                            f"RNC {gate['operator_rnc_esperado']} y Probar CerteCF."
+                        ),
+                    },
+                )
+
+            if is_operator_candidate and existing_operator and existing_operator["rnc"] != rnc:
+                # RNC operador ya asignado a otra fila — no debería pasar por UNIQUE rnc
+                pass
+
             async with conn.transaction():
                 # Insert tenant
-                await conn.execute(
-                    """
-                    INSERT INTO public.tenants
-                        (id, rnc, razon_social, nombre_comercial, direccion,
-                         telefono, email, api_key,
-                         plan, estado, schema_name, ambiente,
-                         odoo_webhook_url, odoo_webhook_secret,
-                         max_ecf_mensual)
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'activo',$10,$11,$12,$13,$14)
-                """,
-                    uuid.UUID(tenant_id),
-                    payload.rnc,
-                    payload.razon_social,
-                    payload.nombre_comercial,
-                    payload.direccion,
-                    payload.telefono,
-                    payload.email,
-                    api_key_hash,  # api_key column stores the SHA-256 hash
-                    payload.plan,
-                    schema_name,
-                    payload.ambiente,
-                    payload.odoo_webhook_url,
-                    encrypted_webhook_secret,
-                    payload.max_ecf_mensual,
-                )
+                try:
+                    await conn.execute(
+                        """
+                        INSERT INTO public.tenants
+                            (id, rnc, razon_social, nombre_comercial, direccion,
+                             telefono, email, api_key,
+                             plan, estado, schema_name, ambiente,
+                             odoo_webhook_url, odoo_webhook_secret,
+                             max_ecf_mensual, is_platform_operator, onboarding_started_at)
+                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'activo',$10,$11,$12,$13,$14,$15, NOW())
+                    """,
+                        uuid.UUID(tenant_id),
+                        rnc,
+                        payload.razon_social,
+                        payload.nombre_comercial,
+                        payload.direccion,
+                        payload.telefono,
+                        payload.email,
+                        api_key_hash,
+                        payload.plan,
+                        schema_name,
+                        payload.ambiente,
+                        payload.odoo_webhook_url,
+                        encrypted_webhook_secret,
+                        payload.max_ecf_mensual,
+                        mark_as_operator,
+                    )
+                except asyncpg.UndefinedColumnError:
+                    # Migración 014 aún no aplicada — crear sin columnas nuevas
+                    await conn.execute(
+                        """
+                        INSERT INTO public.tenants
+                            (id, rnc, razon_social, nombre_comercial, direccion,
+                             telefono, email, api_key,
+                             plan, estado, schema_name, ambiente,
+                             odoo_webhook_url, odoo_webhook_secret,
+                             max_ecf_mensual)
+                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'activo',$10,$11,$12,$13,$14)
+                    """,
+                        uuid.UUID(tenant_id),
+                        rnc,
+                        payload.razon_social,
+                        payload.nombre_comercial,
+                        payload.direccion,
+                        payload.telefono,
+                        payload.email,
+                        api_key_hash,
+                        payload.plan,
+                        schema_name,
+                        payload.ambiente,
+                        payload.odoo_webhook_url,
+                        encrypted_webhook_secret,
+                        payload.max_ecf_mensual,
+                    )
+                    mark_as_operator = False
 
                 # Create tenant schema with all tables
                 await conn.execute(
@@ -237,33 +396,56 @@ async def create_tenant(
                         prefijo,
                     )
 
-        logger.info("Tenant creado: %s (RNC: %s)", tenant_id, payload.rnc)
+        logger.info(
+            "Tenant creado: %s (RNC: %s) operador=%s",
+            tenant_id, rnc, mark_as_operator,
+        )
 
+    except HTTPException:
+        raise
     except asyncpg.UniqueViolationError as e:
         detail = str(e)
         if "rnc" in detail:
-            raise HTTPException(status_code=409, detail=f"RNC {payload.rnc} ya está registrado")
+            raise HTTPException(status_code=409, detail=f"RNC {rnc} ya está registrado")
         raise HTTPException(status_code=409, detail="Tenant ya existe")
     except asyncpg.CheckViolationError:
         raise HTTPException(
             status_code=422, detail="Valor no permitido. Verifique ambiente, plan y estado del tenant."
         )
     except Exception as e:
-        logger.error("Error creando tenant %s: %s", payload.rnc, e, exc_info=True)
+        logger.error("Error creando tenant %s: %s", rnc, e, exc_info=True)
         raise HTTPException(
             status_code=500, detail="Error interno al crear empresa. Revise los logs del servidor."
         )
 
+    next_steps = [
+        "Guarda API Key y Webhook Secret (no se recuperan).",
+        "Abre Certificación DGII y sigue el paso resaltado.",
+        "Sube el .p12 del contribuyente y ejecuta Probar CerteCF.",
+    ]
+    if mark_as_operator:
+        next_steps.insert(
+            0,
+            "Empresa marcada como operadora Renace. Complétala antes de registrar clientes.",
+        )
+
     return {
         "tenant_id": tenant_id,
-        "rnc": payload.rnc,
+        "rnc": rnc,
         "razon_social": payload.razon_social,
         "schema_name": schema_name,
         "ambiente": payload.ambiente,
         "api_key": raw_api_key,
         "webhook_secret": webhook_secret,
         "estado": "activo",
-        "mensaje": "Tenant creado. Guarda el api_key y webhook_secret — no se pueden recuperar.",
+        "is_platform_operator": mark_as_operator,
+        "siguiente_paso": "certificacion",
+        "next_steps": next_steps,
+        "mensaje": (
+            "Empresa operadora creada. Continúa en Certificación DGII."
+            if mark_as_operator
+            else "Empresa cliente creada. Guarda el api_key y webhook_secret — no se pueden recuperar."
+        ),
     }
 
 
@@ -480,80 +662,9 @@ async def rotate_webhook_secret(
     }
 
 
-@router.post("/tenants/{tenant_id}/test-webhook")
-async def test_webhook(
-    tenant_id: str,
-    _: None = Depends(require_admin),
-):
-    """Pings the configured webhook URL to verify network reachability and HMAC signature."""
-    import httpx
-    import json
-    import datetime
-
-    db = _get_pool()
-    async with db.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT rnc, odoo_webhook_url, odoo_webhook_secret FROM public.tenants WHERE id = $1 AND deleted_at IS NULL",
-            uuid.UUID(tenant_id),
-        )
-    if not row:
-        raise HTTPException(status_code=404, detail="Tenant no encontrado")
-
-    if not row["odoo_webhook_url"]:
-        raise HTTPException(status_code=422, detail="Webhook URL no configurada")
-
-    webhook_url = normalize_odoo_webhook_url(row["odoo_webhook_url"])
-    
-    # Decrypt secret
-    encrypted = row["odoo_webhook_secret"]
-    if encrypted:
-        try:
-            vault = CertVault()
-            webhook_secret = vault.descifrar_campo(encrypted)
-        except Exception:
-            webhook_secret = encrypted
-    else:
-        webhook_secret = ""
-
-    if not webhook_secret:
-        raise HTTPException(status_code=422, detail="Webhook Secret no configurado")
-
-    # Build ping payload
-    payload = json.dumps({
-        "event": "ping",
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-    }).encode()
-
-    firma = hmac.new(webhook_secret.encode(), payload, hashlib.sha256).hexdigest()
-    sig_header = f"sha256={firma}"
-
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(
-                webhook_url,
-                content=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "X-ECF-Signature": sig_header,
-                    "X-ECF-Tenant-RNC": row["rnc"],
-                },
-            )
-            resp.raise_for_status()
-            return {
-                "tenant_id": tenant_id,
-                "status_code": resp.status_code,
-                "mensaje": "Webhook contactado exitosamente",
-            }
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Webhook respondió con HTTP {e.response.status_code}. Revisa el secret o la URL.",
-        )
-    except httpx.RequestError as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Error conectando al Webhook: {str(e)}",
-        )
+# NOTA: el endpoint POST /tenants/{tenant_id}/test-webhook está definido más
+# abajo (sección RNC/tools). Aquí existía una definición duplicada que FastAPI
+# ignoraba silenciosamente — eliminada para evitar comportamiento impredecible.
 
 
 # ---------------------------------------------------------------------------
@@ -970,7 +1081,7 @@ async def test_webhook(
         }
     ).encode()
 
-    # Sign payload
+    # Firmar con el MISMO formato que el worker: "sha256=<hex>"
     firma = hmac.new(webhook_secret.encode(), payload, hashlib.sha256).hexdigest()
 
     try:
@@ -980,14 +1091,14 @@ async def test_webhook(
                 content=payload,
                 headers={
                     "Content-Type": "application/json",
-                    "X-ECF-Signature": firma,
+                    "X-ECF-Signature": f"sha256={firma}",
                     "X-ECF-Tenant-RNC": row["rnc"],
                     "X-ECF-Event": "ping",
                 },
             )
             return {
                 "status_code": resp.status_code,
-                "response_body": resp.text[:500],
+                "response_body": resp.text[:200],
                 "webhook_url_used": webhook_url,
                 "success": resp.is_success,
                 "error": None if resp.is_success else f"HTTP {resp.status_code}: {resp.text[:200]}",
@@ -1045,7 +1156,7 @@ async def sync_tenant_compras(
     from ecf_core.cert_vault import CertVaultRepository
     from ecf_core.ecf_recibidas_service import ECFRecibidasService
 
-    repo = CertVaultRepository(db)
+    repo = CertVaultRepository(db, CertVault())
     service = ECFRecibidasService(db, repo)
 
     # Ejecutar en segundo plano
@@ -1100,6 +1211,16 @@ async def generate_signed_postulacion(
         xml_firmado = signer.firmar(xml_bytes, p12_data, p12_password.encode("utf-8"), exclusive=False)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al firmar el XML de postulación: {e}")
+
+    try:
+        async with db.acquire() as conn:
+            await conn.execute(
+                "UPDATE public.tenants SET postulacion_firmada_at = NOW(), updated_at = NOW() "
+                "WHERE id = $1",
+                uuid.UUID(tenant_id),
+            )
+    except asyncpg.UndefinedColumnError:
+        pass
 
     from fastapi.responses import Response
     return Response(
@@ -1174,6 +1295,9 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
     tenant_id = tenant_row["id"]
     schema_name = tenant_row.get("schema_name") or f"tenant_{tenant_row['rnc']}"
     ambiente = tenant_row.get("ambiente", "certificacion")
+    is_operator = bool(tenant_row.get("is_platform_operator"))
+    dgii_test_ok = bool(tenant_row.get("dgii_test_ok_at"))
+    postulacion_ok = bool(tenant_row.get("postulacion_firmada_at"))
 
     cert_row = await conn.fetchrow(
         """
@@ -1207,7 +1331,8 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
     }
 
     webhook_ok = bool(tenant_row.get("odoo_webhook_url"))
-    ambiente_ok = ambiente == "certificacion"
+    # Homologación en CerteCF; producción cuenta como OK post-homologación
+    ambiente_ok = ambiente in ("certificacion", "produccion")
     activo_ok = tenant_row["estado"] == "activo"
 
     checks = [
@@ -1224,15 +1349,21 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
         },
         {
             "id": "ambiente",
-            "label": "Ambiente CerteCF (certificación DGII)",
+            "label": "Ambiente DGII (certificación o producción)",
             "ok": ambiente_ok,
-            "hint": "Homologación usa https://ecf.dgii.gov.do/CerteCF",
+            "hint": "Homologación: certificacion (CerteCF). Luego producción.",
         },
         {
             "id": "cert_p12",
             "label": "Certificado .p12 del contribuyente (vigente)",
             "ok": cert_cargado and cert_vigente,
             "hint": "Certificado emitido por DGII — pestaña Certificados",
+        },
+        {
+            "id": "dgii_auth",
+            "label": "Autenticación CerteCF verificada",
+            "ok": dgii_test_ok,
+            "hint": "Botón «Probar CerteCF» en este asistente",
         },
         {
             "id": "ncf",
@@ -1278,7 +1409,11 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
         {
             "orden": 2,
             "id": "empresa",
-            "titulo": "Empresa registrada con secuencias NCF",
+            "titulo": (
+                "Empresa operadora Renace registrada"
+                if is_operator
+                else "Empresa cliente registrada con NCF"
+            ),
             "descripcion": f"RNC {tenant_row['rnc']} — schema {schema_name} con prefijos E31–E47.",
             "ref_dgii": "Formato NCF DGII (13 caracteres, prefijo E + tipo)",
             "ok": activo_ok and ncf_completo,
@@ -1299,7 +1434,7 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
             "titulo": "Probar conexión con CerteCF",
             "descripcion": "Valida mTLS PSFE y autenticación semilla con el .p12 del contribuyente.",
             "ref_dgii": "API Autenticación — GET /fe/autenticacion/api/semilla",
-            "ok": psfe_ok and cert_cargado,
+            "ok": dgii_test_ok,
             "accion": "test_dgii",
         },
         {
@@ -1308,7 +1443,7 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
             "titulo": "Firmar XML de postulación DGII",
             "descripcion": "Descarga el XML en portal DGII, fírmalo aquí con el .p12 y súbelo de vuelta a dgii.gov.do.",
             "ref_dgii": "Portal DGII → Facturación Electrónica → Postulación",
-            "ok": cert_cargado,
+            "ok": postulacion_ok,
             "accion": "postulacion",
         },
         {
@@ -1336,9 +1471,28 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
             "descripcion": "Formulario PSFE, capturas de e-CF aprobados, plan de contingencia y SLA 99.5%.",
             "ref_dgii": "dgii.gov.do/ecf — Área de Tecnología",
             "ok": homologacion_tipos_ok and emisiones["codigo_seguridad_ok"] >= 4,
-            "accion": None,
+            "accion": "evidencia",
+            "evidencia": [
+                "Capturas de e-CF E31–E34 aprobados en CerteCF (panel Homologación)",
+                "XML firmados / Códigos de Seguridad de 6 caracteres",
+                "Constancia de PSFE Renace ante DGII",
+                "Plan de contingencia (docs/contingencia.md)",
+                "Formulario de presentación al Área de Tecnología DGII",
+            ],
         },
     ]
+
+    paso_actual = next((p for p in pasos if not p["ok"]), None)
+    next_blocker = None
+    if paso_actual:
+        next_blocker = {
+            "paso": paso_actual["orden"],
+            "id": paso_actual["id"],
+            "titulo": paso_actual["titulo"],
+            "descripcion": paso_actual["descripcion"],
+            "accion": paso_actual.get("accion"),
+            "hint": paso_actual.get("ref_dgii"),
+        }
 
     return {
         "ready": score == total,
@@ -1346,6 +1500,9 @@ async def _certificacion_readiness(conn, tenant_row, psfe_ok: bool) -> dict:
         "total": total,
         "checks": checks,
         "pasos": pasos,
+        "paso_actual": paso_actual["orden"] if paso_actual else None,
+        "next_blocker": next_blocker,
+        "is_platform_operator": is_operator,
         "dgii": {
             "ambiente": ambiente,
             "url": _DGII_URLS.get(ambiente, _DGII_URLS["certificacion"]),
@@ -1405,17 +1562,27 @@ async def upload_platform_psfe(
     except CertVaultError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    # Señal a workers/scheduler para recargar PSFE sin reinicio manual
+    try:
+        from ecf_core.platform_config import signal_psfe_reload
+        await signal_psfe_reload(_get_redis())
+    except Exception as exc:
+        logger.warning("Señal reload PSFE no enviada: %s", exc)
+
     logger.info("PSFE plataforma actualizado desde panel admin")
     status = await psfe_status(db)
     return {
         **status,
-        "mensaje": "PSFE guardado cifrado. Los workers usarán estos certificados al reiniciar o en la próxima emisión.",
+        "mensaje": (
+            "PSFE guardado cifrado. API ya lo usa; workers/scheduler lo recargan "
+            "en el próximo ciclo (señal Redis)."
+        ),
     }
 
 
 @router.get("/platform/readiness")
 async def platform_readiness(_: None = Depends(require_admin)):
-    """Estado global: PSFE + resumen de certificación por empresa."""
+    """Estado global: PSFE + operador + resumen de certificación por empresa."""
     from ecf_core.platform_config import psfe_status
 
     db = _get_pool()
@@ -1423,14 +1590,27 @@ async def platform_readiness(_: None = Depends(require_admin)):
     psfe_ok = psfe["configured"]
 
     async with db.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id, rnc, razon_social, ambiente, estado, odoo_webhook_url, schema_name
-            FROM public.tenants
-            WHERE deleted_at IS NULL
-            ORDER BY created_at ASC
-            """
-        )
+        gate = await _evaluate_onboarding_gate(conn, psfe_ok)
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT id, rnc, razon_social, ambiente, estado, odoo_webhook_url,
+                       schema_name, is_platform_operator, dgii_test_ok_at,
+                       postulacion_firmada_at
+                FROM public.tenants
+                WHERE deleted_at IS NULL
+                ORDER BY is_platform_operator DESC, created_at ASC
+                """
+            )
+        except asyncpg.UndefinedColumnError:
+            rows = await conn.fetch(
+                """
+                SELECT id, rnc, razon_social, ambiente, estado, odoo_webhook_url, schema_name
+                FROM public.tenants
+                WHERE deleted_at IS NULL
+                ORDER BY created_at ASC
+                """
+            )
         tenants = []
         for row in rows:
             readiness = await _certificacion_readiness(conn, row, psfe_ok)
@@ -1441,21 +1621,47 @@ async def platform_readiness(_: None = Depends(require_admin)):
                     "razon_social": row["razon_social"],
                     "ambiente": row["ambiente"],
                     "estado": row["estado"],
+                    "is_platform_operator": bool(row.get("is_platform_operator")),
                     "ready": readiness["ready"],
                     "score": readiness["score"],
                     "total": readiness["total"],
+                    "paso_actual": readiness.get("paso_actual"),
+                    "next_blocker": readiness.get("next_blocker"),
                 }
             )
 
     ready_count = sum(1 for t in tenants if t["ready"])
     return {
         "psfe": psfe,
+        "onboarding": gate,
         "tenants": tenants,
         "summary": {
             "total": len(tenants),
             "listos": ready_count,
             "pendientes": len(tenants) - ready_count,
+            "can_onboard_clients": gate["can_onboard_clients"],
         },
+        "flujo": [
+            {"orden": 1, "id": "psfe", "titulo": "PSFE plataforma", "ok": psfe_ok},
+            {
+                "orden": 2,
+                "id": "operador",
+                "titulo": f"Empresa Renace ({gate['operator_rnc_esperado']})",
+                "ok": bool(gate.get("operator")),
+            },
+            {
+                "orden": 3,
+                "id": "auth",
+                "titulo": "Probar CerteCF (operador)",
+                "ok": bool(gate.get("operator") and gate["operator"].get("dgii_auth_ok")),
+            },
+            {
+                "orden": 4,
+                "id": "clientes",
+                "titulo": "Registrar empresas cliente",
+                "ok": gate["can_onboard_clients"],
+            },
+        ],
     }
 
 
@@ -1471,14 +1677,26 @@ async def tenant_certificacion_readiness(
     psfe = await psfe_status(db)
 
     async with db.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT id, rnc, razon_social, ambiente, estado, odoo_webhook_url, schema_name
-            FROM public.tenants
-            WHERE id = $1 AND deleted_at IS NULL
-            """,
-            uuid.UUID(tenant_id),
-        )
+        try:
+            row = await conn.fetchrow(
+                """
+                SELECT id, rnc, razon_social, ambiente, estado, odoo_webhook_url,
+                       schema_name, is_platform_operator, dgii_test_ok_at,
+                       postulacion_firmada_at
+                FROM public.tenants
+                WHERE id = $1 AND deleted_at IS NULL
+                """,
+                uuid.UUID(tenant_id),
+            )
+        except asyncpg.UndefinedColumnError:
+            row = await conn.fetchrow(
+                """
+                SELECT id, rnc, razon_social, ambiente, estado, odoo_webhook_url, schema_name
+                FROM public.tenants
+                WHERE id = $1 AND deleted_at IS NULL
+                """,
+                uuid.UUID(tenant_id),
+            )
         if not row:
             raise HTTPException(status_code=404, detail="Tenant no encontrado")
         readiness = await _certificacion_readiness(conn, row, psfe["configured"])
@@ -1571,10 +1789,20 @@ async def test_tenant_dgii_auth(
     except DGIIClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    try:
+        async with db.acquire() as conn:
+            await conn.execute(
+                "UPDATE public.tenants SET dgii_test_ok_at = NOW(), updated_at = NOW() WHERE id = $1",
+                uuid.UUID(tenant_id),
+            )
+    except asyncpg.UndefinedColumnError:
+        pass
+
     return {
         **auth,
         "rnc": row["rnc"],
         "ambiente": row["ambiente"],
         "mtls": mtls,
+        "mensaje": "Autenticación DGII OK. Paso «Probar CerteCF» marcado como completado.",
     }
 

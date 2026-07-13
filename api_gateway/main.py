@@ -146,20 +146,24 @@ async def apple_touch_icon():
         return FileResponse(str(icon_file), media_type="image/png")
     return Response(status_code=404)
 
-# ── Endpoints de homologación DGII mock (evitan 404 en el portal DGII) ──
-@app.post("/fe/aprobacioncomercial/api/ecf", include_in_schema=False)
-async def recibir_aprobacion_comercial_mock():
-    return JSONResponse(status_code=200, content={"status": "received"})
+# ── Endpoints de homologación DGII mock — SOLO en modo simulación ──
+# En certificación/producción estos mocks son peligrosos: pueden enmascarar
+# una mala configuración de URLs DGII o servir como "DGII falsa" a terceros.
+_ECF_AMBIENTE_SISTEMA = os.environ.get("ECF_AMBIENTE", "").lower()
+if _ECF_AMBIENTE_SISTEMA in {"simulacion", "sim"}:
+    @app.post("/fe/aprobacioncomercial/api/ecf", include_in_schema=False)
+    async def recibir_aprobacion_comercial_mock():
+        return JSONResponse(status_code=200, content={"status": "received"})
 
-@app.get("/fe/autenticacion/api/semilla", include_in_schema=False)
-@app.get("/Autenticacion/api/Autenticacion/Semilla", include_in_schema=False)
-async def semilla_mock():
-    return Response(status_code=200, content="<Semilla>MockSeed</Semilla>", media_type="application/xml")
+    @app.get("/fe/autenticacion/api/semilla", include_in_schema=False)
+    @app.get("/Autenticacion/api/Autenticacion/Semilla", include_in_schema=False)
+    async def semilla_mock():
+        return Response(status_code=200, content="<Semilla>MockSeed</Semilla>", media_type="application/xml")
 
-@app.post("/fe/autenticacion/api/validacioncertificado", include_in_schema=False)
-@app.post("/Autenticacion/api/Autenticacion/ValidarSemilla", include_in_schema=False)
-async def validacion_certificado_mock():
-    return JSONResponse(status_code=200, content={"token": "mock_token"})
+    @app.post("/fe/autenticacion/api/validacioncertificado", include_in_schema=False)
+    @app.post("/Autenticacion/api/Autenticacion/ValidarSemilla", include_in_schema=False)
+    async def validacion_certificado_mock():
+        return JSONResponse(status_code=200, content={"token": "mock_token"})
 
 # ── Portal Admin (static SPA) ──
 _portal_dir = pathlib.Path(__file__).resolve().parent.parent / "portal_admin"
@@ -193,11 +197,15 @@ IP_RATE_LIMIT_WINDOW = int(os.environ.get("IP_RATE_LIMIT_WINDOW", "60"))
 
 
 def _get_client_ip(request: Request) -> str:
-    """Extrae la IP real del cliente respetando X-Forwarded-For del proxy."""
+    """Extrae la IP real del cliente respetando X-Forwarded-For del proxy.
+
+    Se toma el ÚLTIMO valor de la cadena: es el único añadido por nuestro
+    proxy de confianza (Traefik). El primero puede ser falsificado por el
+    cliente para evadir el rate-limit por IP.
+    """
     forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
-        # El primer valor es la IP original del cliente
-        return forwarded.split(",")[0].strip()
+        return forwarded.split(",")[-1].strip()
     return request.client.host if request.client else "unknown"
 
 
@@ -350,6 +358,7 @@ class FacturaPayload(BaseModel):
     # DGII: TipoIngresos acepta 01..06 (incluye 06 = Otros Ingresos).
     tipo_ingresos:      str = Field(default="01", pattern=r"^0[1-6]$")
     indicador_envio_diferido: int = Field(default=0, ge=0, le=1)
+    fecha_limite_pago:  Optional[date] = None
     direccion_comprador: Optional[str] = Field(None, max_length=255)
     ambiente_emision: Optional[str] = Field(
         None, pattern=r"^(simulacion|certificacion|produccion)$",
@@ -400,12 +409,22 @@ async def emitir_ecf(
     El estado final llega via webhook cuando la DGII responde.
     """
 
-    # Deduplicación por Idempotency-Key (ventana de 24h)
+    # Deduplicación por Idempotency-Key (ventana de 24h).
+    # SET NX cierra la ventana TOCTOU: dos requests concurrentes con la misma
+    # key no pueden asignar dos NCF distintos.
+    idem_key = None
     if x_idempotency_key:
         idem_key = f"idem:{tenant['id']}:{x_idempotency_key}"
-        cached = await redis.get(idem_key)
-        if cached:
-            return json.loads(cached)
+        adquirido = await redis.set(idem_key, "__processing__", nx=True, ex=120)
+        if not adquirido:
+            cached = await redis.get(idem_key)
+            if cached and cached != "__processing__":
+                return json.loads(cached)
+            # Otra request con la misma key está en curso en este instante
+            raise HTTPException(
+                status_code=409,
+                detail="Solicitud duplicada en curso (Idempotency-Key). Reintente en unos segundos.",
+            )
 
     # Asignar NCF y crear registro en una sola transacción (evita NCF huérfanos)
     ecf_id = str(uuid.uuid4())
@@ -424,6 +443,19 @@ async def emitir_ecf(
 
     async with db.acquire() as conn:
         async with conn.transaction():
+            # Cuota mensual atómica: dos requests concurrentes no pueden
+            # superar max_ecf_mensual (el UPDATE condicional serializa).
+            cupo = await conn.fetchval(
+                "UPDATE public.tenants SET ecf_emitidos_mes = ecf_emitidos_mes + 1 "
+                "WHERE id = $1 AND ecf_emitidos_mes < max_ecf_mensual "
+                "RETURNING ecf_emitidos_mes",
+                tenant["id"],
+            )
+            if cupo is None:
+                if idem_key:
+                    await redis.delete(idem_key)
+                raise HTTPException(status_code=429, detail="Límite mensual de e-CF alcanzado")
+
             # Asignar NCF de forma atómica (dentro de la transacción)
             ncf = await conn.fetchval(
                 "SELECT public.next_ncf($1, $2)",
@@ -469,11 +501,7 @@ async def emitir_ecf(
                     item.unidad, item.indicador_bien_servicio,
                 )
 
-            # Incrementar contador mensual
-            await conn.execute(
-                "UPDATE public.tenants SET ecf_emitidos_mes = ecf_emitidos_mes + 1 WHERE id = $1",
-                tenant["id"]
-            )
+            # (el contador mensual ya se incrementó atómicamente arriba)
 
     # Encolar para procesamiento async
     mensaje = json.dumps({
@@ -483,6 +511,9 @@ async def emitir_ecf(
         "ncf":         ncf,
         "tipo_ecf":    payload.tipo_ecf,
         "ambiente_emision": payload.ambiente_emision,
+        "fecha_limite_pago": (
+            payload.fecha_limite_pago.isoformat() if payload.fecha_limite_pago else None
+        ),
         "intento":     1,
         "enqueued_at": datetime.now(timezone.utc).isoformat(),
     })
@@ -504,9 +535,8 @@ async def emitir_ecf(
         "mensaje": "e-CF encolado para procesamiento. El estado final llegará via webhook.",
     }
 
-    # Guardar respuesta para idempotencia (24h TTL)
-    if x_idempotency_key:
-        idem_key = f"idem:{tenant['id']}:{x_idempotency_key}"
+    # Guardar respuesta para idempotencia (24h TTL) — reemplaza el placeholder NX
+    if idem_key:
         await redis.set(idem_key, json.dumps(respuesta), ex=86400)
 
     return respuesta
@@ -522,7 +552,8 @@ async def consultar_estado(
     schema = _safe_schema(tenant["schema_name"])
     async with db.acquire() as conn:
         row = await conn.fetchrow(
-            f"SELECT ncf, estado, codigo_seguridad, intentos_envio, ultimo_error, created_at, approved_at "
+            f"SELECT ncf, estado, codigo_seguridad, track_id, security_code, qr_url, "
+            f"intentos_envio, ultimo_error, created_at, approved_at "
             f"FROM {schema}.ecf WHERE ncf = $1",
             ncf
         )
@@ -1036,10 +1067,14 @@ async def aprobar_compra_comercial(
     return {"status": "aprobado", "ncf": ncf}
 
 
+class RechazarComercialPayload(BaseModel):
+    motivo: str = Field(..., min_length=1, max_length=250)
+
+
 @app.post("/v1/compras/{ncf}/rechazar")
 async def rechazar_compra_comercial(
     ncf: str,
-    motivo: str,
+    payload: RechazarComercialPayload,
     tenant: dict = Depends(get_tenant),
     db:     asyncpg.Pool = Depends(get_db),
 ):
@@ -1047,7 +1082,8 @@ async def rechazar_compra_comercial(
 
     Conforme a ``xsd/ACECF.xsd`` Estado=2 con DetalleMotivoRechazo (≤250 chars).
     """
-    if not motivo or not motivo.strip():
+    motivo = payload.motivo.strip()
+    if not motivo:
         raise HTTPException(status_code=422, detail="El motivo de rechazo es obligatorio")
 
     schema = _safe_schema(tenant["schema_name"])
@@ -1073,7 +1109,7 @@ async def rechazar_compra_comercial(
         fecha_emision=compra["fecha_comprobante"],
         monto_total=compra["total_monto"],
         estado=2,
-        motivo_rechazo=motivo.strip()[:250],
+        motivo_rechazo=motivo[:250],
         cert_data=cert["cert_data"],
         cert_password=cert_password_bytes,
     )
@@ -1162,7 +1198,25 @@ async def recibir_ecf_externo(
     if not xml_bytes:
         return Response(status_code=400, content="Body vacío")
 
-    # 1. Parsear identificadores del e-CF
+    # Verificar firma digital XML-DSig (obligatorio fuera de simulación)
+    ambiente_sistema = os.environ.get("ECF_AMBIENTE", "certificacion")
+    if ambiente_sistema != "simulacion":
+        from ecf_core.xml_signature import verificar_firma_xml
+        firma_ok, motivo = verificar_firma_xml(xml_bytes)
+        if not firma_ok:
+            logger.warning("e-CF entrante rechazado — firma inválida: %s", motivo)
+            return Response(status_code=400, content=f"Firma digital inválida: {motivo}")
+
+    # 1. Parsear identificadores y datos fiscales del e-CF
+    def _texto(nodo) -> str:
+        return (nodo.text or "").strip() if nodo is not None else ""
+
+    def _monto(nodo) -> Decimal:
+        try:
+            return Decimal(_texto(nodo).replace(",", "")) if _texto(nodo) else Decimal("0")
+        except Exception:
+            return Decimal("0")
+
     try:
         root = etree.fromstring(xml_bytes)
         rnc_receptor_node = root.find(".//{*}RNCComprador") \
@@ -1171,9 +1225,38 @@ async def recibir_ecf_externo(
         rnc_emisor_node = root.find(".//{*}RNCEmisor")
         if rnc_receptor_node is None or ncf_node is None or rnc_emisor_node is None:
             return Response(status_code=400, content="XML inválido (faltan campos obligatorios)")
-        rnc_receptor = (rnc_receptor_node.text or "").strip()
-        ncf = (ncf_node.text or "").strip()
-        rnc_emisor = (rnc_emisor_node.text or "").strip()
+        rnc_receptor = _texto(rnc_receptor_node)
+        ncf = _texto(ncf_node)
+        rnc_emisor = _texto(rnc_emisor_node)
+
+        # Datos fiscales para 606/ACECF (no bloquean la recepción si faltan)
+        nombre_emisor = _texto(root.find(".//{*}RazonSocialEmisor"))[:255] or None
+        total_monto = _monto(root.find(".//{*}MontoTotal"))
+        itbis_facturado = _monto(root.find(".//{*}TotalITBIS"))
+        tipo_ecf_recibido = None
+        tipo_txt = _texto(root.find(".//{*}TipoeCF"))
+        if tipo_txt.isdigit():
+            tipo_ecf_recibido = int(tipo_txt)
+        fecha_comprobante = date.today()
+        fecha_txt = _texto(root.find(".//{*}FechaEmision"))
+        if fecha_txt:
+            for fmt in ("%d-%m-%Y", "%d/%m/%Y"):
+                try:
+                    fecha_comprobante = datetime.strptime(fecha_txt, fmt).date()
+                    break
+                except ValueError:
+                    continue
+            else:
+                try:
+                    fecha_comprobante = date.fromisoformat(fecha_txt[:10])
+                except ValueError:
+                    pass
+        codigo_seguridad_recibido = None
+        sig_value = root.find(".//{http://www.w3.org/2000/09/xmldsig#}SignatureValue")
+        if sig_value is not None and sig_value.text:
+            import re as _re
+            _clean = _re.sub(r"\s+", "", sig_value.text)
+            codigo_seguridad_recibido = "".join(c for c in _clean if c.isalnum())[:6] or None
     except etree.XMLSyntaxError:
         return Response(status_code=400, content="XML mal formado")
     except Exception as exc:
@@ -1199,11 +1282,15 @@ async def recibir_ecf_externo(
 
     async with db.acquire() as conn:
         result = await conn.execute(
-            f"""INSERT INTO {schema}.compras (ncf, rnc_proveedor, xml_original, estado_odoo,
-                                              fecha_comprobante, total_monto)
-                VALUES ($1, $2, $3, 'nueva', CURRENT_DATE, 0)
+            f"""INSERT INTO {schema}.compras (ncf, rnc_proveedor, nombre_proveedor,
+                                              tipo_ecf, codigo_seguridad, xml_original,
+                                              estado_odoo, fecha_comprobante,
+                                              total_monto, itbis_facturado)
+                VALUES ($1, $2, $3, $4, $5, $6, 'nueva', $7, $8, $9)
                 ON CONFLICT (ncf) DO NOTHING""",
-            ncf, rnc_emisor, xml_bytes,
+            ncf, rnc_emisor, nombre_emisor, tipo_ecf_recibido,
+            codigo_seguridad_recibido, xml_bytes,
+            fecha_comprobante, total_monto, itbis_facturado,
         )
 
     # "INSERT 0 1" → nuevo; "INSERT 0 0" → duplicado (no re-enviamos ARECF)

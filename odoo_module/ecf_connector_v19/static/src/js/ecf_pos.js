@@ -1,16 +1,15 @@
 import { PosOrder } from "@point_of_sale/app/models/pos_order";
 import { patch } from "@web/core/utils/patch";
 
-// Parchear la clase PosOrder para manejar el tipo de e-CF en Odoo 19
+// Parchear PosOrder para tipo e-CF (Odoo 19: campos cargados + serialize)
 patch(PosOrder.prototype, {
     setup() {
         super.setup(...arguments);
-        // Evitar el crash de 'undefined this.models' usando una referencia segura a this.pos.models
-        if (!this.ecf_tipo_id && this.pos && this.pos.models && this.pos.models["ecf.tipo"]) {
+        if (!this.ecf_tipo_id && this.models && this.models["ecf.tipo"]) {
             try {
-                const types = this.pos.models["ecf.tipo"].getAll();
+                const types = this.models["ecf.tipo"].getAll();
                 const defaultType = types.find(t => t.codigo === 32) || types[0];
-                this.ecf_tipo_id = defaultType ? defaultType.id : null;
+                this.ecf_tipo_id = defaultType ? defaultType.id : false;
             } catch (err) {
                 console.warn("Could not set default ECF type", err);
             }
@@ -30,5 +29,10 @@ patch(PosOrder.prototype, {
         this.ecf_ncf = json.ecf_ncf || null;
         this.ecf_codigo_seguridad = json.ecf_codigo_seguridad || json.ecf_cufe || null;
         this.ecf_qr = json.ecf_qr || null;
-    }
+    },
+    serialize() {
+        const data = super.serialize(...arguments);
+        data.ecf_tipo_id = this.ecf_tipo_id || false;
+        return data;
+    },
 });

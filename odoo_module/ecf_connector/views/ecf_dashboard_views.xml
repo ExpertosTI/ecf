@@ -30,7 +30,7 @@
                 <field name="create_date"/>
                 <field name="error_msg"/>
                 <templates>
-                    <t t-name="kanban-box">
+                    <t t-name="card">
                         <div t-attf-class="oe_kanban_card oe_kanban_global_click shadow-sm border-0 rounded-lg">
                             <div class="oe_kanban_content p-2">
                                 <div class="d-flex justify-content-between align-items-start mb-2">

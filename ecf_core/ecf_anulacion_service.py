@@ -7,7 +7,7 @@ Estructura DGII oficial::
     │   ├── Version (1.0)
     │   ├── RncEmisor
     │   ├── CantidadeNCFAnulados
-    │   └── FechaHoraAnulacioneNCF (YYYY-MM-DDTHH:mm:ss)
+    │   └── FechaHoraAnulacioneNCF (dd-mm-yyyy HH:MM:SS — DateAndTimeValidation del XSD)
     └── DetalleAnulacion
         └── Anulacion (1..10)
             ├── NoLinea
@@ -24,14 +24,19 @@ El XML va firmado con XAdES-BES (igual que un e-CF) antes de enviarse a la DGII.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from lxml import etree
 
-from ecf_core.ecf_core_service import ECFSigner
+from ecf_core.ecf_core_service import ECFSigner, ECFValidator
+from ecf_core.utils import fmt_fecha_hora_dgii, now_rd
 
 logger = logging.getLogger(__name__)
+
+# NCF electrónico: E + tipo (2 dígitos) + secuencia (10 dígitos)
+_NCF_RE = re.compile(r"^E\d{12}$")
 
 
 @dataclass
@@ -40,6 +45,14 @@ class RangoNCF:
     desde:       str   # E310000000001
     hasta:       str   # E310000000003
     cantidad:    int
+
+    def __post_init__(self):
+        for campo, valor in (("desde", self.desde), ("hasta", self.hasta)):
+            if not _NCF_RE.match(valor or ""):
+                raise ValueError(
+                    f"NCF inválido en rango de anulación ({campo}={valor!r}). "
+                    f"Formato esperado: E + tipo (2 dígitos) + secuencia (10 dígitos)."
+                )
 
 
 class ECFAnulacionGenerator:
@@ -56,7 +69,7 @@ class ECFAnulacionGenerator:
         if len(rangos) > 10:
             raise ValueError("DGII permite máximo 10 bloques de anulación por solicitud")
 
-        fecha_hora = fecha_hora or datetime.now(timezone.utc)
+        fecha_hora = fecha_hora or now_rd()
         cantidad_total = sum(r.cantidad for r in rangos)
 
         root = etree.Element("ANECF")
@@ -65,8 +78,9 @@ class ECFAnulacionGenerator:
         etree.SubElement(encabezado, "Version").text = "1.0"
         etree.SubElement(encabezado, "RncEmisor").text = rnc_emisor
         etree.SubElement(encabezado, "CantidadeNCFAnulados").text = str(cantidad_total)
-        etree.SubElement(encabezado, "FechaHoraAnulacioneNCF").text = (
-            fecha_hora.strftime("%Y-%m-%dT%H:%M:%S")
+        # DateAndTimeValidation del XSD: dd-mm-yyyy HH:MM:SS en AST (NO UTC wall-clock)
+        etree.SubElement(encabezado, "FechaHoraAnulacioneNCF").text = fmt_fecha_hora_dgii(
+            fecha_hora
         )
 
         detalle = etree.SubElement(root, "DetalleAnulacion")
@@ -91,6 +105,7 @@ class ECFAnulacionService:
     def __init__(self, signer: ECFSigner | None = None):
         self.generator = ECFAnulacionGenerator()
         self.signer = signer or ECFSigner()
+        self.validator = ECFValidator()
 
     def generar_y_firmar(
         self,
@@ -101,7 +116,13 @@ class ECFAnulacionService:
         fecha_hora: datetime | None = None,
     ) -> bytes:
         xml = self.generator.generar(rnc_emisor, rangos, fecha_hora=fecha_hora)
-        return self.signer.firmar(xml, p12_data, p12_password)
+        xml_firmado = self.signer.firmar(xml, p12_data, p12_password)
+        # El XSD ANECF exige la firma (xs:any minOccurs=1) — validar post-firma
+        # para detectar errores de estructura ANTES de enviar a la DGII.
+        valido, errores = self.validator.validar_evento(xml_firmado, "ANECF")
+        if not valido:
+            raise ValueError(f"ANECF no válido contra XSD DGII: {'; '.join(errores)}")
+        return xml_firmado
 
     @staticmethod
     def rango_unico(tipo_ecf: int, ncf: str) -> RangoNCF:

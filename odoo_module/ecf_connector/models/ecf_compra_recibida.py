@@ -301,7 +301,7 @@ class ECFCompraRecibida(models.Model):
         try:
             resp = requests.post(
                 f"{company.ecf_saas_url}/v1/compras/{self.ncf}/rechazar",
-                params={'motivo': self.motivo_rechazo},
+                json={'motivo': self.motivo_rechazo},
                 headers={'X-API-Key': company.ecf_api_key},
                 timeout=30,
             )

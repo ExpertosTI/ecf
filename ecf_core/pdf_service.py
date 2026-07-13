@@ -152,6 +152,7 @@ class ECFPDFService:
             security_code=data.get("security_code", ""),
             rnc_comprador=data.get("receptor_rnc", ""),
             tipo_ecf=data.get("tipo_ecf", 31),
+            fecha_emision=data.get("fecha_emision", ""),
         )
         data["qr_base64"] = self.generar_qr(qr_url)
         return self.template.render(**data)

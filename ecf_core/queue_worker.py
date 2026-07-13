@@ -6,8 +6,6 @@ Implementa cola persistente, reintentos con backoff, DLQ y callbacks a Odoo.
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import hmac
 import json
 import logging
 import os
@@ -15,7 +13,6 @@ import uuid
 from datetime import datetime, timezone
 
 import asyncpg
-import httpx
 import redis.asyncio as aioredis
 
 from ecf_core.cert_vault import CertVaultRepository
@@ -27,8 +24,9 @@ from ecf_core.dgii_client import (
     generar_security_code,
 )
 from ecf_core.ecf_core_service import ECFCoreService, FacturaECF, ItemECF
-from ecf_core.utils import safe_schema as _safe_schema
-from ecf_core.utils import normalize_odoo_webhook_url
+from ecf_core.odoo_webhook import notify_odoo_ecf_result
+from ecf_core.rfce_service import RFCEService, requiere_rfce
+from ecf_core.utils import fmt_fecha_hora_dgii, safe_schema as _safe_schema
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +35,53 @@ QUEUE_ECF_RETRY   = "ecf:retry"         # Cola de reintentos
 QUEUE_ECF_DLQ     = "ecf:dlq"           # Dead letter queue (fallos definitivos)
 MAX_INTENTOS      = 5
 RETRY_DELAYS      = [30, 120, 300, 900, 3600]   # segundos entre reintentos
+
+# Estados que no deben reenviarse a DGII (salvo force_reprocess)
+_ESTADOS_TERMINALES = frozenset({
+    "aprobado", "anulado", "rechazado", "condicionado", "anulacion_fallida",
+})
+_ESTADOS_CLAIMABLES = frozenset({"pendiente"})  # claim → enviado antes de DGII
+
+
+def _extraer_fecha_firma(xml_firmado: bytes) -> str | None:
+    """Extrae FechaHoraFirma (dd-mm-yyyy HH:MM:SS) del XML firmado."""
+    try:
+        from lxml import etree
+        root = etree.fromstring(xml_firmado)
+        for elem in root.iter():
+            if etree.QName(elem.tag).localname == "FechaHoraFirma" and elem.text:
+                return elem.text.strip()
+    except Exception as e:
+        logger.warning("No se pudo extraer FechaHoraFirma del XML: %s", e)
+    return None
+
+
+# Códigos DGII de unidad de medida más comunes (UnidadMedidaType del XSD).
+# Odoo suele mandar el nombre de la UoM en texto; se normaliza al código.
+_UNIDADES_DGII = {
+    "unidad": "43", "unidades": "43", "und": "43", "unit": "43", "units": "43",
+    "servicio": "47", "servicios": "47",
+    "caja": "10", "cajas": "10",
+    "docena": "15", "docenas": "15",
+    "galon": "23", "galón": "23", "galones": "23",
+    "gramo": "24", "gramos": "24", "g": "24",
+    "hora": "25", "horas": "25",
+    "kilogramo": "26", "kilogramos": "26", "kg": "26",
+    "litro": "31", "litros": "31", "l": "31",
+    "metro": "34", "metros": "34", "m": "34",
+    "libra": "32", "libras": "32", "lb": "32",
+    "paquete": "39", "paquetes": "39",
+}
+
+
+def _normalizar_unidad_dgii(unidad: str | None) -> str:
+    """Convierte la unidad al código numérico DGII (default 43 = Unidad)."""
+    if not unidad:
+        return "43"
+    unidad = str(unidad).strip()
+    if unidad.isdigit():
+        return unidad
+    return _UNIDADES_DGII.get(unidad.lower(), "43")
 
 
 def _normalizar_items_ecf(raw_items) -> list[dict]:
@@ -97,6 +142,8 @@ class ECFQueueWorker:
         logger.info("ECF Queue Worker iniciado")
         while self.running:
             try:
+                from ecf_core.platform_config import maybe_reload_psfe_from_redis
+                await maybe_reload_psfe_from_redis(self.db, self.redis)
                 # Process retries first, then pending queue
                 await self._procesar_reintentos()
                 await self._procesar_cola(QUEUE_ECF_PENDING)
@@ -116,14 +163,19 @@ class ECFQueueWorker:
         await self._procesar_mensaje(mensaje)
 
     async def _procesar_reintentos(self):
-        """Revisa la cola de reintentos y encola los que ya cumplieron su delay."""
+        """Revisa la cola de reintentos y encola los que ya cumplieron su delay.
+
+        ZREM devuelve cuántos elementos removió: si otro worker ya tomó el
+        item, retorna 0 y NO se re-encola (evita duplicados con N workers).
+        """
         ahora = datetime.now(timezone.utc).timestamp()
         items = await self.redis.zrangebyscore(
             QUEUE_ECF_RETRY, "-inf", ahora, start=0, num=10
         )
         for item in items:
-            await self.redis.zrem(QUEUE_ECF_RETRY, item)
-            await self.redis.rpush(QUEUE_ECF_PENDING, item)
+            removed = await self.redis.zrem(QUEUE_ECF_RETRY, item)
+            if removed:
+                await self.redis.rpush(QUEUE_ECF_PENDING, item)
 
     async def _procesar_mensaje(self, mensaje: dict):
         # Dispatch por tipo de mensaje
@@ -141,11 +193,38 @@ class ECFQueueWorker:
         try:
             # Cargar datos del ECF desde la DB del tenant
             tenant = await self._get_tenant(tenant_id)
-            ecf_data = await self._get_ecf(tenant["schema_name"], ecf_id)
+            schema = tenant["schema_name"]
+            ecf_data = await self._get_ecf(schema, ecf_id)
 
-            if ecf_data["estado"] in ("aprobado", "anulado"):
-                logger.info("ECF %s ya en estado final %s, saltando", ecf_id, ecf_data["estado"])
+            estado_actual = ecf_data["estado"]
+            if estado_actual in _ESTADOS_TERMINALES and not mensaje.get("force_reprocess"):
+                logger.info("ECF %s ya en estado final %s, saltando", ecf_id, estado_actual)
                 return
+
+            # EnProceso con track_id: el poller del scheduler resuelve el estado
+            if (
+                estado_actual == "enviado"
+                and ecf_data.get("track_id")
+                and not mensaje.get("force_reprocess")
+            ):
+                logger.info("ECF %s ya enviado (track=%s), saltando", ecf_id, ecf_data["track_id"])
+                return
+
+            # Claim atómico: pendiente → enviado (evita doble envío concurrente)
+            if estado_actual in _ESTADOS_CLAIMABLES or mensaje.get("force_reprocess"):
+                claimed = await self._claim_ecf(schema, ecf_id)
+                if not claimed and estado_actual in _ESTADOS_CLAIMABLES:
+                    logger.info("ECF %s ya reclamado por otro worker, saltando", ecf_id)
+                    return
+            elif estado_actual == "enviado" and not ecf_data.get("track_id"):
+                # Reintento tras fallo mid-flight (claim previo sin respuesta DGII)
+                pass
+            elif not mensaje.get("force_reprocess"):
+                logger.info("ECF %s estado=%s no procesable, saltando", ecf_id, estado_actual)
+                return
+
+            # Asegurar schema en el mensaje para release/retry
+            mensaje.setdefault("schema_name", schema)
 
             ambiente_efectivo = mensaje.get("ambiente_emision") or tenant["ambiente"]
             if mensaje.get("ambiente_emision") == "simulacion":
@@ -159,6 +238,11 @@ class ECFQueueWorker:
 
             # Construir FacturaECF desde los datos de la DB
             factura = self._construir_factura(ecf_data, tenant)
+            if mensaje.get("fecha_limite_pago"):
+                from datetime import date as date_cls
+                factura.fecha_limite_pago = date_cls.fromisoformat(
+                    str(mensaje["fecha_limite_pago"])
+                )
 
             # Procesar: generar XML, validar XSD, firmar.
             # `cufe_secret` (algoritmo Colombia) ya no se usa — DGII RD usa
@@ -201,6 +285,21 @@ class ECFQueueWorker:
                     detalles=[{"codigo": "MOCK01", "mensaje": mensaje_mock}],
                     raw={"mock": True, "ambiente": ambiente_efectivo}
                 )
+            elif requiere_rfce(factura.tipo_ecf, factura.total):
+                # Factura de Consumo < RD$250,000: la DGII exige el RFCE
+                # (resumen) en fc.dgii.gov.do — el XML completo firmado se
+                # conserva localmente (retención 10 años).
+                security_code_rfce = generar_security_code(resultado["xml_firmado"])
+                rfce_service = RFCEService(self.db)
+                respuesta = await rfce_service.emitir_rfce(
+                    tenant=tenant,
+                    ecf_id=ecf_id,
+                    factura=factura,
+                    security_code=security_code_rfce,
+                    p12_data=p12_data,
+                    p12_password=p12_pass,
+                    ambiente=ambiente_efectivo,
+                )
             else:
                 async with DGIIClient(ambiente=ambiente_efectivo) as dgii:
                     dgii.set_certificate(p12_data, p12_pass)
@@ -211,17 +310,23 @@ class ECFQueueWorker:
                         ncf=factura.ncf,
                     )
 
-            # Generar SecurityCode y QR URL
+            # Generar SecurityCode y QR URL.
+            # FechaFirma del QR DEBE coincidir con FechaHoraFirma del XML
+            # firmado — la consulta de timbre DGII valida ambos valores.
             security_code = generar_security_code(resultado["xml_firmado"])
+            fecha_firma_qr = _extraer_fecha_firma(resultado["xml_firmado"]) or \
+                fmt_fecha_hora_dgii()
+            fecha_emision_qr = factura.fecha_emision.strftime("%d-%m-%Y")
             qr_url = generar_qr_url(
                 ambiente=ambiente_efectivo,
                 rnc_emisor=tenant["rnc"],
                 ncf=factura.ncf,
                 total=str(factura.total),
-                fecha_firma=datetime.now(timezone.utc).strftime("%d-%m-%Y %H:%M:%S"),
+                fecha_firma=fecha_firma_qr,
                 security_code=security_code,
                 rnc_comprador=factura.rnc_comprador or "",
                 tipo_ecf=factura.tipo_ecf,
+                fecha_emision=fecha_emision_qr,
             )
 
             # Persistir resultado
@@ -252,6 +357,9 @@ class ECFQueueWorker:
 
         except DGIIClientError as e:
             logger.warning("Error DGII en ECF %s: %s", ecf_id, e)
+            schema_release = mensaje.get("schema_name") or ""
+            if schema_release:
+                await self._release_claim(schema_release, ecf_id)
             await self._programar_reintento(mensaje, intento, str(e))
 
         except TypeError as e:
@@ -313,8 +421,13 @@ class ECFQueueWorker:
                     tipo_ecf=tipo_ecf,
                 )
 
-            # Marcar como anulado SOLO si DGII aceptó; revertir si rechazó
-            estado_final = "anulado" if respuesta.estado in (EstadoDGII.ACEPTADO,) else "anulacion_fallida"
+            # Marcar según estado DGII (async: Recibido/EnProceso no son fallo)
+            if respuesta.estado in (EstadoDGII.ACEPTADO, EstadoDGII.CONDICIONADO):
+                estado_final = "anulado"
+            elif respuesta.estado in (EstadoDGII.RECIBIDO, EstadoDGII.PROCESANDO):
+                estado_final = "anulacion_pendiente"
+            else:
+                estado_final = "anulacion_fallida"
             s = _safe_schema(schema)
             async with self.db.acquire() as conn:
                 await conn.execute(
@@ -328,12 +441,13 @@ class ECFQueueWorker:
                     f"DGII: {respuesta.estado.value} — {respuesta.mensaje}",
                 )
 
-            # Callback a Odoo con el ESTADO FINAL REAL (puede ser 'anulado' o 'anulacion_fallida')
-            if tenant.get("odoo_webhook_url"):
+            # Callback a Odoo solo en estados definitivos (no EnProceso)
+            if estado_final != "anulacion_pendiente" and tenant.get("odoo_webhook_url"):
                 ecf_data = await self._get_ecf(schema, ecf_id)
                 await self._callback_odoo(tenant, ecf_data, respuesta, estado_final)
 
-            logger.info("Anulación DGII completada: NCF %s track_id=%s", ncf, respuesta.track_id)
+            logger.info("Anulación DGII completada: NCF %s track_id=%s estado=%s",
+                        ncf, respuesta.track_id, estado_final)
 
         except DGIIClientError as e:
             logger.warning("Error DGII en anulación NCF %s: %s", ncf, e)
@@ -347,6 +461,11 @@ class ECFQueueWorker:
         if intento >= MAX_INTENTOS:
             logger.error("ECF %s alcanzó máximo de reintentos. Enviando a DLQ.", mensaje["ecf_id"])
             await self._enviar_a_dlq(mensaje, error)
+            await self._marcar_error(
+                schema=mensaje.get("schema_name", ""),
+                ecf_id=mensaje["ecf_id"],
+                error=f"DLQ tras {intento} intentos: {error}",
+            )
             return
 
         delay = RETRY_DELAYS[min(intento - 1, len(RETRY_DELAYS) - 1)]
@@ -355,7 +474,28 @@ class ECFQueueWorker:
 
         score = datetime.now(timezone.utc).timestamp() + delay
         await self.redis.zadd(QUEUE_ECF_RETRY, {json.dumps(mensaje): score})
+        # Persistir progreso de reintentos para visibilidad operativa
+        await self._registrar_reintento(
+            schema=mensaje.get("schema_name", ""),
+            ecf_id=mensaje["ecf_id"],
+            intento=intento,
+            error=error,
+        )
         logger.info("ECF %s programado para reintento en %ds", mensaje["ecf_id"], delay)
+
+    async def _registrar_reintento(self, schema: str, ecf_id: str, intento: int, error: str):
+        if not schema:
+            return
+        try:
+            s = _safe_schema(schema)
+            async with self.db.acquire() as conn:
+                await conn.execute(
+                    f"UPDATE {s}.ecf SET intentos_envio=$1, ultimo_error=$2, updated_at=NOW() "
+                    f"WHERE id=$3 AND estado NOT IN ('aprobado', 'anulado')",
+                    intento, error, uuid.UUID(ecf_id),
+                )
+        except Exception as e:
+            logger.warning("No se pudo registrar reintento de %s: %s", ecf_id, e)
 
     async def _enviar_a_dlq(self, mensaje: dict, error: str):
         mensaje["dlq_error"] = error
@@ -364,92 +504,19 @@ class ECFQueueWorker:
 
     async def _callback_odoo(self, tenant: dict, ecf_data: dict, respuesta, estado_local: str,
                               qr_url: str = None, security_code: str = None):
-        """Notifica a Odoo el resultado mediante webhook firmado con HMAC-SHA256.
-
-        Durante ventana de rotación acepta también el secret anterior almacenado
-        en Redis bajo ``whk:prev:{tenant_id}`` con TTL.
-        """
-        if not tenant.get("odoo_webhook_url"):
-            return
-
-        webhook_url = normalize_odoo_webhook_url(tenant["odoo_webhook_url"])
-
-        payload = json.dumps({
-            "odoo_move_id": ecf_data.get("odoo_move_id"),
-            "external_id":  ecf_data.get("odoo_move_id"),
-            "ncf":          ecf_data["ncf"],
-            "codigo_seguridad": security_code or respuesta.codigo_seguridad,
-            "estado":       estado_local,
-            "track_id":     respuesta.track_id,
-            "qr_code":      qr_url or respuesta.qr_code,
-            "error_msg":    respuesta.mensaje if estado_local != "aprobado" else None,
-            "detalles":     respuesta.detalles if estado_local != "aprobado" else [],
-            "timestamp":    datetime.now(timezone.utc).isoformat(),
-        }).encode()
-
-        webhook_secret = self.vault.descifrar_campo(tenant.get("odoo_webhook_secret") or "")
-        if not webhook_secret:
-            logger.error("Webhook secret vacío para tenant %s — callback abortado", tenant["rnc"])
-            return
-
-        async def _post_webhook(secret: str) -> httpx.Response:
-            firma = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
-            sig_header = f"sha256={firma}"
-            logger.debug(
-                "Webhook HMAC: secret[0:8]=%s firma[0:16]=%s url=%s",
-                secret[:8], firma[:16], webhook_url,
-            )
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                return await client.post(
-                    webhook_url,
-                    content=payload,
-                    headers={
-                        "Content-Type":     "application/json",
-                        "X-ECF-Signature":  sig_header,
-                        "X-ECF-Tenant-RNC": tenant["rnc"],
-                    },
-                )
-
-        try:
-            resp = await _post_webhook(webhook_secret)
-            resp.raise_for_status()
-            logger.info("Callback enviado a Odoo para move %s", ecf_data.get("odoo_move_id"))
-        except httpx.HTTPStatusError as e:
-            # En rotación, el secret de Odoo puede ser todavía el anterior
-            if e.response.status_code in (401, 403):
-                prev_secret = await self.redis.get(f"whk:prev:{tenant['id']}")
-                if prev_secret:
-                    logger.warning(
-                        "Retrying webhook con secret anterior (rotación en progreso) tenant=%s",
-                        tenant["rnc"],
-                    )
-                    try:
-                        resp2 = await _post_webhook(prev_secret)
-                        resp2.raise_for_status()
-                        logger.info(
-                            "Callback a Odoo exitoso con secret anterior para move %s",
-                            ecf_data.get("odoo_move_id"),
-                        )
-                        return
-                    except Exception as e_prev:
-                        logger.error("Retry con secret anterior también falló: %s", e_prev)
-            logger.warning("Falló callback a Odoo (reintentando en 2 s): %s", e)
-            await asyncio.sleep(2)
-            try:
-                resp3 = await _post_webhook(webhook_secret)
-                resp3.raise_for_status()
-                logger.info("Callback a Odoo exitoso en reintento para move %s", ecf_data.get("odoo_move_id"))
-            except Exception as e2:
-                logger.error("Reintento callback a Odoo falló: %s", e2)
-        except Exception as e:
-            logger.warning("Falló callback a Odoo (reintentando en 2 s): %s", e)
-            await asyncio.sleep(2)
-            try:
-                resp3 = await _post_webhook(webhook_secret)
-                resp3.raise_for_status()
-                logger.info("Callback a Odoo exitoso en reintento para move %s", ecf_data.get("odoo_move_id"))
-            except Exception as e2:
-                logger.error("Reintento callback a Odoo falló: %s", e2)
+        """Notifica a Odoo el resultado mediante webhook firmado con HMAC-SHA256."""
+        await notify_odoo_ecf_result(
+            tenant=tenant,
+            vault=self.vault,
+            ecf_data=ecf_data,
+            estado_local=estado_local,
+            track_id=respuesta.track_id,
+            codigo_seguridad=security_code or respuesta.codigo_seguridad,
+            qr_code=qr_url or respuesta.qr_code,
+            error_msg=respuesta.mensaje if estado_local != "aprobado" else None,
+            detalles=respuesta.detalles if estado_local != "aprobado" else [],
+            redis=self.redis,
+        )
 
     def _construir_factura(self, ecf_data: dict, tenant: dict) -> FacturaECF:
         from decimal import Decimal
@@ -462,7 +529,7 @@ class ECFQueueWorker:
                 precio_unitario         = Decimal(str(i["precio_unitario"])),
                 descuento               = Decimal(str(i.get("descuento", "0"))),
                 itbis_tasa              = Decimal(str(i.get("itbis_tasa", "18"))),
-                unidad                  = i.get("unidad", "Unidad"),
+                unidad                  = _normalizar_unidad_dgii(i.get("unidad")),
                 indicador_bien_servicio = int(i.get("indicador_bien_servicio", 2)),
             )
             for i in raw_items
@@ -492,6 +559,32 @@ class ECFQueueWorker:
             moneda                  = ecf_data.get("moneda", "DOP"),
             tipo_cambio             = Decimal(str(ecf_data.get("tipo_cambio", "1"))),
         )
+
+    async def _claim_ecf(self, schema: str, ecf_id: str) -> bool:
+        """Claim atómico pendiente→enviado. Retorna False si otro worker ya lo tomó."""
+        s = _safe_schema(schema)
+        async with self.db.acquire() as conn:
+            row = await conn.fetchrow(
+                f"UPDATE {s}.ecf SET estado = 'enviado', updated_at = NOW() "
+                f"WHERE id = $1 AND estado = 'pendiente' RETURNING id",
+                uuid.UUID(ecf_id),
+            )
+        return row is not None
+
+    async def _release_claim(self, schema: str, ecf_id: str) -> None:
+        """Revierte enviado→pendiente si aún no hay track_id (fallo pre-respuesta)."""
+        if not schema:
+            return
+        try:
+            s = _safe_schema(schema)
+            async with self.db.acquire() as conn:
+                await conn.execute(
+                    f"UPDATE {s}.ecf SET estado = 'pendiente', updated_at = NOW() "
+                    f"WHERE id = $1 AND estado = 'enviado' AND track_id IS NULL",
+                    uuid.UUID(ecf_id),
+                )
+        except Exception as e:
+            logger.warning("No se pudo liberar claim de %s: %s", ecf_id, e)
 
     async def _get_tenant(self, tenant_id: str) -> dict:
         async with self.db.acquire() as conn:

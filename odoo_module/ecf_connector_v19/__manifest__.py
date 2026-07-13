@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Renace e-CF — Facturación Electrónica DGII (Odoo 19)',
-    'version': '19.0.3.0',
+    'version': '19.0.3.1',
     'category': 'Accounting/Localizations',
     'summary': 'Renace e-CF · Facturación Electrónica DGII RD (e-CF, ITBIS, retenciones, 606/607/608, IT-1)',
     'description': """
@@ -50,13 +50,14 @@ Ver odoo_module/ecf_connector/__manifest__.py para el detalle.
         'point_of_sale._assets_pos': [
             'ecf_connector_v19/static/src/js/ecf_pos.js',
             'ecf_connector_v19/static/src/js/ecf_type_button.js',
+            'ecf_connector_v19/static/src/js/EcfSelectionDialog.js',
             'ecf_connector_v19/static/src/xml/ecf_pos_templates.xml',
             'ecf_connector_v19/static/src/xml/ecf_pos_receipt.xml',
+            'ecf_connector_v19/static/src/xml/EcfSelectionDialog.xml',
         ],
     },
     'images': [
         'static/description/icon.png',
-        'static/description/banner.png'
     ],
     'installable': True,
     'application': True,

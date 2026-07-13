@@ -1,7 +1,7 @@
 /** @odoo-module **/
 import { Component, useState, onWillStart } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/store/pos_hook";
-import { SelectionPopup } from "@point_of_sale/app/utils/input_popups/selection_popup";
+import { EcfSelectionDialog } from "@ecf_connector_v19/js/EcfSelectionDialog";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
@@ -13,7 +13,7 @@ export class EcfTypeButton extends Component {
         this.pos = usePos();
         this.orm = useService("orm");
         this.notification = useService("notification");
-        this.popup = useService("popup");
+        this.dialog = useService("dialog");
         this.state = useState({
             types: [],
         });
@@ -50,32 +50,18 @@ export class EcfTypeButton extends Component {
             this.state.types = await this.orm.searchRead("ecf.tipo", [["activo", "=", true]], ["id", "nombre", "codigo", "prefijo"]);
         }
 
-        const selectionList = this.state.types.map(t => ({
-            id: t.id,
-            item: t,
-            label: `${t.prefijo} - ${t.nombre}`,
-            isSelected: order.ecf_tipo_id === t.id,
-        }));
-
-        const { confirmed, payload: selectedType } = await this.popup.add(SelectionPopup, {
+        this.dialog.add(EcfSelectionDialog, {
             title: "Seleccionar Tipo de Comprobante",
-            list: selectionList,
-        });
+            types: this.state.types,
+            onSelect: async (selectedType) => {
+                order.ecf_tipo_id = selectedType.id;
 
-        if (confirmed) {
-            order.ecf_tipo_id = selectedType.id;
-            
-            if (selectedType.codigo === 31 && !order.get_partner()) {
-                this.popup.add(SelectionPopup, {
-                    title: "Atención: Crédito Fiscal",
-                    list: [{ id: 1, label: "Seleccionar Cliente (RNC requerido)", item: true }],
-                }).then(({ confirmed }) => {
-                    if (confirmed) {
-                        this.pos.selectPartner();
-                    }
-                });
+                if (selectedType.codigo === 31 && !order.get_partner()) {
+                    this.notification.add("Atención: Crédito Fiscal requiere seleccionar un cliente con RNC.", { type: "warning" });
+                    this.pos.selectPartner();
+                }
             }
-        }
+        });
     }
 }
 

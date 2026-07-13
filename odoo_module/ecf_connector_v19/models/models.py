@@ -260,11 +260,10 @@ class ResConfigSettings(models.TransientModel):
     def set_values(self):
         super().set_values()
         api_key = self.company_id.ecf_api_key
-        # Validación flexible: debe empezar con sk_ y tener al menos 20 chars
-        if api_key and not api_key.startswith('sk_'):
+        if api_key and not _API_KEY_RE.match(api_key):
             raise ValidationError(_(
                 'La API Key debe tener formato sk_cert_... o sk_prod_... '
-                '(proporcionada al crear el tenant en el SaaS)'
+                '(48 caracteres hexadecimales, proporcionada al crear el tenant en el SaaS)'
             ))
 
     def action_test_conexion_ecf(self):
@@ -355,13 +354,16 @@ class ECFLog(models.Model):
     _description = 'Registro de e-CF emitidos'
     _order = 'create_date desc'
     _rec_name = 'ncf'
+    _check_company_auto = True
 
     _sql_constraints = [
         ('ncf_move_unique', 'UNIQUE(move_id, ncf)',
          'Ya existe un registro con este NCF para esta factura'),
     ]
 
-    move_id      = fields.Many2one('account.move', string='Factura', ondelete='cascade')
+    move_id      = fields.Many2one(
+        'account.move', string='Factura', ondelete='cascade', check_company=True,
+    )
     ncf          = fields.Char(string='NCF', index=True)
     ecf_id       = fields.Char(string='ID en SaaS')
     tipo_ecf     = fields.Integer(string='Tipo e-CF')
@@ -412,75 +414,68 @@ class ECFLog(models.Model):
 
     @api.model
     def get_dashboard_stats(self, domain=None):
-        """
-        Retorna estadísticas para el dashboard e-CF
-        """
-        if domain is None:
-            domain = []
-
+        """Estadísticas para el dashboard e-CF — usa read_group (escalable)."""
+        domain = list(domain or [])
         date_from, date_to = self._ecf_report_dates()
         domain.append(('create_date', '>=', fields.Datetime.to_datetime(date_from)))
         domain.append(('create_date', '<=', fields.Datetime.to_datetime(date_to) + timedelta(days=1)))
-        
-        company_id = self.env.company[:1].id
-        # Filtro multi-compañía
-        domain.append(('company_id', '=', company_id))
-        
-        logs = self.search(domain)
-        
-        # 1. Conteo por estado
-        stats_estado = {
-            'aprobado': len(logs.filtered(lambda l: l.estado == 'aprobado')),
-            'rechazado': len(logs.filtered(lambda l: l.estado == 'rechazado')),
-            'pendiente': len(logs.filtered(lambda l: l.estado == 'pendiente')),
-            'condicionado': len(logs.filtered(lambda l: l.estado == 'condicionado')),
-        }
-        
-        # 2. Conteo por tipo
+        domain.append(('company_id', '=', self.env.company.id))
+
+        stats_estado = {'aprobado': 0, 'rechazado': 0, 'pendiente': 0, 'condicionado': 0}
+        for grp in self.read_group(domain, ['estado'], ['estado']):
+            estado = grp['estado']
+            if estado in stats_estado:
+                stats_estado[estado] = grp['estado_count']
+
         tipos = self.env['ecf.tipo'].search([])
+        codigo_to_prefijo = {t.codigo: t.prefijo for t in tipos}
         stats_tipo = {}
-        for t in tipos:
-            count = len(logs.filtered(lambda l: l.tipo_ecf == t.codigo))
-            if count > 0:
-                stats_tipo[t.prefijo] = count
-        
-        # 3. Datos de volumen diario (últimos 30 días)
-        date_limit = datetime.now() - timedelta(days=30)
-        daily_query = """
-            SELECT create_date::date as day, count(id) as count
-            FROM ecf_log
-            WHERE create_date >= %s AND company_id = %s
-            GROUP BY day
-            ORDER BY day ASC
-        """
-        self.env.cr.execute(daily_query, (date_limit, company_id))
-        daily_volume = self.env.cr.dictfetchall()
-        
-        # Convertir fechas a string para JSON
-        for d in daily_volume:
-            d['day'] = str(d['day'])
-        
-        # 4. Montos totales (desde facturas asociadas)
-        total_amount = sum(logs.filtered(lambda l: l.move_id).mapped('move_id.amount_total'))
-        
-        # 5. Últimos e-CFs emitidos
-        recent_logs = []
-        for l in logs[:5]:
-            recent_logs.append({
-                'id': l.id,
-                'ncf': l.ncf or '---',
-                'cliente': l.move_id.partner_id.name or '---',
-                'monto': l.move_id.amount_total or 0.0,
-                'estado': l.estado,
-                'fecha': l.create_date.strftime('%Y-%m-%d %H:%M'),
-            })
-            
+        for grp in self.read_group(domain, ['tipo_ecf'], ['tipo_ecf']):
+            codigo = grp['tipo_ecf']
+            if codigo in codigo_to_prefijo and grp['tipo_ecf_count']:
+                stats_tipo[codigo_to_prefijo[codigo]] = grp['tipo_ecf_count']
+
+        date_limit = fields.Datetime.now() - timedelta(days=30)
+        daily_groups = self.read_group(
+            domain + [('create_date', '>=', date_limit)],
+            ['create_date:day'],
+            ['create_date:day'],
+            orderby='create_date',
+        )
+        daily_volume = [{
+            'day': str(grp.get('create_date:day') or ''),
+            'count': grp.get('create_date_count', 0),
+        } for grp in daily_groups]
+
+        moves_domain = [
+            ('company_id', '=', self.env.company.id),
+            ('ecf_estado', 'in', ('aprobado', 'condicionado', 'enviado', 'pendiente')),
+            ('invoice_date', '>=', date_from),
+            ('invoice_date', '<=', date_to),
+        ]
+        amount_groups = self.env['account.move'].read_group(
+            moves_domain, ['amount_total'], [],
+        )
+        total_amount = (amount_groups[0]['amount_total'] if amount_groups else 0.0) or 0.0
+        total_count = self.search_count(domain)
+
+        recent = self.search(domain, limit=5, order='create_date desc')
+        recent_logs = [{
+            'id': l.id,
+            'move_id': l.move_id.id if l.move_id else False,
+            'ncf': l.ncf or '---',
+            'cliente': (l.move_id.partner_id.name if l.move_id else '') or '---',
+            'monto': (l.move_id.amount_total if l.move_id else 0.0) or 0.0,
+            'estado': l.estado,
+            'fecha': l.create_date.strftime('%Y-%m-%d %H:%M') if l.create_date else '',
+        } for l in recent]
+
         return {
             'stats_estado': stats_estado,
             'stats_tipo': stats_tipo,
             'daily_volume': daily_volume,
             'total_amount': total_amount,
-            'total_count': len(logs),
+            'total_count': total_count,
             'recent_logs': recent_logs,
         }
 
@@ -780,6 +775,15 @@ class AccountMove(models.Model):
                 'Concilie el pago primero.'
             ))
 
+        # Guard anti re-emisión: si ya tiene NCF y no fue rechazado/anulado,
+        # volver a emitir generaría un NCF duplicado ante la DGII.
+        if self.ecf_ncf and self.ecf_estado not in ('rechazado', 'anulado', 'error', False):
+            raise UserError(_(
+                'Esta factura ya tiene el NCF %(ncf)s en estado "%(estado)s". '
+                'No se puede volver a emitir. Use "Consultar Estado" o anule el e-CF primero.',
+                ncf=self.ecf_ncf, estado=self.ecf_estado,
+            ))
+
         if not self.ecf_tipo_id:
             raise UserError(_('Debe seleccionar un Tipo e-CF antes de emitir'))
 
@@ -842,6 +846,8 @@ class AccountMove(models.Model):
             'tipo_ingresos': '01',
             'indicador_envio_diferido': 0,
         }
+        if campos['tipo_pago'] == '2' and self.invoice_date_due:
+            campos['fecha_limite_pago'] = self.invoice_date_due.isoformat()
         if direccion:
             campos['direccion_comprador'] = direccion
         if self.ecf_tipo_id.codigo in (33, 34):
@@ -958,12 +964,15 @@ class AccountMove(models.Model):
             )
 
         try:
+            # Idempotencia: un doble clic o retry de red no debe asignar 2 NCF
+            idem_seq = self.env['ecf.log'].sudo().search_count([('move_id', '=', self.id)])
             response = requests.post(
                 f"{api_url}/v1/ecf/emitir",
                 json=payload,
                 headers={
                     'X-API-Key':    api_key,
                     'Content-Type': 'application/json',
+                    'Idempotency-Key': f'odoo-{self.company_id.id}-{self.id}-{idem_seq}',
                 },
                 timeout=30,
             )
@@ -1145,6 +1154,18 @@ class PosOrder(models.Model):
         string='Estado e-CF',
         store=True,
     )
+
+    @api.model
+    def _load_pos_data_fields(self, config_id):
+        fields = super()._load_pos_data_fields(config_id)
+        return fields + [
+            'ecf_tipo_id', 'ecf_ncf', 'ecf_codigo_seguridad', 'ecf_qr',
+        ]
+
+    def _order_fields(self, ui_order):
+        fields = super()._order_fields(ui_order)
+        fields['ecf_tipo_id'] = ui_order.get('ecf_tipo_id')
+        return fields
 
     def _prepare_invoice_vals(self):
         vals = super()._prepare_invoice_vals()

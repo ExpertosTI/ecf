@@ -1,8 +1,8 @@
-# Renace e-CF — Avances y Pendientes (2026-04-30)
+# Renace e-CF — Avances y Pendientes (2026-07-13)
 
-> Documento actualizado en la tercera sesión de remediación.
-> Total acumulado: **25 hallazgos resueltos** (todos los identificados en el audit global).
-> Validación: `python3 -c "import ast; ast.parse(...)"` → OK en todos los archivos modificados.
+> Documento actualizado en la séptima sesión (onboarding asistido multi-tenant).
+> Total acumulado: **58 hallazgos / mejoras resueltas**.
+> Validación: pytest 59/59 ✅
 
 ---
 
@@ -224,6 +224,163 @@
 
 ---
 
+## ✅ Avances — Sesión 4 (2026-07-03): depuración global multitenant + DGII
+
+### 34. RFCE reescrito al modelo por-factura (RFCE 32) ✅
+**Archivos:** [ecf_core/rfce_service.py](ecf_core/rfce_service.py), [ecf_core/dgii_client.py](ecf_core/dgii_client.py), [ecf_core/queue_worker.py](ecf_core/queue_worker.py), [db/001_schema.sql](db/001_schema.sql), [db/013_rfce_por_factura.sql](db/013_rfce_por_factura.sql)
+
+- El servicio RFCE generaba un "resumen diario" inexistente en la norma; ahora emite un RFCE **por cada factura E32 < RD$250,000**, conforme a `RFCE 32.xsd`, firmado y validado antes de persistir
+- `DGIIClient`: host dedicado `fc.dgii.gov.do` (`URLS_FC`, `enviar_rfce`), QR de E32 apunta a `fc.dgii.gov.do`
+- `queue_worker`: enruta E32 < umbral por el flujo RFCE; los demás por `enviar_ecf`
+- DB: tabla `rfce` con `ncf UNIQUE` por factura + FK `ecf.rfce_id`; migración `013` idempotente para schemas existentes; `crear_schema_tenant` v2.7
+
+### 35. Scheduler: reconciliación y resiliencia ✅
+**Archivo:** [ecf_core/scheduler.py](ecf_core/scheduler.py)
+
+- `poll_ecf_en_proceso`: consulta DGII por `track_id` para e-CF atascados en `enviado` (>5 min) y actualiza estado
+- `reencolar_pendientes`: re-encola e-CF `pendiente` huérfanos (>10 min) si Redis falló tras el commit
+- `procesar_rfce_pendientes`: emite RFCE faltantes para E32 aprobados sin resumen
+- `alertar_dlq`: alerta (con cooldown 24h) si la DLQ acumula elementos
+- Cada job corre aislado: una excepción no tumba el ciclo del scheduler
+
+### 36. API Gateway: idempotencia y cuota atómicas ✅
+**Archivo:** [api_gateway/main.py](api_gateway/main.py)
+
+- `Idempotency-Key` con `SET NX` en Redis: dos requests concurrentes ya no pueden asignar 2 NCF (devuelve 409 mientras la primera está en curso)
+- Cuota mensual con `UPDATE ... WHERE ecf_emitidos_mes < max_ecf_mensual RETURNING`: el límite ya no es evadible por concurrencia
+- Mocks DGII (`semilla`, `validacioncertificado`, `aprobacioncomercial`) solo activos con `ECF_AMBIENTE=simulacion`
+- Recepción externa (`/fe/recepcion/api/ecf`): ahora parsea nombre emisor, tipo e-CF, fecha, montos e ITBIS del XML (antes insertaba `total_monto=0`)
+- `_get_client_ip`: toma el **último** valor de `X-Forwarded-For` (el del proxy confiable) — el primero es falsificable
+- `GET /v1/ecf/{ncf}/estado` ahora devuelve `track_id`, `security_code` y `qr_url`
+
+### 37. Admin: ruta duplicada y bug de vault ✅
+**Archivo:** [api_gateway/admin.py](api_gateway/admin.py)
+
+- Eliminada la definición duplicada de `POST /tenants/{id}/test-webhook` (FastAPI ignoraba una silenciosamente)
+- `test-webhook` firma con `sha256=<hex>` (mismo formato que el worker) — antes el ping fallaba la verificación en Odoo
+- `CertVaultRepository(db)` → `CertVaultRepository(db, CertVault())` en sync-compras (evitaba un `TypeError` en runtime)
+
+### 38. Webhooks Odoo v18/v19: IDOR y firma obligatoria ✅
+**Archivos:** `ecf_connector/controllers/webhook.py`, `ecf_connector_v19/controllers/webhook.py`, `ecf_connector*/models/models.py`
+
+- `/ecf/webhook/recibida`: eliminado fallback `browse(1)` (IDOR) — el RNC del header es obligatorio y la firma HMAC ya no es opcional
+- v18 persiste `track_id` del callback (antes se descartaba)
+- Guard anti re-emisión: no se puede volver a emitir una factura con NCF activo (evita NCF duplicados ante DGII)
+- RNC del comprador normalizado a dígitos antes de clasificar (guiones rompían la detección RNC/Cédula) y se envía normalizado
+- Emisión desde Odoo envía `Idempotency-Key` (`odoo-{company}-{move}-{seq}`) — un doble clic o timeout+retry ya no asigna 2 NCF
+
+### 39. Módulos POS portados a Odoo 18 + limpieza ✅
+**Archivos:** `mobile_service/`, `pos_shipment_manager/`
+
+- `models.ValidationError`/`models.UserError` (inexistentes) → `odoo.exceptions` en `mobile_service` (11 usos que crasheaban con `AttributeError`)
+- Loaders POS legacy (`_loader_params_*`, `_pos_data_process`, `_get_pos_ui_*`) portados a `_load_pos_data_fields` de Odoo 18; mensajeros/producto de envío vía RPC `pos.session.load_shipment_data` en `processServerData`
+- API pública de tickets: PIN comparado en tiempo constante + rate-limit (10 intentos / 15 min por IP)
+- `pos_shipment_manager`: token vacío ya no matchea registros con token NULL; `/thermal_print` verifica `check_access` antes de renderizar con sudo
+- Manifest `mobile_service`: añadidos `account` y las vistas de wizards que no se cargaban
+- Limpieza: eliminada la copia anidada duplicada de `pos_shipment_manager`, JS/XML muertos de la API POS vieja (9 archivos), `main.py` legacy sin PIN, `.bak`, scripts de diagnóstico y `dashboard_pos/` vacío
+
+### 40. Despliegue producción ✅
+**Archivo:** [docker-compose.prod.yml](docker-compose.prod.yml)
+
+- **Eliminado `--api.insecure=true` y el puerto 8080 de Traefik** (dashboard sin autenticación expuesto a internet)
+- El scheduler recibe `PSFE_*`, `DGII_CA_B64` y `ECF_AMBIENTE` (ahora habla con DGII para polling/RFCE)
+
+### Verificación sesión 4
+- `pytest tests/` → **57/57 passed**
+- Sintaxis Python (91 archivos) y XML (94 archivos) → sin errores
+- Import smoke test de `ecf_core.*` y `api_gateway.*` → OK
+
+### Migración requerida
+```bash
+psql -U renace_ecf -d renace_ecf -f db/013_rfce_por_factura.sql   # RFCE por factura + crear_schema_tenant v2.7
+```
+
+---
+
+## ✅ Avances — Sesión 6 (2026-07-13): depuración global (auditoría fresca)
+
+### 41. RFCE idempotente + reconciliación de reintentos ✅
+**Archivos:** `ecf_core/rfce_service.py`
+
+- `ON CONFLICT (ncf) DO UPDATE … RETURNING id` — ya no hay UUID fantasma ni FK rota en reintentos
+- `ecf.rfce_id` se enlaza **después** de la respuesta DGII
+- Reconciler también reintenta RFCE en `pendiente`/`rechazado` (no solo `rfce_id IS NULL`)
+
+### 42. Worker: claim atómico + estados terminales ✅
+**Archivo:** `ecf_core/queue_worker.py`
+
+- Claim `pendiente → enviado` antes de hablar con DGII (evita doble envío)
+- Release a `pendiente` si falla DGII sin `track_id`
+- Skip de `aprobado/rechazado/condicionado/anulado/anulacion_fallida` (salvo `force_reprocess`)
+- Skip de `enviado` con `track_id` (lo resuelve el poller)
+
+### 43. Anulación: máquina de estados DGII ✅
+- `Aceptado`/`Condicional` → `anulado`
+- `Recibido`/`EnProceso` → `anulacion_pendiente` (no falso fallo)
+- `Rechazado` → `anulacion_fallida`
+
+### 44. QR oficial + FechaHoraFirma en AST ✅
+**Archivos:** `dgii_client.py`, `ecf_core_service.py`, `ecf_interchange_service.py`, `ecf_anulacion_service.py`, `utils.py`, `scheduler.py`, `pdf_service.py`
+
+- QR e-CF incluye `FechaEmision`; paths de timbre en minúsculas (`certecf/consultatimbre`)
+- QR E32/FC: solo params documentados (sin FechaFirma inventada)
+- `FechaHoraFirma` / ACECF / ARECF / ANECF usan `America/Santo_Domingo` (AST)
+- Poller ya no inventa `00:00:00` como FechaFirma
+
+### 45. FechaLimitePago + JSON CodigoSeguridad ✅
+- Ya no se emite `FechaLimitePago = fecha_emision`; solo si hay vencimiento real (`fecha_limite_pago` en payload/Odoo `invoice_date_due`)
+- Parser JSON de recibidas lee `codigoSeguridad` / `CodigoSeguridad` (además de CUFE legacy)
+- Reset mensual de contadores: una sola vez/mes vía `system_audit_log` (sin spam de alerta de cert)
+
+### 46. Odoo v18/v19 POS + ACLs + UoM ✅
+- v19: `popup` → `dialog` + `EcfSelectionDialog` (crash POS corregido)
+- `ecf_tipo_id` en `_load_pos_data_fields` + `serialize()` / `_order_fields`
+- ACLs read para `group_ecf_user` y `point_of_sale.group_pos_user` sobre `ecf.tipo`
+- v18: códigos UoM DGII (`_uom_to_dgii_code`); v19: multi-company en `ecf.log` restaurado
+- Kanban dashboard: `kanban-box` → `card`
+- WhatsApp POS: `_load_pos_data_fields` (API Odoo 18)
+- Versiones: `ecf_connector` **18.0.5.1** / `ecf_connector_v19` **19.0.3.1**
+
+### Verificación sesión 6
+- `pytest tests/` → **59/59 passed**
+- Smoke: `fmt_fecha_hora_dgii`, `generar_qr_url` (E31+E32), imports OK
+
+---
+
+## ✅ Avances — Sesión 7 (2026-07-13): onboarding asistido Renace → clientes
+
+### 47. Empresa operadora + puerta de clientes ✅
+**Archivos:** `db/014_onboarding_asistido.sql`, `db/001_schema.sql`, `api_gateway/admin.py`, `.env.example`
+
+- Columnas: `is_platform_operator`, `dgii_test_ok_at`, `postulacion_firmada_at`
+- `PLATFORM_OPERATOR_RNC=132842316` — al registrar ese RNC se marca como operadora Renace
+- Crear clientes exige: PSFE + operador con .p12 + «Probar CerteCF» OK (bypass: `ALLOW_CLIENT_ONBOARDING=true`)
+
+### 48. Asistente de certificación con progreso real ✅
+- Pasos 4–5 ya no se marcan “done” solo por tener .p12: requieren auth/postulación persistidas
+- API expone `next_blocker`, `paso_actual`, checklist de evidencia (paso 8)
+- Portal: banner del siguiente paso, pasos atenuados, CTA principal, post-create → Certificación
+
+### 49. Flujo plataforma en panel ✅
+- Dashboard: PSFE → Empresa Renace → Probar CerteCF → Empresas cliente
+- Banner en Empresas con blockers claros
+- Ambiente editable en ficha de empresa
+- PSFE: señal Redis `ecf:psfe:reload` para que workers recarguen sin reinicio
+
+### Migración requerida (sesión 7)
+```bash
+psql -U renace_ecf -d renace_ecf -f db/014_onboarding_asistido.sql
+```
+
+### Flujo operativo recomendado
+1. Panel → **Plataforma** → subir PSFE (cert/key/CA) → Probar CerteCF mTLS
+2. **Empresas** → Registrar Renace (`132842316`) → guardar API Key
+3. Continuar a **Certificación DGII** → .p12 → Probar CerteCF → Firmar postulación
+4. Conectar Odoo + Set de Pruebas E31–E34
+5. Cuando el gate lo permita → registrar empresas cliente (mismo asistente)
+
+---
+
 ## 🟡 Pendientes opcionales (bajo riesgo)
 
 | # | Pendiente | Notas |
@@ -274,5 +431,5 @@
 
 ---
 
-*Documento actualizado al 2026-06-27 — asistente certificación DGII en portal.*
+*Documento actualizado al 2026-07-13 — onboarding asistido: operador Renace primero, gate de clientes, wizard con next_blocker.*
 
