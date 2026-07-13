@@ -372,6 +372,7 @@ class ECFQueueWorker:
             await self._marcar_error(
                 schema=schema_release, ecf_id=ecf_id, error=error_msg, terminal=True,
             )
+            await self._notificar_rechazo_odoo(mensaje, tenant_id, schema_release, ecf_id, error_msg)
 
         except Exception as e:
             logger.exception("Error fatal procesando ECF %s: %s", ecf_id, e)
@@ -382,6 +383,7 @@ class ECFQueueWorker:
             await self._marcar_error(
                 schema=schema_release, ecf_id=ecf_id, error=str(e), terminal=True,
             )
+            await self._notificar_rechazo_odoo(mensaje, tenant_id, schema_release, ecf_id, str(e))
 
     def _estado_dgii_a_local(self, estado: EstadoDGII) -> str:
         mapping = {
@@ -560,25 +562,66 @@ class ECFQueueWorker:
             redis=self.redis,
         )
 
+    async def _notificar_rechazo_odoo(
+        self, mensaje: dict, tenant_id: str, schema: str, ecf_id: str, error: str,
+    ) -> None:
+        """Tras DLQ/TypeError: empuja estado rechazado + mensaje a Odoo."""
+        try:
+            from ecf_core.dgii_client import EstadoDGII, RespuestaDGII
+            tenant = await self._get_tenant(tenant_id)
+            if schema:
+                ecf_data = await self._get_ecf(schema, ecf_id)
+            else:
+                ecf_data = {
+                    "ncf": mensaje.get("ncf"),
+                    "odoo_move_id": mensaje.get("odoo_move_id"),
+                    "tipo_ecf": mensaje.get("tipo_ecf"),
+                }
+            if not ecf_data.get("odoo_move_id"):
+                ecf_data["odoo_move_id"] = mensaje.get("odoo_move_id")
+            if not ecf_data.get("ncf"):
+                ecf_data["ncf"] = mensaje.get("ncf")
+            fake = RespuestaDGII(
+                estado=EstadoDGII.RECHAZADO,
+                track_id=None,
+                mensaje=error,
+                codigo_seguridad=None,
+                qr_code=None,
+                detalles=[{"codigo": "SYS", "mensaje": error}],
+                raw={"error": error, "fuente": "worker_fatal"},
+            )
+            await self._callback_odoo(tenant, ecf_data, fake, "rechazado")
+        except Exception as cb_err:
+            logger.warning(
+                "Webhook rechazo no enviado para ECF %s: %s", ecf_id, cb_err,
+            )
+
     def _construir_factura(self, ecf_data: dict, tenant: dict) -> FacturaECF:
         from decimal import Decimal
         raw_items = _normalizar_items_ecf(ecf_data.get("items"))
-        items = [
-            ItemECF(
-                linea                   = i["linea"],
-                descripcion             = i["descripcion"],
-                cantidad                = Decimal(str(i["cantidad"])),
-                precio_unitario         = Decimal(str(i["precio_unitario"])),
-                descuento               = Decimal(str(i.get("descuento", "0"))),
-                itbis_tasa              = Decimal(str(i.get("itbis_tasa", "18"))),
-                unidad                  = _normalizar_unidad_dgii(i.get("unidad")),
-                indicador_bien_servicio = int(i.get("indicador_bien_servicio", 2)),
+        if not raw_items:
+            raise ValueError(
+                f"ECF {ecf_data.get('ncf')} sin ítems válidos — no se puede firmar/enviar a DGII"
             )
-            for i in raw_items
-        ]
+        items = []
+        for idx, i in enumerate(raw_items, 1):
+            if not isinstance(i, dict):
+                raise TypeError(
+                    f"Item #{idx} mal formado (tipo {type(i).__name__}): se esperaba dict"
+                )
+            items.append(ItemECF(
+                linea                   = int(i.get("linea") or idx),
+                descripcion             = str(i.get("descripcion") or f"Item {idx}")[:200],
+                cantidad                = Decimal(str(i.get("cantidad") or "0")),
+                precio_unitario         = Decimal(str(i.get("precio_unitario") or "0")),
+                descuento               = Decimal(str(i.get("descuento") or "0")),
+                itbis_tasa              = Decimal(str(i.get("itbis_tasa") if i.get("itbis_tasa") is not None else "18")),
+                unidad                  = _normalizar_unidad_dgii(i.get("unidad")),
+                indicador_bien_servicio = int(i.get("indicador_bien_servicio") or 2),
+            ))
         from datetime import date
         return FacturaECF(
-            tipo_ecf                = ecf_data["tipo_ecf"],
+            tipo_ecf                = int(ecf_data["tipo_ecf"]),
             ncf                     = ecf_data["ncf"],
             rnc_emisor              = tenant["rnc"],
             razon_social_emisor     = tenant["razon_social"],
@@ -586,20 +629,20 @@ class ECFQueueWorker:
             fecha_emision           = date.fromisoformat(str(ecf_data["fecha_emision"])),
             rnc_comprador           = ecf_data.get("rnc_comprador"),
             nombre_comprador        = ecf_data.get("nombre_comprador"),
-            tipo_rnc_comprador      = ecf_data.get("tipo_rnc_comprador", "1"),
+            tipo_rnc_comprador      = str(ecf_data.get("tipo_rnc_comprador") or "1"),
             items                   = items,
             ncf_referencia          = ecf_data.get("referencia_ncf"),
             fecha_ncf_referencia    = date.fromisoformat(str(ecf_data["fecha_ncf_referencia"])) if ecf_data.get("fecha_ncf_referencia") else None,
-            codigo_modificacion     = ecf_data.get("codigo_modificacion", "1"),
-            tipo_pago               = ecf_data.get("tipo_pago", "1"),
-            tipo_ingresos           = ecf_data.get("tipo_ingresos", "01"),
-            indicador_envio_diferido = int(ecf_data.get("indicador_envio_diferido", 0)),
+            codigo_modificacion     = str(ecf_data.get("codigo_modificacion") or "1"),
+            tipo_pago               = str(ecf_data.get("tipo_pago") or "1"),
+            tipo_ingresos           = str(ecf_data.get("tipo_ingresos") or "01"),
+            indicador_envio_diferido = int(ecf_data.get("indicador_envio_diferido") or 0),
             nombre_comercial        = tenant.get("nombre_comercial"),
             municipio               = tenant.get("municipio"),
             provincia               = tenant.get("provincia"),
             direccion_comprador     = ecf_data.get("direccion_comprador"),
-            moneda                  = ecf_data.get("moneda", "DOP"),
-            tipo_cambio             = Decimal(str(ecf_data.get("tipo_cambio", "1"))),
+            moneda                  = str(ecf_data.get("moneda") or "DOP"),
+            tipo_cambio             = Decimal(str(ecf_data.get("tipo_cambio") or "1")),
         )
 
     async def _claim_ecf(self, schema: str, ecf_id: str) -> bool:
@@ -645,25 +688,27 @@ class ECFQueueWorker:
         s = _safe_schema(schema)
         async with self.db.acquire() as conn:
             row = await conn.fetchrow(
+                f"SELECT * FROM {s}.ecf WHERE id = $1",
+                uuid.UUID(ecf_id),
+            )
+            if not row:
+                return {}
+            items_rows = await conn.fetch(
                 f"""
-                SELECT e.*,
-                    COALESCE(
-                        (
-                            SELECT json_agg(row_to_json(i))
-                            FROM {s}.ecf_items i
-                            WHERE i.ecf_id = e.id
-                        ),
-                        '[]'::json
-                    ) AS items
-                FROM {s}.ecf e
-                WHERE e.id = $1
+                SELECT linea, descripcion, cantidad, precio_unitario, descuento,
+                       itbis_tasa, unidad, indicador_bien_servicio
+                FROM {s}.ecf_items
+                WHERE ecf_id = $1
+                ORDER BY linea
                 """,
                 uuid.UUID(ecf_id),
             )
-        if not row:
-            return {}
         data = dict(row)
-        data["items"] = _normalizar_items_ecf(data.get("items"))
+        # Preferir filas tipadas (evita TypeError por json_agg → str)
+        if items_rows:
+            data["items"] = [dict(r) for r in items_rows]
+        else:
+            data["items"] = _normalizar_items_ecf(data.get("items"))
         return data
 
     async def _actualizar_ecf(self, schema, ecf_id, estado, codigo_seguridad, xml_firmado, respuesta, intento,

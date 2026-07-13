@@ -763,6 +763,12 @@ class AccountMove(models.Model):
     ecf_qr     = fields.Text(string='QR Code', readonly=True, copy=False)
     ecf_track_id = fields.Char(string='Track ID DGII', readonly=True, copy=False,
                                 help='Track ID retornado por la DGII para consultas de estado')
+    ecf_ultimo_error = fields.Text(
+        string='Error DGII / SaaS',
+        readonly=True,
+        copy=False,
+        help='Último mensaje de rechazo o error del SaaS/DGII',
+    )
     ecf_log_ids = fields.One2many('ecf.log', 'move_id', string='Historial e-CF')
 
     # ── Flujo POS diferido ──
@@ -1175,6 +1181,11 @@ class AccountMove(models.Model):
         qr = data.get('qr_url') or data.get('qr_code')
         if qr:
             vals['ecf_qr'] = qr
+        err = data.get('error_msg') or data.get('ultimo_error')
+        if err:
+            vals['ecf_ultimo_error'] = err
+        elif data.get('estado') == 'aprobado':
+            vals['ecf_ultimo_error'] = False
         self.sudo().write(vals)
 
         log = self.env['ecf.log'].sudo().search(
@@ -1187,18 +1198,34 @@ class AccountMove(models.Model):
                 log_vals['codigo_seguridad'] = codigo
             if qr:
                 log_vals['qr_code'] = qr
+            if err:
+                log_vals['error_msg'] = err
             if data.get('estado') == 'aprobado' and not log.approved_at:
                 log_vals['approved_at'] = fields.Datetime.now()
             log.write(log_vals)
+
+        if err:
+            self.message_post(
+                body=_('❌ Error SaaS/DGII: %s', err),
+                message_type='comment',
+            )
+
+        notif_type = 'success' if data.get('estado') == 'aprobado' else (
+            'danger' if data.get('estado') == 'rechazado' else 'info'
+        )
+        msg = _('NCF %s: %s%s', self.ecf_ncf, (data.get('estado') or '').upper(),
+                f' — Cód. {codigo}' if codigo else '')
+        if err:
+            msg = f'{msg}\n{err}'
 
         return {
             'type': 'ir.actions.client',
             'tag':  'display_notification',
             'params': {
                 'title':   _('Estado e-CF'),
-                'message': _('NCF %s: %s%s', self.ecf_ncf, (data.get('estado') or '').upper(),
-                             f' — Cód. {codigo}' if codigo else ''),
-                'type':    'success' if data.get('estado') == 'aprobado' else 'info',
+                'message': msg,
+                'type':    notif_type,
+                'sticky':  bool(err),
             },
         }
 

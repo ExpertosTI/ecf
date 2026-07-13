@@ -163,6 +163,10 @@ class ECFWebhookController(http.Controller):
             vals['ecf_track_id'] = track_id
         if qr_code:
             vals['ecf_qr'] = qr_code
+        if error_msg:
+            vals['ecf_ultimo_error'] = error_msg
+        elif estado == 'aprobado':
+            vals['ecf_ultimo_error'] = False
 
         move.write(vals)
 
@@ -172,14 +176,35 @@ class ECFWebhookController(http.Controller):
             limit=1,
             order='create_date desc',
         )
+        detalles = data.get('detalles') or []
+        detalle_txt = ''
+        if isinstance(detalles, list) and detalles:
+            parts = []
+            for d in detalles:
+                if isinstance(d, dict):
+                    parts.append(f"{d.get('codigo', '')}: {d.get('mensaje', d)}".strip(': '))
+                else:
+                    parts.append(str(d))
+            detalle_txt = '\n'.join(parts)
+        error_full = error_msg or False
+        if detalle_txt:
+            error_full = f"{error_msg}\n{detalle_txt}".strip() if error_msg else detalle_txt
+
         if log:
             log_vals = {
                 'estado':       estado,
                 'codigo_seguridad': codigo_seguridad,
                 'qr_code':      qr_code,
             }
-            if error_msg:
-                log_vals['error_msg'] = error_msg
+            if error_full:
+                log_vals['error_msg'] = error_full
+            if data.get('raw') or detalles:
+                import json as _json
+                log_vals['raw_response'] = _json.dumps(
+                    {'error_msg': error_msg, 'detalles': detalles, 'raw': data.get('raw')},
+                    ensure_ascii=False,
+                    default=str,
+                )
             if estado == 'aprobado' and not log.approved_at:
                 from odoo import fields as odoo_fields
                 log_vals['approved_at'] = odoo_fields.Datetime.now()
@@ -187,7 +212,7 @@ class ECFWebhookController(http.Controller):
 
         # Mensaje en el chatter
         icono = {'aprobado': '✅', 'rechazado': '❌', 'condicionado': '⚠️'}.get(estado, 'ℹ️')
-        error_text = f" — Error: {error_msg}" if error_msg else ""
+        error_text = f"<br/>Error: <strong>{error_full}</strong>" if error_full else ""
         track_text = f" — Track: <code>{track_id}</code>" if track_id else ""
         move.message_post(
             body=f"{icono} e-CF {estado.upper()}. NCF: <strong>{ncf}</strong>"

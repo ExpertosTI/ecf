@@ -16,8 +16,8 @@
                        decoration-warning="estado in ('condicionado', 'pendiente')"
                        decoration-muted="estado == 'anulado'"
                        widget="badge"/>
-                <field name="codigo_seguridad"/>
-                <field name="error_msg"/>
+                <field name="codigo_seguridad" optional="hide"/>
+                <field name="error_msg" string="Mensaje sistema"/>
             </list>
         </field>
     </record>

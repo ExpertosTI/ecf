@@ -563,7 +563,11 @@ async def consultar_estado(
     if not row:
         raise HTTPException(status_code=404, detail="NCF no encontrado")
 
-    return dict(row)
+    data = dict(row)
+    # Alias para Odoo / clientes
+    data["error_msg"] = data.get("ultimo_error")
+    data["codigo_seguridad"] = data.get("codigo_seguridad") or data.get("security_code")
+    return data
 
 
 @app.get("/v1/ecf/{ncf}/xml")

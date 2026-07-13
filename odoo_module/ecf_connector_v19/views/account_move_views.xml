@@ -101,7 +101,9 @@
                     <span>· NCF: <field name="ecf_ncf" readonly="1" nolabel="1" class="fw-bold"/></span>
                 </div>
                 <div class="alert alert-danger" role="alert" invisible="ecf_estado != 'rechazado'" style="margin: 0; border-radius: 0;">
-                    <strong>❌ e-CF Rechazado</strong> — Revise la pestaña e-CF DGII para ver el error.
+                    <strong>❌ e-CF Rechazado</strong>
+                    <span invisible="not ecf_ultimo_error"> — <field name="ecf_ultimo_error" readonly="1" nolabel="1" class="fw-bold"/></span>
+                    <span invisible="ecf_ultimo_error"> — Revise la pestaña e-CF DGII / Historial.</span>
                 </div>
             </xpath>
 
@@ -137,10 +139,14 @@
                     <group string="Validación DGII" invisible="not ecf_ncf">
                         <group>
                             <field name="ecf_codigo_seguridad" readonly="1"/>
+                            <field name="ecf_track_id" readonly="1"/>
                         </group>
                         <group>
                             <field name="ecf_qr" readonly="1" widget="text"/>
                         </group>
+                    </group>
+                    <group string="Mensaje del sistema / DGII" invisible="not ecf_ultimo_error">
+                        <field name="ecf_ultimo_error" readonly="1" nolabel="1" colspan="2"/>
                     </group>
 
                     <!-- Alerta diferido pendiente -->
@@ -171,9 +177,9 @@
                                    decoration-warning="estado in ('condicionado','anulacion_pendiente')"
                                    decoration-muted="estado in ('pendiente','anulado')"/>
                             <field name="codigo_seguridad"/>
+                            <field name="error_msg" string="Mensaje"/>
                             <field name="ambiente"/>
                             <field name="approved_at" string="Aprobado DGII"/>
-                            <field name="error_msg"/>
                         </list>
                     </field>
                 </page>
