@@ -1,6 +1,6 @@
-/* RENECF Dashboard — ejecutivo, moderno, minimalista
-   NO usar @import de fuentes externas aquí: en web.assets_backend
-   rompe el bundle CSS completo de Odoo (UI sin estilos). */
+/* RENECF Dashboard — ejecutivo, moderno, minimalista.
+   Fuentes solo del sistema: no enlazar CSS externo en este archivo
+   (rompe el bundle web.assets_backend de Odoo). */
 :root {
     --ecf-ink: #0c1222;
     --ecf-muted: #64748b;
