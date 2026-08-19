@@ -270,8 +270,8 @@ done
 # Verificar la misma autenticación TCP que usará la API. El psql por socket del
 # contenedor puede funcionar aunque DB_PASSWORD ya no coincida con el volumen.
 log "Verificando credenciales PostgreSQL desde la API..."
-if ! $DC "${COMPOSE_ARGS[@]}" run --rm --no-deps api python -c \
-    'import asyncio, os, asyncpg; asyncio.run(asyncpg.connect(os.environ["DATABASE_URL"]))' \
+if ! $DC "${COMPOSE_ARGS[@]}" run --rm api python -c \
+    'import asyncio, os, asyncpg; db=os.environ["DATABASE_URL"]; db = db + ("&ssl=disable" if "?" in db else "?ssl=disable"); asyncio.run(asyncpg.connect(db))' \
     &>/dev/null; then
     error "DB_PASSWORD no autentica contra PostgreSQL. Alinea la contraseña del rol renace_ecf antes de continuar."
 fi
