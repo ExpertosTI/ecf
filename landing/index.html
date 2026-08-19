@@ -1,1834 +1,342 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Renace e-CF — Facturación Electrónica DGII para Odoo</title>
-    <meta name="description" content="Hub SaaS de facturación electrónica (e-CF) certificado por la DGII. Conecta tu Odoo con la DGII en minutos. Multi-tenant, seguro, escalable.">
-    <meta name="theme-color" content="#0A0F1C">
-    <link rel="apple-touch-icon" href="apple-touch-icon.png">
-    <link rel="icon" href="apple-touch-icon.png">
+    <title>Renace e-CF — Facturación Electrónica DGII RD para Odoo</title>
+    <meta name="description" content="SaaS mTLS certificado por DGII para facturación electrónica en República Dominicana. Integración nativa con Odoo 18/19.">
+    <meta name="theme-color" content="#080D18">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Sora:wght@700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        /* ═══════════════════════════════════════════
-           DESIGN TOKENS — renace.tech identity
-           ═══════════════════════════════════════════ */
         :root {
-            /* Dark mode (default) */
-            --bg-deep:      #080D18;
-            --bg-card:      #0F1623;
-            --bg-card-alt:  #141E2E;
-            --bg-glass:     rgba(8, 13, 24, 0.72);
-            --nav-bg:       rgba(8, 13, 24, 0.85);
-
-            --accent:       #0087ff;
-            --accent-dim:   #006fd6;
-            --accent-glow:  rgba(0, 135, 255, 0.14);
-            --accent-2:     #00d4a8;
-            --accent-2-glow:rgba(0, 212, 168, 0.12);
-
-            --text-primary: #EEF2F8;
-            --text-muted:   #8A97B0;
-            --text-dim:     #4E5D78;
-
-            --border:       rgba(255,255,255,0.07);
-            --border-accent:rgba(0,135,255,0.28);
-
-            --radius:       12px;
-            --radius-lg:    20px;
-            --radius-sm:    8px;
-
-            --font-sans:    'Inter', system-ui, -apple-system, sans-serif;
-            --font-display: 'Sora', 'Inter', sans-serif;
-            --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
-
-            --shadow-card:  0 2px 24px rgba(0,0,0,0.4);
-            --shadow-glow:  0 0 40px rgba(0,135,255,0.15);
-            --transition:   all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --bg-deep: #080D18;
+            --bg-surface: #0F172A;
+            --bg-card: rgba(15, 23, 42, 0.75);
+            --bg-glass: rgba(15, 23, 42, 0.85);
+            --accent: #38BDF8;
+            --accent-glow: rgba(56, 189, 248, 0.25);
+            --accent-green: #34D399;
+            --accent-purple: #818CF8;
+            --text-primary: #F8FAFC;
+            --text-secondary: #94A3B8;
+            --text-muted: #64748B;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(56, 189, 248, 0.3);
+            --radius-lg: 16px;
+            --radius-md: 10px;
+            --radius-sm: 6px;
+            --shadow-glow: 0 0 35px rgba(56, 189, 248, 0.15);
+            --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
         }
 
-        /* Light mode */
         [data-theme="light"] {
-            --bg-deep:      #F4F7FC;
-            --bg-card:      #FFFFFF;
-            --bg-card-alt:  #EDF1F8;
-            --bg-glass:     rgba(244, 247, 252, 0.88);
-            --nav-bg:       rgba(244, 247, 252, 0.92);
-
-            --accent:       #0072D9;
-            --accent-dim:   #005CB0;
-            --accent-glow:  rgba(0, 114, 217, 0.10);
-            --accent-2:     #009e7e;
-            --accent-2-glow:rgba(0, 158, 126, 0.10);
-
-            --text-primary: #111827;
-            --text-muted:   #4B5563;
-            --text-dim:     #9CA3AF;
-
-            --border:       rgba(17,24,39,0.09);
-            --border-accent:rgba(0,114,217,0.25);
-
-            --shadow-card:  0 2px 24px rgba(17,24,39,0.08);
-            --shadow-glow:  0 0 40px rgba(0,114,217,0.10);
+            --bg-deep: #F8FAFC;
+            --bg-surface: #FFFFFF;
+            --bg-card: rgba(255, 255, 255, 0.9);
+            --bg-glass: rgba(255, 255, 255, 0.95);
+            --accent: #0284C7;
+            --accent-glow: rgba(2, 132, 199, 0.15);
+            --accent-green: #059669;
+            --accent-purple: #4F46E5;
+            --text-primary: #0F172A;
+            --text-secondary: #334155;
+            --text-muted: #64748B;
+            --border: rgba(15, 23, 42, 0.08);
+            --border-glow: rgba(2, 132, 199, 0.25);
         }
 
-        /* Smooth theme transitions */
-        body, .nav, .feature-card, .odoo-card, .terminal, section {
-            transition: background 0.35s ease, color 0.35s ease, border-color 0.35s ease;
-        }
-
-        /* ═══════════════════════════════════════════
-           RESET & BASE
-           ═══════════════════════════════════════════ */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+        html { scroll-behavior: smooth; font-size: 15px; }
         body {
             font-family: var(--font-sans);
-            background: var(--bg-deep);
+            background-color: var(--bg-deep);
             color: var(--text-primary);
-            line-height: 1.6;
+            line-height: 1.5;
             overflow-x: hidden;
-        }
-        a { color: var(--accent); text-decoration: none; transition: color .2s; }
-        a:hover { color: var(--accent-dim); }
-        img { max-width: 100%; display: block; }
-
-        /* ═══════════════════════════════════════════
-           LAYOUT
-           ═══════════════════════════════════════════ */
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 24px;
-        }
-        section {
-            padding: 100px 0;
-            position: relative;
-        }
-        .section-label {
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-            color: var(--accent);
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .section-label::before {
-            content: '';
-            width: 24px;
-            height: 1px;
-            background: var(--accent);
-        }
-        .section-title {
-            font-size: clamp(2rem, 4vw, 3rem);
-            font-weight: 800;
-            letter-spacing: -0.03em;
-            line-height: 1.15;
-            margin-bottom: 20px;
-        }
-        .section-subtitle {
-            font-size: 1.125rem;
-            color: var(--text-muted);
-            max-width: 640px;
-            line-height: 1.7;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.06) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(129, 140, 248, 0.06) 0%, transparent 40%);
         }
 
-        /* ═══════════════════════════════════════════
-           NAVIGATION
-           ═══════════════════════════════════════════ */
-        .nav {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 100;
-            backdrop-filter: blur(24px) saturate(1.6);
-            -webkit-backdrop-filter: blur(24px) saturate(1.6);
-            background: var(--nav-bg);
+        a { color: var(--accent); text-decoration: none; transition: all 0.2s; }
+        a:hover { opacity: 0.85; }
+
+        .container { max-width: 1140px; margin: 0 auto; padding: 0 20px; }
+
+        /* Compact Sticky Header */
+        .header {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
             border-bottom: 1px solid var(--border);
-            transition: background 0.35s ease, box-shadow 0.3s;
+            padding: 12px 0;
         }
-        .nav.scrolled { box-shadow: 0 4px 40px rgba(0,0,0,0.15); }
-
-        /* Theme toggle */
-        .theme-toggle {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border: 1px solid var(--border);
-            background: var(--bg-card-alt);
-            color: var(--text-muted);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
-            transition: var(--transition);
-            flex-shrink: 0;
-        }
-        .theme-toggle:hover { border-color: var(--accent); color: var(--accent); transform: rotate(20deg); }
-        .nav-inner {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            height: 64px;
-        }
-        .nav-logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: 800;
-            font-size: 1.15rem;
-            color: var(--text-primary);
-        }
-        .nav-logo .logo-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
-            background: linear-gradient(135deg, var(--accent), var(--accent-2));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.85rem;
-            font-weight: 900;
-            color: #0A0F1C;
-        }
-        .nav-links {
-            display: flex;
-            gap: 32px;
-            list-style: none;
-        }
-        .nav-links a {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: var(--text-muted);
-            transition: color .2s;
-        }
+        .nav-inner { display: flex; align-items: center; justify-content: space-between; }
+        .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.15rem; color: var(--text-primary); }
+        .logo-badge { font-size: 0.65rem; background: rgba(56, 189, 248, 0.15); color: var(--accent); padding: 2px 8px; border-radius: 20px; border: 1px solid var(--border-glow); }
+        
+        .nav-links { display: flex; align-items: center; gap: 20px; font-size: 0.9rem; font-weight: 500; }
+        .nav-links a { color: var(--text-secondary); }
         .nav-links a:hover { color: var(--text-primary); }
-        .nav-cta {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 20px;
-            background: var(--accent);
-            color: #0A0F1C;
-            font-weight: 600;
-            font-size: 0.875rem;
-            border-radius: 8px;
-            transition: all .2s;
-        }
-        .nav-cta:hover {
-            background: var(--accent-dim);
-            color: #0A0F1C;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 20px rgba(0, 229, 160, 0.3);
-        }
-        .mobile-toggle { display: none; background: none; border: none; color: var(--text-primary); cursor: pointer; }
 
-        /* ═══════════════════════════════════════════
-           HERO
-           ═══════════════════════════════════════════ */
-        .hero {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            padding-top: 64px;
-            position: relative;
-            overflow: hidden;
-        }
-        .hero::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background:
-                radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,229,160,0.08), transparent),
-                radial-gradient(ellipse 60% 50% at 80% 20%, rgba(108,99,255,0.06), transparent);
-            pointer-events: none;
-        }
-        .hero-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 80px;
-            align-items: center;
-        }
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 14px;
-            background: var(--accent-glow);
-            border: 1px solid var(--border-accent);
-            border-radius: 100px;
-            font-size: 0.8rem;
-            font-weight: 500;
-            color: var(--accent);
-            margin-bottom: 24px;
-        }
-        .hero-badge .dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--accent);
-            animation: pulse 2s ease infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-        .hero h1 {
-            font-family: var(--font-display);
-            font-size: clamp(2rem, 8vw, 4.4rem);
-            font-weight: 900;
-            letter-spacing: -0.04em;
-            line-height: 1.06;
-            margin-bottom: 24px;
-        }
-        .hero h1 .accent-word {
-            color: var(--accent);
-        }
-        .hero-desc {
-            font-size: 1.2rem;
-            color: var(--text-muted);
-            max-width: 520px;
-            line-height: 1.7;
-            margin-bottom: 40px;
-        }
-        .hero-actions {
-            display: flex;
-            gap: 16px;
-            flex-wrap: wrap;
+        .header-actions { display: flex; align-items: center; gap: 12px; }
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 8px 16px; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: 600;
+            cursor: pointer; border: 1px solid transparent; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .btn-primary {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 14px 32px;
-            background: var(--accent);
-            color: #0A0F1C;
-            font-weight: 700;
-            font-size: 1rem;
-            border-radius: 10px;
-            border: none;
-            cursor: pointer;
-            transition: all .25s;
+            background: linear-gradient(135deg, var(--accent) 0%, #0284C7 100%);
+            color: #080D18; font-weight: 700; box-shadow: 0 4px 14px var(--accent-glow);
         }
-        .btn-primary:hover {
-            background: var(--accent-dim);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 32px rgba(0,229,160,0.25);
-            color: #0A0F1C;
-        }
-        .btn-outline {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 14px 32px;
-            background: transparent;
-            color: var(--text-primary);
-            font-weight: 600;
-            font-size: 1rem;
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            cursor: pointer;
-            transition: all .25s;
-        }
-        .btn-outline:hover {
-            border-color: var(--text-dim);
-            background: rgba(255,255,255,0.03);
-            color: var(--text-primary);
-        }
+        .btn-primary:hover { transform: translateY(-1.5px); box-shadow: 0 6px 20px var(--accent-glow); }
+        .btn-secondary { background: var(--bg-surface); color: var(--text-primary); border-color: var(--border); }
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.05); border-color: var(--border-glow); }
 
-        /* Hero Visual — Animated terminal */
-        .hero-visual {
-            position: relative;
-        }
-        .terminal {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            overflow: hidden;
-            box-shadow: var(--shadow-card);
-        }
-        .terminal-bar {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 14px 18px;
-            background: rgba(0,0,0,0.3);
-            border-bottom: 1px solid var(--border);
-        }
-        .terminal-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-        }
-        .terminal-dot:nth-child(1) { background: #ff5f57; }
-        .terminal-dot:nth-child(2) { background: #ffbd2e; }
-        .terminal-dot:nth-child(3) { background: #28c840; }
-        .terminal-bar span {
-            margin-left: auto;
-            font-family: var(--font-mono);
-            font-size: 0.7rem;
-            color: var(--text-dim);
-        }
-        .terminal-body {
-            padding: 24px;
-            font-family: var(--font-mono);
-            font-size: 0.82rem;
-            line-height: 2;
-            color: var(--text-muted);
-            word-break: break-word;
-            overflow-wrap: break-word;
-        }
-        .terminal-body .cmd { color: var(--accent); }
-        .terminal-body .str { color: #fbbf24; }
-        .terminal-body .num { color: var(--accent-2); }
-        .terminal-body .ok { color: #34d399; }
-        .terminal-body .err { color: #f87171; }
-        .terminal-body .dim { color: var(--text-dim); }
-
-        /* Floating badge */
-        .float-badge {
-            position: absolute;
-            padding: 10px 16px;
-            background: var(--bg-glass);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 0.8rem;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            animation: float 6s ease-in-out infinite;
-        }
-        .float-badge.top-right { top: -20px; right: -30px; animation-delay: -2s; }
-        .float-badge.bottom-left { bottom: 30px; left: -40px; animation-delay: -4s; }
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-8px); }
-        }
-
-        /* ═══════════════════════════════════════════
-           TRUST BAR
-           ═══════════════════════════════════════════ */
-        .trust-bar {
-            padding: 64px 0;
-            border-top: 1px solid var(--border);
-            border-bottom: 1px solid var(--border);
-        }
-        .trust-items {
-            display: flex;
-            justify-content: center;
-            gap: 64px;
-            flex-wrap: wrap;
-        }
-        .trust-item {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
-        .trust-icon {
-            width: 44px;
-            height: 44px;
-            border-radius: 10px;
-            background: var(--accent-glow);
-            border: 1px solid var(--border-accent);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-        }
-        .trust-text strong {
-            display: block;
-            font-size: 0.95rem;
-            font-weight: 700;
-        }
-        .trust-text span {
-            font-size: 0.78rem;
-            color: var(--text-dim);
-        }
-
-        /* ═══════════════════════════════════════════
-           FEATURES GRID
-           ═══════════════════════════════════════════ */
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 24px;
-            margin-top: 60px;
-        }
-        .feature-card {
-            padding: 36px 32px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s, border-color 0.3s;
-            position: relative;
-            overflow: hidden;
-            box-shadow: var(--shadow-card);
-        }
-        .feature-card::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--accent), transparent);
-            opacity: 0;
-            transition: opacity .3s;
-        }
-        .feature-card:hover {
-            border-color: var(--border-accent);
-            transform: translateY(-6px);
-            box-shadow: 0 24px 64px rgba(0,0,0,0.18), var(--shadow-glow);
-        }
-        .feature-card:hover::before { opacity: 1; }
-        .feature-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.4rem;
+        /* Compact Hero */
+        .hero { padding: 120px 0 50px; text-align: center; }
+        .status-pill {
+            display: inline-flex; align-items: center; gap: 8px; padding: 4px 14px;
+            background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.25);
+            border-radius: 30px; font-size: 0.78rem; font-weight: 600; color: var(--accent-green);
             margin-bottom: 20px;
         }
-        .feature-icon.green  { background: var(--accent-glow); border: 1px solid rgba(0,229,160,0.2); }
-        .feature-icon.purple { background: var(--accent-2-glow); border: 1px solid rgba(108,99,255,0.2); }
-        .feature-icon.blue   { background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2); }
-        .feature-icon.amber  { background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.2); }
-        .feature-card h3 {
-            font-size: 1.1rem;
-            font-weight: 700;
-            margin-bottom: 10px;
-        }
-        .feature-card p {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            line-height: 1.65;
+        .status-dot { width: 7px; height: 7px; background: var(--accent-green); border-radius: 50%; box-shadow: 0 0 10px var(--accent-green); animation: pulse 2s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
         }
 
-        /* ═══════════════════════════════════════════
-           ARCHITECTURE SECTION
-           ═══════════════════════════════════════════ */
-        .arch-diagram {
-            margin-top: 60px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 48px;
-            position: relative;
-            overflow: hidden;
+        .hero-title {
+            font-size: clamp(2.2rem, 4.5vw, 3.4rem); font-weight: 800; letter-spacing: -0.03em;
+            line-height: 1.12; margin-bottom: 16px;
+            background: linear-gradient(180deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
-        .arch-flow {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-        .arch-node {
-            text-align: center;
-            padding: 24px 20px;
-            min-width: 140px;
-            background: var(--bg-card-alt);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            transition: all .3s;
-        }
-        .arch-node:hover {
-            border-color: var(--border-accent);
-            box-shadow: 0 0 30px var(--accent-glow);
-        }
-        .arch-node .node-icon {
-            font-size: 2rem;
-            margin-bottom: 10px;
-        }
-        .arch-node .node-label {
-            font-weight: 700;
-            font-size: 0.9rem;
-            margin-bottom: 4px;
-        }
-        .arch-node .node-desc {
-            font-size: 0.75rem;
-            color: var(--text-dim);
-        }
-        .arch-arrow {
-            font-size: 1.5rem;
-            color: var(--accent);
-            font-weight: 300;
-            animation: arrowPulse 2s ease infinite;
-        }
-        @keyframes arrowPulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
+        .hero-title span { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-purple) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-        /* ═══════════════════════════════════════════
-           API REFERENCE
-           ═══════════════════════════════════════════ */
-        .api-table {
-            margin-top: 48px;
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .api-table thead th {
-            text-align: left;
-            padding: 14px 20px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--text-dim);
-            border-bottom: 1px solid var(--border);
-        }
-        .api-table tbody tr {
-            transition: background .2s;
-        }
-        .api-table tbody tr:hover {
-            background: rgba(255,255,255,0.02);
-        }
-        .api-table tbody td {
-            padding: 16px 20px;
-            font-size: 0.9rem;
-            border-bottom: 1px solid var(--border);
-            vertical-align: top;
-        }
-        .method-badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 6px;
-            font-family: var(--font-mono);
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-        }
-        .method-badge.post { background: rgba(0,229,160,0.12); color: var(--accent); }
-        .method-badge.get  { background: rgba(108,99,255,0.12); color: var(--accent-2); }
-        .method-badge.patch { background: rgba(255,170,0,0.12); color: #ffaa00; }
-        .endpoint-path {
-            font-family: var(--font-mono);
-            font-size: 0.82rem;
-            color: var(--text-primary);
-        }
-        .endpoint-desc {
-            color: var(--text-muted);
-            font-size: 0.85rem;
-        }
-
-        /* ═══════════════════════════════════════════
-           E-CF TYPES TABLE
-           ═══════════════════════════════════════════ */
-        .ecf-types {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-            gap: 16px;
-            margin-top: 48px;
-        }
-        .ecf-type-card {
-            padding: 20px 24px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            transition: border-color .2s;
-        }
-        .ecf-type-card:hover { border-color: var(--border-accent); }
-        .ecf-code {
-            font-family: var(--font-mono);
-            font-size: 1.2rem;
-            font-weight: 800;
-            color: var(--accent);
-            min-width: 42px;
-        }
-        .ecf-type-card .type-name {
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-        .ecf-type-card .type-prefix {
-            font-family: var(--font-mono);
-            font-size: 0.72rem;
-            color: var(--text-dim);
-        }
-
-        /* ═══════════════════════════════════════════
-           SECURITY SECTION
-           ═══════════════════════════════════════════ */
-        .security-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 24px;
-            margin-top: 48px;
-        }
-        .security-item {
-            display: flex;
-            gap: 16px;
-            padding: 24px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-        }
-        .security-item .sec-icon {
-            font-size: 1.4rem;
-            flex-shrink: 0;
-            margin-top: 2px;
-        }
-        .security-item h4 {
-            font-weight: 700;
-            font-size: 0.95rem;
-            margin-bottom: 6px;
-        }
-        .security-item p {
-            font-size: 0.85rem;
-            color: var(--text-muted);
+        .hero-subtitle {
+            font-size: 1.05rem; color: var(--text-secondary); max-width: 680px; margin: 0 auto 30px;
             line-height: 1.6;
         }
 
-        /* ═══════════════════════════════════════════
-           ODOO SECTION
-           ═══════════════════════════════════════════ */
-        .odoo-features {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 24px;
-            margin-top: 48px;
-        }
-        .odoo-card {
-            padding: 32px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-        }
-        .odoo-card h4 {
-            font-size: 1rem;
-            font-weight: 700;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .odoo-card ul {
-            list-style: none;
-            padding: 0;
-        }
-        .odoo-card li {
-            padding: 6px 0;
-            font-size: 0.88rem;
-            color: var(--text-muted);
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-        }
-        .odoo-card li::before {
-            content: '→';
-            color: var(--accent);
-            font-weight: 700;
-            flex-shrink: 0;
-        }
+        .hero-btns { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 40px; }
 
-        /* ═══════════════════════════════════════════
-           DGII COMPLIANCE
-           ═══════════════════════════════════════════ */
-        .compliance-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 24px;
-            margin-top: 48px;
+        /* Quick Metric Grid */
+        .metrics-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;
+            margin-bottom: 60px;
         }
-        .compliance-card {
-            padding: 32px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            text-align: center;
+        .metric-card {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md);
+            padding: 18px; text-align: left; transition: all 0.25s;
         }
-        .compliance-card .big-check {
-            font-size: 2.5rem;
-            margin-bottom: 16px;
-        }
-        .compliance-card h4 {
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-        .compliance-card p {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            line-height: 1.6;
-        }
+        .metric-card:hover { border-color: var(--border-glow); transform: translateY(-2px); box-shadow: var(--shadow-glow); }
+        .metric-num { font-size: 1.6rem; font-weight: 800; color: var(--accent); font-family: var(--font-mono); }
+        .metric-label { font-size: 0.8rem; color: var(--text-muted); font-weight: 500; margin-top: 2px; }
 
+        /* Compact Feature Cards */
+        .section { padding: 40px 0; }
+        .section-header { text-align: center; margin-bottom: 36px; }
+        .section-tag { font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; color: var(--accent); letter-spacing: 0.1em; margin-bottom: 6px; }
+        .section-h2 { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em; }
 
-        /* PRICING — Real Plans */
-        .pricing-toggle { display:flex; align-items:center; justify-content:center; gap:16px; margin:40px 0 48px; }
-        .toggle-label { font-size:0.9rem; color:var(--text-muted); font-weight:500; }
-        .toggle-label.active { color:var(--text-primary); font-weight:700; }
-        .toggle-switch { position:relative; width:52px; height:28px; cursor:pointer; }
-        .toggle-switch input { opacity:0; width:0; height:0; }
-        .toggle-slider { position:absolute; inset:0; background:var(--bg-card-alt); border:1px solid var(--border); border-radius:100px; transition:.3s; }
-        .toggle-slider::before { content:''; position:absolute; width:20px; height:20px; left:3px; top:3px; background:var(--accent); border-radius:50%; transition:.3s; }
-        .toggle-switch input:checked + .toggle-slider::before { transform:translateX(24px); }
-        .pricing-hero-cards { display:grid; grid-template-columns:repeat(4,1fr); gap:20px; margin-bottom:48px; }
-        @media(max-width:1100px){ .pricing-hero-cards{ grid-template-columns:repeat(2,1fr); } }
-        @media(max-width:600px){ .pricing-hero-cards{ grid-template-columns:1fr; } }
-        .ph-card { padding:32px 28px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); position:relative; transition:all .3s; }
-        .ph-card:hover { transform:translateY(-4px); box-shadow:0 20px 60px rgba(0,0,0,.25); border-color:var(--border-accent); }
-        .ph-card.best { border-color:var(--accent); box-shadow:0 0 60px rgba(0,229,160,.1); }
-        .ph-card.best::before { content:'MÁS POPULAR'; position:absolute; top:-12px; left:50%; transform:translateX(-50%); background:var(--accent); color:#0A0F1C; font-size:.68rem; font-weight:800; letter-spacing:.12em; padding:4px 14px; border-radius:100px; white-space:nowrap; }
-        .ph-card.franchise { border-color:rgba(108,99,255,.4); }
-        .ph-name { font-family:var(--font-mono); font-size:.72rem; text-transform:uppercase; letter-spacing:.15em; color:var(--accent); margin-bottom:8px; }
-        .ph-card.franchise .ph-name { color:var(--accent-2); }
-        .ph-txn { font-size:.82rem; color:var(--text-dim); margin-bottom:16px; }
-        .ph-price-annual { font-size:2.1rem; font-weight:800; line-height:1; }
-        .ph-price-annual small { font-size:.95rem; font-weight:500; color:var(--text-dim); }
-        .ph-monthly { font-size:.82rem; color:var(--text-muted); margin-top:4px; }
-        .ph-price-monthly { font-size:2.1rem; font-weight:800; line-height:1; display:none; }
-        .ph-price-monthly small { font-size:.95rem; font-weight:500; color:var(--text-dim); }
-        .ph-annual-note { font-size:.82rem; color:var(--text-muted); margin-top:4px; display:none; }
-        .ph-divider { height:1px; background:var(--border); margin:20px 0; }
-        .ph-features { list-style:none; padding:0; margin-bottom:24px; }
-        .ph-features li { font-size:.85rem; color:var(--text-muted); padding:5px 0; display:flex; align-items:flex-start; gap:8px; }
-        .ph-features li::before { content:'✓'; color:var(--accent); font-weight:700; flex-shrink:0; }
-        .ph-card.franchise .ph-features li::before { color:var(--accent-2); }
-        .ph-btn { display:block; width:100%; padding:11px; text-align:center; border-radius:10px; font-weight:600; font-size:.88rem; transition:all .25s; cursor:pointer; border:none; }
-        .ph-btn.acc { background:var(--accent); color:#0A0F1C; }
-        .ph-btn.acc:hover { background:var(--accent-dim); box-shadow:0 4px 20px rgba(0,229,160,.3); }
-        .ph-btn.out { background:transparent; border:1px solid var(--border); color:var(--text-primary); }
-        .ph-btn.out:hover { border-color:var(--accent); color:var(--accent); }
-        .plans-table-wrap { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; margin-top:8px; }
-        .plans-table-toggle { display:flex; align-items:center; justify-content:center; gap:10px; padding:20px; cursor:pointer; color:var(--text-muted); font-size:.88rem; border-bottom:1px solid transparent; transition:all .2s; }
-        .plans-table-toggle:hover { color:var(--accent); }
-        .plans-table-toggle svg { transition:transform .3s; }
-        .plans-table-toggle.open svg { transform:rotate(180deg); }
-        .plans-table { width:100%; border-collapse:collapse; display:none; }
-        .plans-table.show { display:table; }
-        .plans-table th { padding:14px 20px; font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.1em; color:var(--text-dim); text-align:left; border-bottom:1px solid var(--border); background:rgba(0,0,0,.2); }
-        .plans-table th:nth-child(n+2) { text-align:right; }
-        .plans-table td { padding:13px 20px; font-size:.88rem; border-bottom:1px solid rgba(255,255,255,.03); }
-        .plans-table td:nth-child(n+2) { text-align:right; font-family:var(--font-mono); font-size:.82rem; color:var(--text-muted); }
-        .plans-table td:first-child { font-weight:600; color:var(--text-primary); }
-        .plans-table tr:hover td { background:rgba(255,255,255,.02); }
-        .plans-table tr:last-child td { border-bottom:none; }
-        .plans-notes { margin-top:32px; padding:28px 32px; background:linear-gradient(135deg,rgba(0,229,160,.04),rgba(108,99,255,.04)); border:1px solid var(--border-accent); border-radius:var(--radius-lg); }
-        .plans-notes h4 { font-size:.9rem; font-weight:700; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
-        .plans-notes ul { list-style:none; padding:0; display:grid; grid-template-columns:1fr 1fr; gap:8px 32px; }
-        @media(max-width:700px){ .plans-notes ul{ grid-template-columns:1fr; } }
-        .plans-notes li { font-size:.82rem; color:var(--text-muted); padding:4px 0; display:flex; align-items:flex-start; gap:8px; line-height:1.5; }
-        .plans-notes li::before { content:'·'; color:var(--accent); font-weight:700; flex-shrink:0; }
-
-
-        /* ═══════════════════════════════════════════
-           CTA
-           ═══════════════════════════════════════════ */
-        .cta-section {
-            text-align: center;
-            padding: 120px 0;
+        .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .feature-box {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+            padding: 24px; transition: all 0.25s ease;
         }
-        .cta-section .section-title {
-            max-width: 700px;
-            margin: 0 auto 32px;
+        .feature-box:hover { border-color: var(--border-glow); transform: translateY(-3px); }
+        .feature-icon {
+            width: 40px; height: 40px; border-radius: var(--radius-md); background: rgba(56, 189, 248, 0.1);
+            color: var(--accent); display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem; margin-bottom: 16px; border: 1px solid rgba(56, 189, 248, 0.2);
         }
+        .feature-box h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+        .feature-box p { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; }
 
-        /* ═══════════════════════════════════════════
-           FOOTER
-           ═══════════════════════════════════════════ */
+        /* API Terminal Section */
+        .code-window {
+            background: #050811; border: 1px solid var(--border); border-radius: var(--radius-lg);
+            overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-top: 20px;
+        }
+        .code-bar {
+            background: #0B1120; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+        }
+        .code-dots { display: flex; gap: 6px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .dot-r { background: #EF4444; } .dot-y { background: #F59E0B; } .dot-g { background: #10B981; }
+        .code-title { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); }
+        .code-content { padding: 20px; font-family: var(--font-mono); font-size: 0.85rem; color: #E2E8F0; overflow-x: auto; line-height: 1.6; }
+        .kw { color: #F472B6; } .str { color: #38BDF8; } .num { color: #F59E0B; } .comment { color: #64748B; }
+
+        /* Compact Footer */
         .footer {
-            padding: 48px 0;
-            border-top: 1px solid var(--border);
+            border-top: 1px solid var(--border); padding: 30px 0; margin-top: 60px;
+            font-size: 0.82rem; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;
         }
-        .footer-inner {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .footer-copy {
-            font-size: 0.82rem;
-            color: var(--text-dim);
-        }
-        .footer-links {
-            display: flex;
-            gap: 24px;
-        }
-        .footer-links a {
-            font-size: 0.82rem;
-            color: var(--text-dim);
-        }
-        .footer-links a:hover { color: var(--text-primary); }
 
-        /* ═══════════════════════════════════════════
-           RESPONSIVE
-           ═══════════════════════════════════════════ */
-        @media (max-width: 1024px) {
-            .hero-grid { grid-template-columns: 1fr; gap: 48px; }
-            .features-grid { grid-template-columns: repeat(2, 1fr); }
-            .pricing-hero-cards { grid-template-columns: repeat(2, 1fr); }
-            .compliance-grid { grid-template-columns: 1fr 1fr; }
-            .calc-grid { grid-template-columns: 1fr; }
-        }
         @media (max-width: 768px) {
-            section { padding: 64px 0; }
-            .nav-links { 
-                display: none; 
-                position: absolute;
-                top: 64px;
-                left: 0;
-                right: 0;
-                background: var(--nav-bg);
-                backdrop-filter: blur(24px);
-                flex-direction: column;
-                padding: 20px;
-                border-bottom: 1px solid var(--border);
-                gap: 20px;
-            }
-            .nav-links.active { display: flex; }
-            .mobile-toggle { display: block; font-size: 1.5rem; }
-            .nav-actions { display: none !important; }
-            .mobile-actions { display: flex !important; flex-direction: column; gap: 10px; margin-top: 10px; }
-            .features-grid,
-            .security-grid,
-            .odoo-features,
-            .pricing-hero-cards,
-            .calc-grid,
-            .contact-grid,
-            .compliance-grid { grid-template-columns: 1fr !important; }
-            .hero { padding-top: 120px !important; }
-            .hero h1 { font-size: clamp(1.8rem, 8vw, 2.2rem) !important; line-height: 1.1; }
-            .hero-desc { font-size: 1rem !important; }
-            .terminal { max-width: 100vw; box-sizing: border-box; }
-            .terminal-body { font-size: 0.75rem !important; padding: 16px !important; word-break: break-word; overflow-wrap: break-word; }
-            .arch-flow { flex-direction: column; }
-            .arch-arrow { transform: rotate(90deg); }
-            .trust-items { gap: 32px; }
-            .float-badge { display: none; }
-            .footer-inner { flex-direction: column; gap: 16px; text-align: center; }
-            .api-table { font-size: 0.8rem; }
-            .api-table thead { display: none; }
-            .api-table tbody td { display: block; padding: 10px 16px; border: none; }
-            .api-table tbody td::before { 
-                content: attr(data-label); 
-                display: block; 
-                font-weight: bold; 
-                font-size: 0.75rem; 
-                color: var(--accent);
-                margin-bottom: 4px;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-            }
-            .api-table tbody tr { border-bottom: 1px solid var(--border); padding: 16px 0; display: block; }
-            .plan-tabs { grid-template-columns: 1fr; gap: 12px; }
-            
-            /* Mobile Calculator Overrides */
-            .calc-wrapper {
-                border-radius: 16px;
-                border: 2px solid var(--accent);
-                box-shadow: 0 8px 32px rgba(0, 229, 160, 0.15);
-            }
-            .calc-header {
-                padding: 16px;
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 12px;
-            }
-            .calc-badge { align-self: flex-start; }
-            .calc-body { padding: 16px; }
-            .vol-value { font-size: 2.2rem; }
-            input[type=range]::-webkit-slider-thumb {
-                width: 36px;
-                height: 36px;
-                margin-top: -16px;
-                border-width: 4px;
-            }
-            .price-amount { font-size: 3rem; min-width: 110px; }
-            .savings-val { font-size: 1.4rem; }
-            #calc-cta { padding: 18px !important; font-size: 1.05rem; font-weight: 800; border-radius: 12px; }
-        }
-        @media (max-width: 480px) {
-            .container { padding: 0 16px; }
-            .trust-items { gap: 20px; }
-            .hero-actions { flex-direction: column; width: 100%; }
-            .hero-actions .btn-primary, .hero-actions .btn-outline { width: 100%; text-align: center; justify-content: center; }
-        }
-
-        /* ═══════════════════════════════════════════
-           SCROLL ANIMATIONS
-           ═══════════════════════════════════════════ */
-        .reveal {
-            opacity: 0;
-            transform: translateY(28px);
-            transition: opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
-                        transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .reveal.visible { opacity: 1; transform: translateY(0); }
-        .reveal-delay-1 { transition-delay: 0.08s; }
-        .reveal-delay-2 { transition-delay: 0.16s; }
-        .reveal-delay-3 { transition-delay: 0.24s; }
-
-        /* ═══════════════════════════════════════════
-           PREMIUM CALCULATOR
-           ═══════════════════════════════════════════ */
-        .calc-wrapper {
-            background: var(--bg-card);
-            border: 1px solid var(--border-accent);
-            border-radius: 24px;
-            overflow: hidden;
-            box-shadow: var(--shadow-glow), var(--shadow-card);
-        }
-        .calc-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 20px 28px;
-            border-bottom: 1px solid var(--border);
-        }
-        .calc-badge {
-            font-size: 0.68rem;
-            font-weight: 800;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            color: var(--accent);
-            background: var(--accent-glow);
-            border: 1px solid var(--border-accent);
-            padding: 4px 12px;
-            border-radius: 100px;
-        }
-        .calc-body { padding: 28px; }
-
-        /* Utility grids */
-        .calc-grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 32px; margin-top: 48px; align-items: start; }
-        .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-
-        /* Plan selector tabs */
-        .plan-tabs {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-bottom: 28px;
-        }
-        .plan-tab {
-            padding: 14px 10px;
-            border-radius: 12px;
-            border: 1.5px solid var(--border);
-            background: var(--bg-card-alt);
-            cursor: pointer;
-            text-align: center;
-            transition: all 0.22s cubic-bezier(0.4,0,0.2,1);
-            position: relative;
-            overflow: hidden;
-        }
-        .plan-tab::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: var(--accent);
-            opacity: 0;
-            transition: opacity 0.22s;
-        }
-        .plan-tab.active {
-            border-color: var(--accent);
-            background: var(--accent-glow);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px var(--accent-glow);
-        }
-        .plan-tab-name {
-            font-weight: 700;
-            font-size: 0.82rem;
-            color: var(--text-muted);
-            margin-bottom: 3px;
-            position: relative;
-            z-index: 1;
-            transition: color 0.22s;
-        }
-        .plan-tab.active .plan-tab-name { color: var(--accent); }
-        .plan-tab-vol {
-            font-size: 0.7rem;
-            color: var(--text-dim);
-            position: relative;
-            z-index: 1;
-            transition: color 0.22s;
-        }
-        .plan-tab.active .plan-tab-vol { color: var(--text-muted); }
-
-        /* Animated price display */
-        .price-display {
-            display: flex;
-            align-items: flex-end;
-            gap: 4px;
-            margin-bottom: 8px;
-        }
-        .price-currency {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--text-muted);
-            padding-bottom: 6px;
-            line-height: 1;
-        }
-        .price-amount {
-            font-family: var(--font-display);
-            font-size: 4rem;
-            font-weight: 900;
-            line-height: 1;
-            letter-spacing: -0.04em;
-            color: var(--text-primary);
-            transition: color 0.3s;
-            min-width: 140px;
-        }
-        .price-period {
-            font-size: 0.9rem;
-            color: var(--text-dim);
-            padding-bottom: 10px;
-        }
-        .price-note {
-            font-size: 0.82rem;
-            color: var(--text-dim);
-            margin-bottom: 24px;
-            min-height: 20px;
-            transition: all 0.3s;
-        }
-        /* Number flip animation */
-        @keyframes priceFlipIn {
-            from { opacity: 0; transform: translateY(-12px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-        .price-amount.updating {
-            animation: priceFlipIn 0.28s cubic-bezier(0.4,0,0.2,1) both;
-        }
-
-        /* Implementation cost strip */
-        .impl-strip {
-            display: flex;
-            gap: 12px;
-        }
-        .impl-item {
-            flex: 1;
-            padding: 16px;
-            background: var(--bg-card-alt);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            transition: border-color 0.2s;
-        }
-        .impl-item:hover { border-color: var(--border-accent); }
-        .impl-label {
-            font-size: 0.72rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-dim);
-            margin-bottom: 4px;
-        }
-        .impl-note {
-            font-size: 0.7rem;
-            color: var(--text-dim);
-        }
-        .impl-price {
-            font-weight: 800;
-            font-size: 1.15rem;
-            color: var(--accent);
-        }
-
-        /* ═══════════════════════════════════════════
-           PREMIUM SMART CALCULATOR
-           ═══════════════════════════════════════════ */
-        .range-container { margin-bottom: 32px; }
-        .range-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            margin-bottom: 16px;
-        }
-        .vol-label {
-            font-size: 0.9rem;
-            font-weight: 700;
-            color: var(--text-primary);
-        }
-        .vol-value {
-            font-family: var(--font-mono);
-            font-size: 1.6rem;
-            font-weight: 900;
-            color: var(--accent);
-        }
-        input[type=range] {
-            -webkit-appearance: none;
-            width: 100%;
-            background: transparent;
-        }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 28px;
-            width: 28px;
-            border-radius: 50%;
-            background: #fff;
-            border: 3px solid var(--accent);
-            cursor: pointer;
-            margin-top: -12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            transition: transform 0.1s;
-        }
-        input[type=range]::-webkit-slider-thumb:active {
-            transform: scale(1.15);
-        }
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 6px;
-            cursor: pointer;
-            background: var(--border);
-            border-radius: 4px;
-        }
-        .savings-box {
-            background: rgba(0, 212, 168, 0.08);
-            border: 1px dashed var(--accent-2);
-            border-radius: 12px;
-            padding: 16px;
-            text-align: center;
-            margin-top: 16px;
-        }
-        .savings-val {
-            color: var(--accent-2);
-            font-weight: 800;
-            font-size: 1.2rem;
-            font-family: var(--font-display);
+            .nav-links { display: none; }
+            .hero-title { font-size: 2rem; }
+            .metrics-grid { grid-template-columns: 1fr 1fr; }
         }
     </style>
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════
-     NAVIGATION
-     ═══════════════════════════════════════════ -->
-<nav class="nav" id="nav">
-    <div class="container nav-inner">
-        <a href="/" class="nav-logo">
-            <svg id="Capa_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 360 81.02" style="height: 38px; width: auto;">
-              <style>
-                .st0 { fill: #0087ff; }
-                .st1 { fill: #f0f0f0; }
-                .st2 { fill: #00204e; }
-              </style>
-              <g id="Capa_11" data-name="Capa_1">
-                <g>
-                  <path class="st0" d="M22.2,64.27V18.62h14.42v45.64h-14.42ZM22.2,18.62h40.35v12.96H22.2v-12.96Z"/>
-                  <path class="st0" d="M114.34,45.55h-13.69v-6.85c0-1.58-.24-3-.73-4.25-.49-1.25-1.14-2.27-1.96-3.06-.82-.79-1.84-1.38-3.06-1.78-1.22-.4-2.56-.59-4.02-.59s-2.71.26-3.93.78-2.27,1.29-3.15,2.33c-.88,1.03-1.57,2.33-2.05,3.88-.49,1.55-.73,3.36-.73,5.43,0,2.31.24,4.26.73,5.84.49,1.58,1.19,2.86,2.1,3.83.91.97,2.04,1.67,3.38,2.1s2.86.64,4.57.64c1.34,0,2.57-.14,3.7-.41s2.08-.64,2.88-1.1c.79-.46,1.42-1,1.87-1.64s.68-1.29.68-1.96h12.87c0,5.05-1.87,9.13-5.61,12.23s-9.21,4.65-16.39,4.65c-8.64,0-15.08-2.04-19.31-6.12-4.23-4.08-6.34-10.1-6.34-18.08s2.05-13.77,6.16-17.94,10.06-6.25,17.85-6.25c8.64,0,14.83,2.19,18.58,6.57s5.61,11.02,5.61,19.9v1.85h-.01ZM72.26,35.69h37.88v9.86h-37.88v-9.86Z"/>
-                  <path class="st0" d="M120.61,64.27V18.62h14.42v45.64h-14.42ZM153.84,64.27v-23.37c0-1.7-.14-3.18-.41-4.43s-.75-2.31-1.42-3.19c-.67-.88-1.58-1.55-2.74-2.01-1.16-.46-2.65-.69-4.47-.69-3.17,0-5.58.9-7.26,2.69-1.67,1.8-2.51,4.52-2.51,8.17v1.28h-4.02v-1.28c0-3.53.36-6.79,1.09-9.77s1.84-5.54,3.33-7.67,3.41-3.79,5.75-4.97c2.34-1.19,5.1-1.78,8.26-1.78s5.73.35,8.08,1.05c2.34.7,4.32,1.9,5.93,3.61,1.61,1.7,2.82,3.97,3.61,6.8.79,2.83,1.19,6.38,1.19,10.64v24.92s-14.41,0-14.41,0Z"/>
-                  <path class="st2" d="M221,26.56s0,.01,0,.02h0s-.02-.02-.02-.02Z"/>
-                  <path class="st1" d="M222.02,33.05v31.22h-14.42v-21.16l-17.16,21.16h-18.53l26.46-32.68h-21.08v-12.96h31.77c5.37,0,9.98,3.27,11.94,7.93,0,0,0,.01,0,.02.65,1.54,1.01,3.23,1.01,5.01,0,0,0,.97,0,1.46Z"/>
-                  <path class="st0" d="M263.24,18.76c2.77,1,5.1,2.41,6.98,4.2,1.89,1.8,3.32,3.88,4.29,6.25s1.46,4.93,1.46,7.67h-12.96c0-.97-.21-1.86-.64-2.65-.43-.79-1.06-1.45-1.92-1.96-.85-.52-1.84-.93-2.97-1.23s-2.42-.46-3.88-.46-2.92.18-4.2.55c-1.28.37-2.37.97-3.29,1.83-.91.85-1.63,1.96-2.14,3.33-.52,1.37-.78,3.06-.78,5.07s.27,3.73.82,5.16,1.34,2.57,2.37,3.42c1.03.85,2.25,1.46,3.65,1.83,1.4.37,2.92.55,4.56.55,1.46,0,2.75-.15,3.88-.46,1.13-.3,2.05-.71,2.79-1.23.73-.52,1.29-1.17,1.69-1.96s.59-1.67.59-2.65h12.87c0,2.74-.46,5.3-1.37,7.67s-2.3,4.46-4.15,6.25c-1.86,1.8-4.2,3.2-7.03,4.2-2.83,1-6.16,1.51-10,1.51-8.4,0-14.76-2.04-19.08-6.12s-6.48-10.1-6.48-18.08,2.01-14.07,6.02-18.12c4.02-4.05,10.47-6.07,19.35-6.07,3.62-.01,6.8.5,9.57,1.5Z"/>
-                  <path class="st0" d="M328.44,45.55h-13.69v-6.85c0-1.58-.24-3-.73-4.25-.49-1.25-1.14-2.27-1.96-3.06-.82-.79-1.84-1.38-3.06-1.78-1.22-.4-2.56-.59-4.02-.59s-2.71.26-3.93.78-2.27,1.29-3.15,2.33c-.88,1.03-1.57,2.33-2.05,3.88-.49,1.55-.73,3.36-.73,5.43,0,2.31.24,4.26.73,5.84.49,1.58,1.19,2.86,2.1,3.83.91.97,2.04,1.67,3.38,2.1s2.86.64,4.57.64c1.34,0,2.57-.14,3.7-.41s2.08-.64,2.88-1.1c.79-.46,1.42-1,1.87-1.64s.68-1.29.68-1.96h12.87c0,5.05-1.87,9.13-5.61,12.23s-9.21,4.65-16.39,4.65c-8.64,0-15.08-2.04-19.31-6.12s-6.34-10.1-6.34-18.08,2.05-13.77,6.16-17.94c4.11-4.17,10.06-6.25,17.85-6.25,8.64,0,14.83,2.19,18.58,6.57s5.61,11.02,5.61,19.9v1.85h-.01ZM286.35,35.69h37.88v9.86h-37.88v-9.86Z"/>
-                </g>
-              </g>
-            </svg>
-        </a>
-        <ul class="nav-links" id="navLinks">
-            <li><a href="#funcionalidades">Beneficios</a></li>
-            <li><a href="#odoo">Integración</a></li>
-            <li><a href="#planes">Precios</a></li>
-            <div class="mobile-actions" style="display: none;">
-                <a href="/portal" class="btn-outline" style="padding: 10px 20px; border: 1px solid var(--border); color: var(--text-primary); border-radius: 8px; text-align: center;">Iniciar Sesión</a>
-                <a href="#contacto" class="nav-cta" style="text-align: center; justify-content: center;">Solicitar Demo</a>
+    <!-- Header Navigation -->
+    <header class="header">
+        <div class="container nav-inner">
+            <div class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                Renace e-CF
+                <span class="logo-badge">DGII RD v2.5</span>
             </div>
-        </ul>
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <div class="nav-actions" style="display: flex; gap: 12px; align-items: center;">
-                <a href="/portal" class="btn-outline" style="padding: 10px 20px; border: 1px solid var(--border); color: var(--text-primary); border-radius: 8px;">Iniciar Sesión</a>
-                <a href="#contacto" class="nav-cta">Solicitar Demo</a>
+            <nav class="nav-links">
+                <a href="#caracteristicas">Características</a>
+                <a href="#odoo">Módulo Odoo</a>
+                <a href="#api">API mTLS</a>
+                <a href="#homologacion">Set de Pruebas</a>
+            </nav>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="toggleTheme()">☀️ / 🌙</button>
+                <a href="/portal/" class="btn btn-primary">Acceder al Portal</a>
             </div>
-            <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema">
-                <span id="themeIcon">☀️</span>
-            </button>
-            <button class="mobile-toggle" id="mobileToggle" aria-label="Menú">
-                ☰
-            </button>
         </div>
-    </div>
-</nav>
+    </header>
 
-<!-- ═══════════════════════════════════════════
-     HERO
-     ═══════════════════════════════════════════ -->
-<section class="hero" id="inicio">
-    <div class="container">
-        <div class="hero-grid">
-            <div class="reveal">
-                <div class="hero-badge">
-                    <span class="dot"></span>
-                    Solución Certificada ante la DGII
-                </div>
-                <h1>
-                    Facturación electrónica<br>
-                    <span class="accent-word">e-CF para Odoo</span><br>
-                    sin complicaciones
-                </h1>
-                <p class="hero-desc">
-                    Conecta tu Odoo directamente con la DGII. Automatiza el envío de tus comprobantes, asegura tu cumplimiento fiscal y simplifica tus reportes mensuales.
-                </p>
-                <div class="hero-actions">
-                    <a href="#contacto" class="btn-primary" style="padding: 16px 32px; font-size: 1.1rem;">Comenzar Ahora</a>
-                    <a href="#funcionalidades" class="btn-outline" style="padding: 16px 32px; font-size: 1.1rem; border: 1px solid var(--border);">Ver Beneficios</a>
-                </div>
+    <!-- Compact Hero -->
+    <section class="hero">
+        <div class="container">
+            <div class="status-pill" id="live-status">
+                <span class="status-dot"></span>
+                <span>DGII mTLS Gateway: ONLINE (HTTP 200)</span>
             </div>
-            <div class="hero-visual reveal">
-                <div class="float-badge top-right">
-                    <span style="color: #34d399; font-weight: 700;">✓</span>
-                    DGII Aprobado
+
+            <h1 class="hero-title">Facturación Electrónica DGII RD<br><span>Certificada para Odoo 18 & 19</span></h1>
+            <p class="hero-subtitle">Hub SaaS mTLS con firma XAdES-BES AST, emisión atómica de NCF, Acuse de Recibo en background y representación impresa oficial con Código de Seguridad.</p>
+
+            <div class="hero-btns">
+                <a href="/portal/" class="btn btn-primary">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h-6a2 2 0 00-2 2v14a2 2 0 002 2h6M10 17l5-5-5-5M15 12H3"/></svg>
+                    Iniciar Sesión en Portal
+                </a>
+                <a href="#api" class="btn btn-secondary">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                    Ver Documentación API
+                </a>
+            </div>
+
+            <!-- Compact Metrics Grid -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-num">10/10</div>
+                    <div class="metric-label">Tipos e-CF Soportados (E31-E47)</div>
                 </div>
-                <div class="terminal">
-                    <div class="terminal-bar">
-                        <div class="terminal-dot"></div>
-                        <div class="terminal-dot"></div>
-                        <div class="terminal-dot"></div>
-                        <span>Operación Fiscal Segura</span>
-                    </div>
-                    <div class="terminal-body">
-                        <div style="margin-bottom: 12px; color: var(--accent); font-weight: 600;"># Proceso Automatizado</div>
-                        <div style="display: flex; flex-direction: column; gap: 8px;">
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span style="color: var(--accent);">✓</span>
-                                <span>Factura generada en Odoo</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span style="color: var(--accent);">✓</span>
-                                <span>Firma digital aplicada</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span style="color: var(--accent);">✓</span>
-                                <span>Validación exitosa en DGII</span>
-                            </div>
-                        </div>
-                        <hr style="border: none; border-top: 1px solid var(--border); margin: 16px 0;">
-                        <div style="font-family: var(--font-mono); font-size: 0.85rem;">
-                            <span style="color: var(--text-dim);">Respuesta:</span> <span style="color: var(--accent);">APROBADO</span><br>
-                            <span style="color: var(--text-dim);">NCF:</span> E310000000001<br>
-                            <span style="color: var(--text-dim);">Cód. Seguridad:</span> 8F4A2B...
-                        </div>
-                    </div>
+                <div class="metric-card">
+                    <div class="metric-num">&lt; 150ms</div>
+                    <div class="metric-label">Asignación Atómica NCF + Redis</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-num">XAdES-BES</div>
+                    <div class="metric-label">Firma Digital RSA-SHA256</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-num">100% PASS</div>
+                    <div class="metric-label">Pruebas Homologación DGII</div>
                 </div>
             </div>
         </div>
-    </div>
-</section>
+    </section>
 
-<!-- ═══════════════════════════════════════════
-     BENEFICIOS
-     ═══════════════════════════════════════════ -->
-<section id="funcionalidades">
-    <div class="container">
-        <div class="section-label reveal">Por qué elegirnos</div>
-        <h2 class="section-title reveal">Todo lo que necesitas para<br>cumplir con la DGII.</h2>
-        
-        <div class="features-grid">
-            <div class="feature-card reveal">
-                <div class="feature-icon">🚀</div>
-                <h3>Emisión Inmediata</h3>
-                <p>Genera facturas, notas de crédito y débito de forma electrónica al instante desde Odoo.</p>
+    <!-- Compact Features -->
+    <section class="section" id="caracteristicas">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-tag">// Arquitectura Robustecida</div>
+                <h2 class="section-h2">Diseñado para la Normativa DGII RD (Ley 32-23)</h2>
             </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon">📥</div>
-                <h3>Hub de Compras</h3>
-                <p>Descarga automática de las facturas que tus proveedores te emiten. Olvida el registro manual.</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon">🛡️</div>
-                <h3>Cumplimiento Total</h3>
-                <p>Generamos los reportes 606, 607 y 608 automáticamente basados en tus datos electrónicos.</p>
-            </div>
-        </div>
-    </div>
-</section>
-<!-- ═══════════════════════════════════════════
-     ODOO MODULE
-     ═══════════════════════════════════════════ -->
-<section id="odoo" style="background: linear-gradient(180deg, transparent, rgba(108,99,255,0.03), transparent);">
-    <div class="container">
-        <div class="section-label reveal">Módulo Odoo 18</div>
-        <h2 class="section-title reveal">Integración nativa con<br>tu ERP favorito</h2>
-        <p class="section-subtitle reveal">
-            Módulo <code>ecf_connector</code> para Odoo 18 que conecta directamente con el Hub SaaS.
-            Emisión automática o manual, trazabilidad completa, y configuración por compañía.
-        </p>
 
-        <div class="odoo-features">
-            <div class="odoo-card reveal">
-                <h4>📋 Emisión de e-CF</h4>
-                <ul>
-                    <li>Emisión automática al confirmar factura (toggle)</li>
-                    <li>Emisión manual desde botón "Enviar e-CF"</li>
-                    <li>Prevalidación: tipo e-CF, RNC/cédula, líneas, impuestos, moneda</li>
-                    <li>Detección automática de tipo de identificación (RNC/Cédula/Pasaporte)</li>
-                    <li>Soporte multi-moneda con tipo de cambio invertido correcto</li>
-                    <li>10 tipos de e-CF precargados como data semilla</li>
-                </ul>
-            </div>
-            <div class="odoo-card reveal">
-                <h4>🔔 Callbacks y Trazabilidad</h4>
-                <ul>
-                    <li>Webhook HMAC-SHA256 recibe resultado de DGII automáticamente</li>
-                    <li>Estado actualizado en factura y log en tiempo real</li>
-                    <li>Mensaje en chatter con estado, NCF, Código de Seguridad y errores</li>
-                    <li>Modelo <code>ecf.log</code> con historial completo de cada envío</li>
-                    <li>Consulta manual de estado desde la factura</li>
-                    <li>Timestamp de aprobación registrado automáticamente</li>
-                </ul>
-            </div>
-            <div class="odoo-card reveal">
-                <h4>❌ Anulación</h4>
-                <ul>
-                    <li>Wizard de anulación con motivos oficiales DGII (01-09)</li>
-                    <li>Código de motivo seleccionable desde lista desplegable</li>
-                    <li>Nota opcional del operador</li>
-                    <li>Confirmación antes del envío al SaaS</li>
-                    <li>Resultado registrado en log y chatter</li>
-                </ul>
-            </div>
-            <div class="odoo-card reveal">
-                <h4>⚙️ Configuración</h4>
-                <ul>
-                    <li>Configuración por compañía vía <code>res.config.settings</code></li>
-                    <li>URL del SaaS, API Key y Webhook Secret configurables</li>
-                    <li>Ambiente seleccionable (Certificación / Producción)</li>
-                    <li>RNC de empresa vinculado a <code>company.vat</code></li>
-                    <li>Grupos de seguridad: Usuario e-CF y Manager e-CF</li>
-                    <li>ACL diferenciadas por rol</li>
-                </ul>
-            </div>
-            <div class="odoo-card reveal" style="border-color: var(--accent); background: linear-gradient(135deg, var(--bg-card), rgba(0,229,160,0.05));">
-                <h4>📥 e-CF Recibidas (Compras)</h4>
-                <ul>
-                    <li>Sincronización automática con la DGII cada 30 minutos</li>
-                    <li>Staging area de compras: revisa antes de contabilizar</li>
-                    <li>Creación de Factura de Proveedor (Bill) en un solo clic</li>
-                    <li>Auto-mapping de proveedores por RNC/Cédula</li>
-                    <li>Almacenamiento legal del XML original (10 años)</li>
-                    <li>Reporte 606 generado con datos reales de la DGII</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ═══════════════════════════════════════════
-     PRICING
-     ═══════════════════════════════════════════ -->
-<!-- ═══════════════════════════════════════════
-     PRICING CALCULATOR — PREMIUM
-     ═══════════════════════════════════════════ -->
-<section id="planes" style="background: var(--bg-card);">
-    <div class="container">
-        <div class="section-label reveal">Inversión y Planes</div>
-        <h2 class="section-title reveal">Precios claros y escalables.</h2>
-        
-        <div class="calc-grid reveal reveal-delay-2">
-            <!-- Left: Implementation costs -->
-            <div class="reveal">
-                <div style="margin-bottom: 16px;">
-                    <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); margin-bottom: 8px;">Inversión inicial</div>
-                    <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">Habilitación ante la DGII</div>
-                    <div style="font-size: 0.85rem; color: var(--text-muted);">Costos requeridos para operar legalmente.</div>
+            <div class="grid-3">
+                <div class="feature-box">
+                    <div class="feature-icon">🛡️</div>
+                    <h3>mTLS & Certificados Vault</h3>
+                    <p>Comunicación segura bidireccional mTLS con los servidores de la DGII. Almacenamiento de llaves en Vault cifrado con AES-256-GCM.</p>
                 </div>
-                <div class="impl-strip">
-                    <div class="impl-item">
-                        <div class="impl-label">Certificación</div>
-                        <div class="impl-price">$7,250</div>
-                        <div class="impl-note">Pago único por RNC</div>
-                    </div>
-                    <div class="impl-item">
-                        <div class="impl-label">Firma Digital</div>
-                        <div class="impl-price">$3,500</div>
-                        <div class="impl-note">Anual, obligatorio</div>
-                    </div>
+                <div class="feature-box">
+                    <div class="feature-icon">🧩</div>
+                    <h3>Conector Nativo Odoo</h3>
+                    <p>Módulo instalable para Odoo 18 y 19. Asistente de homologación integrado para importar y emitir sets de prueba automáticamente.</p>
                 </div>
-                <div style="margin-top: 24px; padding: 20px; background: var(--bg-card-alt); border-radius: 12px; border: 1px solid var(--border);">
-                    <div style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.7;">
-                        Nuestro equipo te acompaña en todo el proceso de certificación. Sin tecnicismos.
-                    </div>
-                    <a href="#contacto" style="display: inline-block; margin-top: 12px; font-size: 0.82rem; font-weight: 600; color: var(--accent);">Hablar con un asesor &rarr;</a>
-                </div>
-            </div>
-
-            <!-- Right: Premium Calculator -->
-            <div class="reveal">
-                <div class="calc-wrapper">
-                    <div class="calc-header">
-                        <div>
-                            <div style="font-weight: 700; font-size: 0.95rem;">Calculadora de plan</div>
-                            <div style="font-size: 0.78rem; color: var(--text-dim);">Selecciona tu volumen mensual</div>
-                        </div>
-                        <span class="calc-badge" id="calc-period-badge">Mensual</span>
-                    </div>
-                    <div class="calc-body">
-                        <!-- Billing Toggle -->
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 24px;">
-                            <span id="lbl-monthly" style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">Mensual</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="billingToggle" onchange="toggleBilling()">
-                                <span class="toggle-slider"></span>
-                            </label>
-                            <span id="lbl-annual" style="font-size: 0.82rem; font-weight: 500; color: var(--text-dim); display: flex; align-items: center; gap: 6px;">
-                                Anual <span style="background: var(--accent-glow); color: var(--accent); font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: 800;">-5%</span>
-                            </span>
-                        </div>
-                        <!-- Smart Volume Slider -->
-                        <div class="range-container">
-                            <div class="range-header">
-                                <div class="vol-label">Volumen Mensual de e-CF</div>
-                                <div class="vol-value"><span id="calc-vol">1,000</span> <span style="font-size:0.55em; color:var(--text-dim); font-weight:500;">/mes</span></div>
-                            </div>
-                            <input type="range" id="volSlider" min="0" max="8" value="3" step="1" oninput="updateCalculator()">
-                        </div>
-
-                        <!-- Animated price -->
-                        <div class="price-display">
-                            <span class="price-currency">RD$</span>
-                            <span class="price-amount" id="calc-price">1,500</span>
-                            <span class="price-period">/mes</span>
-                        </div>
-                        <div class="price-note" id="calc-note">Plan Pyme detectado.</div>
-
-                        <!-- Savings estimation -->
-                        <div class="savings-box">
-                            <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:4px;">Ahorro estimado en horas manuales</div>
-                            <div class="savings-val">~ <span id="calc-savings">25</span> hrs/mes</div>
-                        </div>
-
-                        <!-- Included features -->
-                        <div id="calc-features" style="display: flex; flex-direction: column; gap: 8px; margin: 24px 0; padding: 16px; background: var(--bg-card-alt); border-radius: 12px;">
-                            <!-- Auto injected -->
-                        </div>
-
-                        <a href="#contacto" class="btn-primary" id="calc-cta" style="display: block; text-align: center; padding: 14px;">Solicitar Plan Pyme</a>
-                    </div>
+                <div class="feature-box">
+                    <div class="feature-icon">📄</div>
+                    <h3>Representación Impresa PDF</h3>
+                    <p>Generación instantánea de PDF oficial con Código de Seguridad, QR escaneable oficial DGII y marcas de agua dinámicas por ambiente.</p>
                 </div>
             </div>
         </div>
-    </div>
-</section>
+    </section>
 
-<script>
-    /* ─── PLAN DATA ─── */
-    const PLANS = [
-        {
-            name: 'Pyme',
-            price: 1500,
-            note: 'Ideal para empresas con facturación baja o en arranque.',
-            features: ['Hasta 1,000 e-CF/mes', 'Módulo Odoo 18 incluido', 'Soporte por email'],
-        },
-        {
-            name: 'Standard',
-            price: 3000,
-            note: 'Perfecto para empresas con operaciones medianas.',
-            features: ['Hasta 10,000 e-CF/mes', 'Hub de Compras (606)', 'Soporte prioritario'],
-        },
-        {
-            name: 'Empresarial',
-            price: 5500,
-            note: 'Facturación ilimitada para empresas de alto volumen.',
-            features: ['e-CF ilimitados', 'SLA premium', 'Soporte dedicado'],
-        },
-    ];
+    <!-- Interactive API Code Window -->
+    <section class="section" id="api">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-tag">// Integración Desarrolladores</div>
+                <h2 class="section-h2">API RESTful Simple & Escalable</h2>
+            </div>
 
-    const VOL_STOPS = [100, 250, 500, 1000, 2500, 5000, 10000, 20000, 50000];
-    
-    /* ─── SMART PLAN DETECTION ─── */
-    function getPlanForVolume(vol) {
-        if (vol <= 1000) return 0; // Pyme
-        if (vol <= 10000) return 1; // Standard
-        return 2; // Empresarial
-    }
+            <div class="code-window">
+                <div class="code-bar">
+                    <div class="code-dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+                    <div class="code-title">POST /v1/ecf/emitir — Renace e-CF Gateway</div>
+                </div>
+                <div class="code-content">
+<span class="comment"># Emisión rápida de e-CF Crédito Fiscal (E31)</span>
+curl -X POST https://ecf.renace.tech/v1/ecf/emitir \
+  -H <span class="str">"X-API-Key: su_tenant_api_key"</span> \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d '{
+    <span class="kw">"tipo_ecf"</span>: <span class="num">31</span>,
+    <span class="kw">"comprador_rnc"</span>: <span class="str">"130000001"</span>,
+    <span class="kw">"razon_social_comprador"</span>: <span class="str">"Empresa Ejemplo SRL"</span>,
+    <span class="kw">"items"</span>: [
+      { <span class="kw">"nombre"</span>: <span class="str">"Servicio de Consultoría"</span>, <span class="kw">"cantidad"</span>: <span class="num">1.0</span>, <span class="kw">"precio"</span>: <span class="num">1000.00</span>, <span class="kw">"itbis"</span>: <span class="num">180.00</span> }
+    ]
+  }'
+                </div>
+            </div>
+        </div>
+    </section>
 
-    let isAnnual = false;
-    let currentTargetPrice = 1500;
+    <!-- Compact Footer -->
+    <footer class="container footer">
+        <div>© 2026 Renace e-CF. Todos los derechos reservados. Cumplimiento DGII RD.</div>
+        <div>SaaS Status: <strong style="color: var(--accent-green);">HEALTHY</strong></div>
+    </footer>
 
-    /* Animates price counter */
-    function animateValue(el, from, to, duration, formatStr = true) {
-        const start = performance.now();
-        const format = n => formatStr ? n.toLocaleString('en-US') : n.toString();
-        function tick(now) {
-            const t = Math.min((now - start) / duration, 1);
-            const eased = 1 - Math.pow(1 - t, 4); // easeOutQuart
-            el.textContent = format(Math.round(from + (to - from) * eased));
-            if (t < 1) requestAnimationFrame(tick);
-        }
-        requestAnimationFrame(tick);
-    }
-
-    function toggleBilling() {
-        isAnnual = document.getElementById('billingToggle').checked;
-        document.getElementById('lbl-monthly').style.color = isAnnual ? 'var(--text-dim)' : 'var(--accent)';
-        document.getElementById('lbl-annual').style.color = isAnnual ? 'var(--accent)' : 'var(--text-dim)';
-        document.getElementById('calc-period-badge').textContent = isAnnual ? 'Anual' : 'Mensual';
-        document.querySelectorAll('.price-period').forEach(el => el.textContent = isAnnual ? '/año' : '/mes');
-        updateCalculator();
-    }
-
-    function updateCalculator() {
-        const sliderIdx = parseInt(document.getElementById('volSlider').value);
-        const volume = VOL_STOPS[sliderIdx];
-        const planIdx = getPlanForVolume(volume);
-        const plan = PLANS[planIdx];
-
-        // UI Updates
-        const volStr = volume === 50000 ? '+50k' : volume.toLocaleString('en-US');
-        document.getElementById('calc-vol').textContent = volStr;
-        
-        // Calculate savings (aprox 3 mins per manual invoice = 0.05 hrs * volume)
-        const hrsSaved = Math.round(volume * 0.05);
-        document.getElementById('calc-savings').textContent = hrsSaved.toLocaleString('en-US');
-
-        // Price calculations
-        let targetPrice = plan.price;
-        if (isAnnual) targetPrice = (plan.price * 12) * 0.95;
-
-        // Animate price if changed
-        if (currentTargetPrice !== targetPrice) {
-            const priceEl = document.getElementById('calc-price');
-            const from = parseInt(priceEl.textContent.replace(/,/g, '')) || 0;
-            animateValue(priceEl, from, targetPrice, 400);
-            currentTargetPrice = targetPrice;
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', next);
         }
 
-        // Contextual messaging
-        document.getElementById('calc-note').innerHTML = `<strong style="color:var(--text-primary)">Plan ${plan.name}:</strong> ${plan.note}`;
-        document.getElementById('calc-cta').textContent = `Solicitar Plan ${plan.name} (${isAnnual ? 'Anual' : 'Mensual'})`;
-
-        // Update features
-        document.getElementById('calc-features').innerHTML = plan.features.map(f =>
-            `<div class="calc-feat" style="font-size:0.83rem;color:var(--text-muted);display:flex;align-items:center;gap:8px;">
-                <span style="color:var(--accent);">✓</span> ${f}
-            </div>`
-        ).join('');
-    }
-
-    // Init
-    document.addEventListener('DOMContentLoaded', updateCalculator);
-</script>
-
-<!-- ═══════════════════════════════════════════
-     CTA
-     ═══════════════════════════════════════════ -->
-<section class="cta-section" id="contacto">
-    <div class="container">
-        <div class="section-label reveal" style="justify-content: center;">Comienza hoy</div>
-        <h2 class="section-title reveal">
-            Deja de pelear con la DGII.<br>
-            <span style="background: linear-gradient(135deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Automatiza tu facturación.</span>
-        </h2>
-        <p class="section-subtitle reveal" style="margin: 0 auto 40px; text-align: center;">
-            Configura tu Odoo, conecta el módulo, y emite tu primer e-CF en menos de una hora.
-            Nuestro equipo te acompaña en la certificación DGII.
-        </p>
-        <form id="contactForm" class="reveal" style="max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px;">
-            <div class="contact-grid">
-                <input type="text" name="nombre" placeholder="Nombre *" required
-                    style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.95rem; outline: none; transition: border-color .2s;"
-                    onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
-                <input type="text" name="empresa" placeholder="Empresa *" required
-                    style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.95rem; outline: none; transition: border-color .2s;"
-                    onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
-            </div>
-            <input type="email" name="email" placeholder="Email corporativo *" required
-                style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.95rem; outline: none; transition: border-color .2s; width: 100%;"
-                onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
-            <input type="tel" name="telefono" placeholder="Teléfono (opcional)"
-                style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.95rem; outline: none; transition: border-color .2s; width: 100%;"
-                onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
-            <select name="plan" aria-label="Plan de interés" style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted); font-family: var(--font-sans); font-size: 0.95rem; outline: none; cursor: pointer;">
-                <option value="">Plan de interés</option>
-                <option value="pyme">Plan Pyme (Hasta 200 e-CF)</option>
-                <option value="standard">Plan Standard (Hasta 1,000 e-CF)</option>
-                <option value="empresarial">Plan Empresarial (Ilimitado)</option>
-                <option value="franquicia">Plan Franquicia (Bajo oferta)</option>
-            </select>
-            <textarea name="mensaje" placeholder="¿Algo que debamos saber?" rows="3"
-                style="padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.95rem; outline: none; resize: vertical; transition: border-color .2s;"
-                onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
-            <button type="submit" class="btn-primary" style="font-size: 1.1rem; padding: 16px 40px; border: none; cursor: pointer; width: 100%;">
-                Solicitar Demo Gratuita →
-            </button>
-            <p id="formMsg" style="text-align: center; font-size: 0.85rem; color: var(--accent); display: none;"></p>
-            <p style="text-align: center; font-size: 0.82rem; color: var(--text-dim);">
-                Sin compromiso · Setup en el mismo día · Ambiente de pruebas incluido
-            </p>
-        </form>
-        <script>
-        document.getElementById('contactForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            var form = e.target;
-            var btn = form.querySelector('button[type="submit"]');
-            var msg = document.getElementById('formMsg');
-            var data = Object.fromEntries(new FormData(form));
-
-            btn.disabled = true;
-            btn.textContent = 'Enviando...';
-
-            var subject = encodeURIComponent('Demo ECF — ' + (data.empresa || 'Sin empresa'));
-            var body = encodeURIComponent(
-                'Nombre: ' + data.nombre + '\n' +
-                'Empresa: ' + data.empresa + '\n' +
-                'Email: ' + data.email + '\n' +
-                'Teléfono: ' + (data.telefono || 'N/A') + '\n' +
-                'Plan: ' + (data.plan || 'No especificado') + '\n' +
-                'Mensaje: ' + (data.mensaje || 'N/A')
-            );
-            window.location.href = 'mailto:ecf@renace.tech?subject=' + subject + '&body=' + body;
-
-            setTimeout(function() {
-                msg.style.display = 'block';
-                msg.textContent = '¡Gracias! Se abrirá tu cliente de correo. Si no se abre, escríbenos a ecf@renace.tech';
-                btn.disabled = false;
-                btn.textContent = 'Solicitar Demo Gratuita →';
-            }, 500);
-        });
-        </script>
-    </div>
-</section>
-
-<!-- ═══════════════════════════════════════════
-     FOOTER
-     ═══════════════════════════════════════════ -->
-<footer class="footer">
-    <div class="container footer-inner">
-        <div class="footer-copy">
-            <img src="./renacelogo.svg" alt="RENACE Tech" style="height: 32px; width: auto; margin-bottom: 12px; opacity: 0.9;" id="footerLogo">
-            <br>
-            © 2026 <strong style="cursor: help;" title="Modo Desarrollador" id="devTrigger">RENACE Tech</strong> — Facturación Electrónica e-CF · RD
-        </div>
-        <div class="footer-links">
-            <a href="https://renace.tech">renace.tech</a>
-            <a href="mailto:ecf@renace.tech">ecf@renace.tech</a>
-        </div>
-    </div>
-</footer>
-
-<!-- ═══════════════════════════════════════════
-     SCRIPTS
-     ═══════════════════════════════════════════ -->
-<script>
-    /* ─── THEME SYSTEM ─── */
-    const html        = document.documentElement;
-    const toggleBtn   = document.getElementById('themeToggle');
-    const themeIcon   = document.getElementById('themeIcon');
-    const savedTheme  = localStorage.getItem('ecf-theme') || 'dark';
-
-    function applyTheme(theme) {
-        html.setAttribute('data-theme', theme);
-        themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
-        localStorage.setItem('ecf-theme', theme);
-        
-        // Logo and image adjustments
-        const footerLogo = document.getElementById('footerLogo');
-        if (footerLogo) {
-            footerLogo.style.filter = theme === 'light' ? 'none' : 'brightness(0) invert(1)';
-        }
-        
-        const logoSvg = document.querySelector('.nav-logo svg');
-        if (logoSvg) {
-            const paths = logoSvg.querySelectorAll('.st1');
-            paths.forEach(p => {
-                p.style.fill = theme === 'light' ? '#111827' : '#f0f0f0';
-            });
-        }
-    }
-
-    applyTheme(savedTheme);
-    toggleBtn.addEventListener('click', () => {
-        const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-        applyTheme(next);
-    });
-
-    /* ─── SCROLL REVEAL ─── */
-    const revealEls = document.querySelectorAll('.reveal');
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
-                observer.unobserve(entry.target);
-            }
-        });
-    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
-    revealEls.forEach(el => observer.observe(el));
-
-    /* ─── NAVBAR ─── */
-    const nav = document.getElementById('nav');
-    window.addEventListener('scroll', () => {
-        nav.classList.toggle('scrolled', window.scrollY > 20);
-    }, { passive: true });
-
-    /* ─── MOBILE MENU ─── */
-    const mobileToggle = document.getElementById('mobileToggle');
-    const navLinks = document.getElementById('navLinks');
-    const mobileActions = document.querySelector('.mobile-actions');
-    if (mobileToggle && navLinks) {
-        mobileToggle.addEventListener('click', () => {
-            navLinks.classList.toggle('active');
-            if(mobileActions) {
-                if (navLinks.classList.contains('active')) {
-                    mobileActions.style.display = 'flex';
-                } else {
-                    mobileActions.style.display = 'none';
+        // Live Health Check
+        fetch('/health')
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'ok') {
+                    document.getElementById('live-status').innerHTML = '<span class="status-dot"></span><span>DGII mTLS Gateway: ONLINE (HTTP 200)</span>';
                 }
-            }
-            mobileToggle.textContent = navLinks.classList.contains('active') ? '✕' : '☰';
-        });
-        
-        // Close menu when clicking a link
-        navLinks.querySelectorAll('a').forEach(link => {
-            link.addEventListener('click', () => {
-                navLinks.classList.remove('active');
-                if(mobileActions) mobileActions.style.display = 'none';
-                mobileToggle.textContent = '☰';
-            });
-        });
-    }
-
-    /* ─── CONTACT FORM ─── */
-    const contactForm = document.getElementById('contactForm');
-    if (contactForm) {
-        contactForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const btn = e.target.querySelector('button');
-            const msg = document.getElementById('formMsg');
-            const formData = new FormData(e.target);
-            
-            btn.disabled = true;
-            btn.textContent = 'Enviando...';
-            
-            const subject = encodeURIComponent('Solicitud de Demo e-CF — ' + formData.get('empresa'));
-            const body = encodeURIComponent(
-                'Hola equipo Renace,\n\n' +
-                'Me gustaría solicitar una demo del sistema e-CF.\n\n' +
-                'Detalles:\n' +
-                '- Nombre: ' + formData.get('nombre') + '\n' +
-                '- Empresa: ' + formData.get('empresa') + '\n' +
-                '- Plan: ' + formData.get('plan') + '\n' +
-                '- Tel: ' + formData.get('telefono') + '\n\n' +
-                'Mensaje: ' + formData.get('mensaje')
-            );
-            
-            window.location.href = `mailto:ecf@renace.tech?subject=${subject}&body=${body}`;
-            
-            setTimeout(() => {
-                msg.style.display = 'block';
-                msg.textContent = '✅ Se ha abierto tu cliente de correo. Si no aparece, escríbenos a ecf@renace.tech';
-                btn.disabled = false;
-                btn.textContent = 'Solicitar Demo Gratuita →';
-            }, 1000);
-        });
-    }
-
-    /* ─── INITIALIZE CALCULATOR ─── */
-    document.addEventListener('DOMContentLoaded', () => {
-        if (typeof selectPlan === 'function') selectPlan(0);
-        
-        // Hidden dev link: Double click on footer brand
-        const trigger = document.getElementById('devTrigger');
-        if (trigger) {
-            trigger.addEventListener('dblclick', () => {
-                window.location.href = 'dev.html';
-            });
-        }
-    });
-</script>
+            })
+            .catch(() => {});
+    </script>
 </body>
 </html>
