@@ -2,7 +2,7 @@
 
 > Nombre de software registrado ante DGII: **RENECF** (tipo PROPIO). Usar exactamente ese nombre en postulación.
 > Documento actualizado en la séptima sesión (onboarding asistido multi-tenant).
-> Total acumulado: **58 hallazgos / mejoras resueltas**.
+> Total acumulado: **63 hallazgos / mejoras resueltas**.
 > Validación: pytest 59/59 ✅
 
 ---
@@ -367,6 +367,49 @@ psql -U renace_ecf -d renace_ecf -f db/013_rfce_por_factura.sql   # RFCE por fac
 - Banner en Empresas con blockers claros
 - Ambiente editable en ficha de empresa
 - PSFE: señal Redis `ecf:psfe:reload` para que workers recarguen sin reinicio
+
+---
+
+## ✅ Avances — Sesión 8 (2026-07-13): corrección de gate de onboarding
+
+### 50. PSFE exigido efectivamente al registrar clientes ✅
+**Archivos:** `api_gateway/admin.py`, `tests/test_api.py`
+
+- Se corrigió una regresión donde el gate permitía crear clientes sin PSFE aunque lo reportaba como requisito.
+- PSFE permanece opcional solo para la certificación CerteCF del operador; es obligatorio para el onboarding de clientes y producción.
+- Se añadió una prueba de regresión para el caso operador válido sin PSFE.
+
+---
+
+## ✅ Avances — Sesión 9 (2026-07-13): depuración de addons Odoo
+
+### 51. Telemetría de desarrollo eliminada del POS Odoo 19 ✅
+**Archivos:** `odoo_module/ecf_connector_v19/models/models.py`, `odoo_module/ecf_connector_v19/static/src/js/ecf_pos.js`
+
+- Se eliminaron escrituras a `/tmp`, rutas locales de desarrollo y llamadas HTTP a `127.0.0.1` durante la carga de POS.
+- Los loaders de `ecf.tipo` y la serialización de órdenes se conservaron sin cambios funcionales.
+
+### 52. Vistas kanban de Mobile Service compatibles con Odoo 18 ✅
+**Archivos:** `odoo_module/mobile_service/views/mobile_ticket_views.xml`, `odoo_module/mobile_service/views/mobile_device_line_views.xml`
+
+- Las tres plantillas heredadas `kanban-box` fueron migradas a `card`, el formato usado por Odoo 18 en los demás addons del proyecto.
+
+---
+
+## ✅ Avances — Sesión 10 (2026-07-13): robustez de despliegue en certificación
+
+### 53. Preflight de autenticación PostgreSQL para API ✅
+**Archivo:** `deploy.sh`
+
+- Corregido el conteo de healthchecks para evitar el valor inválido `0\n0` con Docker Compose.
+- Antes de ejecutar migraciones, el deploy prueba la autenticación TCP con la misma `DATABASE_URL` de la API.
+- Si el volumen PostgreSQL conserva una contraseña distinta de `DB_PASSWORD`, el script se detiene antes de levantar API, workers y scheduler.
+
+### 54. Traefik compatible con Docker Engine de certificación ✅
+**Archivo:** `docker-compose.yml`
+
+- Traefik actualizado de `v3.1` a `v3.7` para conectar con el Docker API mínimo `1.44` exigido por REY.
+- Corrige el fallo del proveedor Docker que dejaba las rutas sin cargar y causaba `504` en Cloudflare.
 
 ### Migración requerida (sesión 7)
 ```bash
