@@ -1,0 +1,132 @@
+http:
+  routers:
+    # Odoo: ai.renace.tech
+    odoo-ai:
+      rule: "Host(`ai.renace.tech`)"
+      service: odoo-ai-svc
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencryptresolver
+
+    # Odoo: guerrero.renace.tech
+    odoo-guerrero:
+      rule: "Host(`guerrero.renace.tech`)"
+      service: odoo-guerrero-svc
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencryptresolver
+
+    # Odoo: guerrero.renace.tech (Longpolling)
+    odoo-guerrero-lp:
+      rule: "Host(`guerrero.renace.tech`) && PathPrefix(`/longpolling`)"
+      service: odoo-guerrero-lp-svc
+      priority: 100
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencryptresolver
+
+    # Odoo: rey.renace.tech
+    odoo-rey:
+      rule: "Host(`rey.renace.tech`)"
+      service: odoo-rey-svc
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencryptresolver
+
+    # Odoo: rey.renace.tech (Longpolling)
+    odoo-rey-lp:
+      rule: "Host(`rey.renace.tech`) && PathPrefix(`/longpolling`)"
+      service: odoo-rey-lp-svc
+      priority: 100
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencryptresolver
+
+    # Odoo: reyplaza.renace.tech
+    odoo-reyplaza:
+      rule: "Host(`reyplaza.renace.tech`)"
+      service: odoo-rey-svc  # Re-use rey service (same port 7017)
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencryptresolver
+
+    # Odoo: sp.renace.tech
+    odoo-sp:
+      rule: "Host(`sp.renace.tech`)"
+      service: odoo-sp-svc
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencryptresolver
+
+    # Odoo: sp.renace.tech (Longpolling)
+    odoo-sp-lp:
+      rule: "Host(`sp.renace.tech`) && PathPrefix(`/longpolling`)"
+      service: odoo-sp-lp-svc
+      priority: 100
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencryptresolver
+
+    # Legacy ECF: pruecf.renace.tech
+    legacy-pruecf:
+      rule: "Host(`pruecf.renace.tech`)"
+      service: legacy-pruecf-svc
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencryptresolver
+
+    # Universal: universal.renace.tech
+    odoo-universal:
+      rule: "Host(`universal.renace.tech`)"
+      service: odoo-universal-svc
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencryptresolver
+
+  services:
+    odoo-ai-svc:
+      loadBalancer:
+        servers:
+          - url: "http://172.17.0.1:65530"
+    odoo-guerrero-svc:
+      loadBalancer:
+        servers:
+          - url: "http://172.17.0.1:8030"
+    odoo-guerrero-lp-svc:
+      loadBalancer:
+        servers:
+          - url: "http://172.17.0.1:8032"
+    odoo-rey-svc:
+      loadBalancer:
+        servers:
+          - url: "http://172.17.0.1:7017"
+    odoo-rey-lp-svc:
+      loadBalancer:
+        servers:
+          - url: "http://172.17.0.1:7020"
+    odoo-sp-svc:
+      loadBalancer:
+        servers:
+          - url: "http://172.17.0.1:8025"
+    odoo-sp-lp-svc:
+      loadBalancer:
+        servers:
+          - url: "http://172.17.0.1:8072"
+    legacy-pruecf-svc:
+      loadBalancer:
+        servers:
+          - url: "http://172.17.0.1:59318"
+    odoo-universal-svc:
+      loadBalancer:
+        servers:
+          - url: "http://172.17.0.1:8069" # Asumiendo puerto estandar, ajustar si el grep da otro

@@ -243,15 +243,9 @@ curl -H "X-API-Key: $TENANT_API_KEY" \
   -o ecf_prueba.pdf
 ```
 
-### Paso 5 — Presentar documentación a la DGII
+### Paso 5 — Ensayo técnico antes del portal
 
-Documentos requeridos:
-1. Formulario PSFE completado (descargar en `dgii.gov.do/ecf`)
-2. `resultados_homologacion.txt` (salida de pytest)
-3. Capturas de las representaciones impresas
-4. [`docs/contingencia.md`](docs/contingencia.md) — Plan de contingencia
-5. Declaración jurada de cumplimiento de retención (10 años)
-6. SLA documentado (disponibilidad ≥ 99.5%, latencia p99 < 5s)
+La salida de pytest no sustituye el set de la DGII. Sirve para llegar al portal con los XML ya armados. El trámite, el orden y los formularios están en [`docs/dgii-facultad-proveedor.md`](docs/dgii-facultad-proveedor.md).
 
 ### Paso 6 — Ambiente de producción
 
@@ -282,32 +276,13 @@ curl -X PATCH http://localhost:8000/v1/admin/tenants/<UUID> \
 
 ## Proceso de homologación DGII
 
-La DGII exige pasar por estas fases antes de operar en producción:
+El orden legal no empieza por el registro como proveedor. La empresa tiene que ser emisor electrónico, tres clientes piloto tienen que certificarse con el software, y solo entonces se presenta el FI-GDF-017. El detalle, los anexos y el alta de los clientes siguientes están en [`docs/dgii-facultad-proveedor.md`](docs/dgii-facultad-proveedor.md).
 
-### Fase 1 — Registro como PSFE
+Ambiente de certificación de este cliente: `https://ecf.dgii.gov.do/CerteCF` (`ECF_AMBIENTE=certificacion`). El enlace al portal llega al buzón de la Oficina Virtual después del FI-GDF-016 (emisor) o del FI-GDF-017 (proveedor). Expediente de proveedor: `facturacionelectronica@dgii.gov.do`.
 
-Documentos requeridos:
-- Formulario de solicitud PSFE (descarga en dgii.gov.do)
-- Copia del RNC vigente
-- Documentos legales de la empresa (acta constitutiva, etc.)
-- Descripción técnica del sistema (usar este README como base)
-- Plan de contingencia documentado
-
-Contacto: dgii@dgii.gov.do / Área de Tecnología DGII
-
-### Fase 2 — Ambiente de certificación
-
-La DGII habilitará acceso a:
-- `ecf-cert.dgii.gov.do` — API de certificación
-- Certificados de prueba
-- Credenciales de test
-
-### Fase 3 — Casos de prueba requeridos
-
-Ejecutar la suite completa:
+La suite local cubre los casos que después pide el set del portal:
 
 ```bash
-# Configurar variables para certificación
 export ECF_AMBIENTE=certificacion
 export PSFE_CERT_B64=$(base64 -w0 cert_prueba.pem)
 export PSFE_KEY_B64=$(base64 -w0 key_prueba.pem)
@@ -316,26 +291,18 @@ export DGII_CA_B64=$(base64 -w0 dgii_ca_cert.pem)
 pytest tests/test_homologacion.py -v --tb=short
 ```
 
-Casos obligatorios que la DGII evalúa:
-1. ✅ e-CF tipo 31 (Crédito Fiscal) con RNC válido
-2. ✅ e-CF tipo 32 (Consumo) sin RNC
-3. ✅ e-CF tipo 33 (Nota de Débito) con NCF referencia
-4. ✅ e-CF tipo 34 (Nota de Crédito) con NCF referencia
-5. ✅ ITBIS exento (tasa 0%)
-6. ✅ Código de Seguridad correcto (6 alfanuméricos del SignatureValue, DGII RD)
-7. ✅ Firma digital XML válida (RSA-SHA256)
-8. ✅ NCF con formato correcto y secuencia sin saltos
-9. ✅ Factura en moneda extranjera (USD con tipo de cambio)
-10. ✅ Manejo de contingencia (timeout → reintento → DLQ)
+Casos que hay que poder emitir en ese set:
 
-### Fase 4 — SLA requerido por DGII
-
-Antes de ir a producción documentar y demostrar:
-- Disponibilidad 99.5% (monitorear con UptimeRobot u similar)
-- Tiempo de respuesta < 5 segundos (p99)
-- Plan de contingencia para cuando la DGII no responde
-- Retención de XML firmados por 10 años
-- Backup diario de la base de datos
+1. e-CF tipo 31 (crédito fiscal) con RNC válido
+2. e-CF tipo 32 (consumo) sin RNC
+3. e-CF tipo 33 (nota de débito) con NCF de referencia
+4. e-CF tipo 34 (nota de crédito) con NCF de referencia
+5. ITBIS exento (tasa 0%)
+6. Código de seguridad (6 caracteres del `SignatureValue`)
+7. Firma XML RSA-SHA256
+8. NCF con secuencia sin saltos
+9. Moneda extranjera (USD con tipo de cambio)
+10. Contingencia: timeout, reintento y DLQ
 
 
 ## Seguridad — checklist antes de producción

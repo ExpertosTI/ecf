@@ -161,6 +161,10 @@ BEGIN
         ultimo_error     TEXT,
         odoo_move_id     VARCHAR(64),
         odoo_move_name   VARCHAR(64),
+        origen           VARCHAR(20) NOT NULL DEFAULT ''facturacion'',
+        pos_config_id    VARCHAR(64),
+        pos_config_nombre VARCHAR(128),
+        pos_session_id   VARCHAR(64),
         referencia_ncf   VARCHAR(13),
         fecha_ncf_referencia DATE,
         codigo_modificacion VARCHAR(1) DEFAULT ''1'',
@@ -184,6 +188,7 @@ BEGIN
     EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_fecha            ON %I.ecf(fecha_emision)',     p_schema);
     EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_codigo_seguridad ON %I.ecf(codigo_seguridad)', p_schema);
     EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_rnc_c            ON %I.ecf(rnc_comprador)',    p_schema);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS idx_ecf_pos              ON %I.ecf(pos_config_id)',     p_schema);
 
     -- ── Ítems del e-CF ───────────────────────────────────────────────────────
     EXECUTE format('

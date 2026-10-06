@@ -508,7 +508,7 @@ class DGIIClient:
             estado   = estado,
             track_id = track_id,
             mensaje  = data.get("mensaje") or data.get("message") or "",
-            codigo_seguridad = data.get("CUFE") or data.get("cufe"),
+            codigo_seguridad = data.get("codigoSeguridad") or data.get("CodigoSeguridad") or data.get("CUFE") or data.get("cufe"),
             qr_code  = data.get("codigoQR") or data.get("qr_url"),
             detalles = data.get("errores") or data.get("mensajes") or [],
             raw      = data,

@@ -112,6 +112,11 @@
                             <field name="ecf_pendiente_conciliacion" readonly="1"/>
                             <field name="ecf_listo_para_emitir" readonly="1"/>
                         </group>
+                        <group string="Origen">
+                            <field name="ecf_origen" readonly="1"/>
+                            <field name="ecf_pos_nombre" readonly="1"/>
+                            <field name="ecf_pos_session_id" readonly="1" invisible="ecf_origen != 'pos'"/>
+                        </group>
                     </group>
                     <group string="Validación DGII" invisible="not ecf_ncf">
                         <group>
@@ -177,6 +182,7 @@
                        decoration-warning="ecf_estado in ('condicionado','anulacion_pendiente')"
                        decoration-muted="ecf_estado == 'pendiente'"/>
                 <field name="ecf_listo_para_emitir" optional="show" string="Listo e-CF"/>
+                <field name="ecf_pos_nombre" optional="show" string="Punto de venta"/>
             </xpath>
         </field>
     </record>
@@ -214,6 +220,9 @@
                     <filter string="Estado e-CF"
                             name="group_ecf_estado"
                             context="{'group_by': 'ecf_estado'}"/>
+                    <filter string="Punto de venta"
+                            name="group_ecf_pos"
+                            context="{'group_by': 'ecf_pos_nombre'}"/>
                 </group>
             </xpath>
         </field>

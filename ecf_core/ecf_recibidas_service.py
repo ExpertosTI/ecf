@@ -65,6 +65,34 @@ class ResultadoSync:
 # Parser XML de respuesta DGII
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _parse_fecha_dgii(fecha_str: str) -> date:
+    """Parsea una fecha de la DGII soportando ISO (YYYY-MM-DD) y DD-MM-YYYY."""
+    if not fecha_str:
+        return date.today()
+    fecha_str = fecha_str.strip()
+    # ISO format first (most common in XML)
+    try:
+        return date.fromisoformat(fecha_str[:10])
+    except ValueError:
+        pass
+    # DD-MM-YYYY fallback (usado en algunas respuestas DGII)
+    try:
+        parts = fecha_str[:10].split("-")
+        if len(parts) == 3 and len(parts[0]) <= 2:
+            return date(int(parts[2]), int(parts[1]), int(parts[0]))
+    except (ValueError, IndexError):
+        pass
+    # DD/MM/YYYY
+    try:
+        parts = fecha_str[:10].split("/")
+        if len(parts) == 3:
+            return date(int(parts[2]), int(parts[1]), int(parts[0]))
+    except (ValueError, IndexError):
+        pass
+    logger.warning("Fecha no parseada, usando hoy: %s", fecha_str)
+    return date.today()
+
+
 def _parse_recibidas_xml(xml_text: str) -> list[ECFRecibida]:
     """
     Parsea el XML de respuesta del endpoint consultaecfrecibidos de la DGII.
@@ -95,10 +123,7 @@ def _parse_recibidas_xml(xml_text: str) -> list[ECFRecibida]:
                 continue
 
             fecha_str = _get(node, "FechaEmision", "Fecha")
-            try:
-                fecha = date.fromisoformat(fecha_str) if fecha_str else date.today()
-            except ValueError:
-                fecha = date.today()
+            fecha = _parse_fecha_dgii(fecha_str)
 
             def _decimal(s: str) -> Decimal:
                 try:
@@ -121,7 +146,7 @@ def _parse_recibidas_xml(xml_text: str) -> list[ECFRecibida]:
                 total_monto=_decimal(_get(node, "MontoTotal", "Total")),
                 itbis_facturado=_decimal(_get(node, "ITBIS", "Itbis")),
                 subtotal=_decimal(_get(node, "Subtotal", "MontoSinImpuesto")),
-                codigo_seguridad=_get(node, "CUFE") or None,
+                codigo_seguridad=_get(node, "CodigoSeguridad", "CUFE") or None,
             ))
 
     except etree.XMLSyntaxError as e:
@@ -466,6 +491,7 @@ class ECFRecibidasService:
         headers = {
             "Content-Type": "application/json",
             "X-ECF-Event":  "ecf_recibidas",
+            "X-ECF-Tenant-RNC": tenant.get("rnc") or "",
         }
         if webhook_secret:
             sig = hmac.new(

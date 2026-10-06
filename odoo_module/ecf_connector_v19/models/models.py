@@ -554,6 +554,14 @@ class AccountMove(models.Model):
         readonly=True,
     )
 
+    ecf_origen = fields.Selection([
+        ('facturacion', 'Facturación'),
+        ('pos', 'Punto de venta'),
+    ], string='Origen e-CF', default='facturacion', copy=False)
+    ecf_pos_config_id = fields.Integer(string='ID punto de venta', readonly=True, copy=False)
+    ecf_pos_nombre = fields.Char(string='Punto de venta', readonly=True, copy=False)
+    ecf_pos_session_id = fields.Integer(string='Sesión POS', readonly=True, copy=False)
+
     # ─────────────────────────────────────────────────────────────────────────
     #  Override action_post: NUNCA dispara automáticamente en modo diferido
     # ─────────────────────────────────────────────────────────────────────────
@@ -733,6 +741,10 @@ class AccountMove(models.Model):
             'ambiente':           ambiente,
             'odoo_move_id':       str(self.id),
             'odoo_move_name':     self.name,
+            'origen':             self.ecf_origen or 'facturacion',
+            'pos_config_id':      str(self.ecf_pos_config_id) if self.ecf_pos_config_id else None,
+            'pos_config_nombre':  self.ecf_pos_nombre or None,
+            'pos_session_id':     str(self.ecf_pos_session_id) if self.ecf_pos_session_id else None,
         }
 
         # Nota de crédito: incluir NCF de referencia
@@ -934,6 +946,14 @@ class PosOrder(models.Model):
 
     def _prepare_invoice_vals(self):
         vals = super()._prepare_invoice_vals()
+        config = self.session_id.config_id
+        if config:
+            vals.update({
+                'ecf_origen': 'pos',
+                'ecf_pos_config_id': config.id,
+                'ecf_pos_nombre': config.name,
+                'ecf_pos_session_id': self.session_id.id,
+            })
         if self.ecf_tipo_id:
             vals['ecf_tipo_id'] = self.ecf_tipo_id.id
             # Si el tipo es diferido (crédito/envío), forzar modo diferido

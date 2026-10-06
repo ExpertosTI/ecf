@@ -8,7 +8,12 @@ from io import BytesIO
 
 import qrcode
 from jinja2 import Template
-from weasyprint import HTML
+try:
+    from weasyprint import HTML
+    HAS_WEASYPRINT = True
+except (ImportError, OSError):
+    HAS_WEASYPRINT = False
+    HTML = None
 
 from ecf_core.dgii_client import generar_qr_url
 
@@ -158,4 +163,7 @@ class ECFPDFService:
     async def exportar_a_pdf(self, data: dict) -> bytes:
         """Genera el PDF de la representación impresa usando WeasyPrint."""
         html_content = self.generar_pdf_html(data)
+        if not HAS_WEASYPRINT:
+            # Fallback para entornos sin librerías de sistema (como Mac sin brew pango)
+            return f"PDF MOCK (WeasyPrint not installed). HTML length: {len(html_content)}".encode()
         return HTML(string=html_content).write_pdf()

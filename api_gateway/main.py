@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import pathlib
+import secrets
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
@@ -46,6 +47,8 @@ from ecf_core.ecf_interchange_service import ECFInterchangeService
 from ecf_core.ecf_recibidas_service import ECFRecibidasService
 from ecf_core.utils import safe_schema as _safe_schema
 from ecf_core.utils import validar_rnc_o_cedula
+from ecf_core.xml_firma import FirmaInvalida, verificar_firma_xml
+from ecf_core.pdf_service import ECFPDFService
 
 logger = logging.getLogger(__name__)
 
@@ -241,14 +244,27 @@ async def get_tenant(
     if tenant["estado"] != "activo":
         raise HTTPException(status_code=403, detail=f"Tenant en estado: {tenant['estado']}")
 
-    if tenant["ecf_emitidos_mes"] >= tenant["max_ecf_mensual"]:
-        raise HTTPException(status_code=429, detail="Límite mensual de e-CF alcanzado")
-
     # Verificar cert no vencido
     if tenant["cert_vencimiento"] and tenant["cert_vencimiento"] < date.today():
         raise HTTPException(status_code=403, detail="Certificado digital vencido")
 
     return dict(tenant)
+
+
+async def get_psfe_token(
+    authorization: Optional[str] = Header(None),
+    redis: aioredis.Redis = Depends(get_redis),
+) -> str:
+    """Verifica el token Bearer para los endpoints PSFE (Recepción e Intercambio)."""
+    if not authorization or not authorization.startswith("Bearer "):
+        # En producción (PSFE) el token es obligatorio tras validar el certificado.
+        raise HTTPException(status_code=401, detail="Bearer token requerido")
+
+    token = authorization.split(" ")[1]
+    exists = await redis.get(f"psfe:token:{token}")
+    if not exists:
+        raise HTTPException(status_code=401, detail="Token PSFE inválido o expirado")
+    return token
 
 # --- Endpoints ---
 
@@ -267,6 +283,8 @@ async def health_tenant(tenant: dict = Depends(get_tenant)):
         "rnc":                tenant["rnc"],
         "cert_vencimiento":   cert_vencimiento.isoformat() if cert_vencimiento else None,
         "cert_dias_restantes": dias_para_vencer,
+        "razon_social":        tenant.get("razon_social", ""),
+        "nombre_comercial":    tenant.get("nombre_comercial") or tenant.get("razon_social", ""),
         "ecf_emitidos_mes":   tenant.get("ecf_emitidos_mes", 0),
         "max_ecf_mensual":    tenant.get("max_ecf_mensual", 0),
         "timestamp":          datetime.now(timezone.utc).isoformat(),
@@ -313,6 +331,10 @@ class FacturaPayload(BaseModel):
     direccion_comprador: Optional[str] = Field(None, max_length=255)
     odoo_move_id:       Optional[str] = Field(None, max_length=64)
     odoo_move_name:     Optional[str] = Field(None, max_length=64)
+    origen:             str = Field(default="facturacion", pattern=r"^(facturacion|pos)$")
+    pos_config_id:      Optional[str] = Field(None, max_length=64)
+    pos_config_nombre:  Optional[str] = Field(None, max_length=128)
+    pos_session_id:     Optional[str] = Field(None, max_length=64)
 
     @field_validator("tipo_ecf")
     @classmethod
@@ -356,6 +378,10 @@ async def emitir_ecf(
     El estado final llega via webhook cuando la DGII responde.
     """
 
+    # Límite mensual — solo aplica al emisor, no a consultas ni portal
+    if tenant["ecf_emitidos_mes"] >= tenant["max_ecf_mensual"]:
+        raise HTTPException(status_code=429, detail="Límite mensual de e-CF alcanzado")
+
     # Deduplicación por Idempotency-Key (ventana de 24h)
     if x_idempotency_key:
         idem_key = f"idem:{tenant['id']}:{x_idempotency_key}"
@@ -393,9 +419,10 @@ async def emitir_ecf(
                      odoo_move_id, odoo_move_name, referencia_ncf,
                      fecha_ncf_referencia, codigo_modificacion,
                      tipo_pago, tipo_ingresos, tipo_rnc_comprador,
-                     indicador_envio_diferido, direccion_comprador)
+                     indicador_envio_diferido, direccion_comprador,
+                     origen, pos_config_id, pos_config_nombre, pos_session_id)
                 VALUES ($1,$2,$3,'pendiente',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-                        $15,$16,$17,$18,$19,$20,$21)
+                        $15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
             """,
                 uuid.UUID(ecf_id), ncf, payload.tipo_ecf,
                 payload.rnc_comprador, payload.nombre_comprador,
@@ -406,6 +433,8 @@ async def emitir_ecf(
                 payload.fecha_ncf_referencia, payload.codigo_modificacion,
                 payload.tipo_pago, payload.tipo_ingresos, payload.tipo_rnc_comprador,
                 payload.indicador_envio_diferido, payload.direccion_comprador,
+                payload.origen, payload.pos_config_id,
+                payload.pos_config_nombre, payload.pos_session_id,
             )
 
             # Items
@@ -509,6 +538,95 @@ async def descargar_xml(
         content=bytes(row["xml_firmado"]),
         media_type="application/xml",
         headers={"Content-Disposition": f"attachment; filename={ncf}.xml"}
+    )
+
+
+TIPOS_ECF_NOMBRES = {
+    31: "Factura de Crédito Fiscal",
+    32: "Factura de Consumo",
+    33: "Nota de Débito",
+    34: "Nota de Crédito",
+    41: "Compras",
+    43: "Gastos Menores",
+    44: "Régimen Especial de Tributación",
+    45: "Gubernamental",
+    46: "Exportaciones",
+    47: "Pagos al Exterior",
+}
+
+
+@app.get("/v1/ecf/{ncf}/pdf")
+async def descargar_pdf(
+    ncf: str,
+    tenant: dict = Depends(get_tenant),
+    db: asyncpg.Pool = Depends(get_db),
+):
+    """
+    Genera y descarga la Representación Impresa (PDF) del e-CF.
+    Incluye QR scaneable y Código de Seguridad, requeridos por DGII.
+    """
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            f"SELECT e.ncf, e.tipo_ecf, e.estado, e.rnc_comprador, e.nombre_comprador, "
+            f"e.fecha_emision, e.subtotal, e.itbis, e.total, e.moneda, e.tipo_cambio, "
+            f"e.security_code, e.track_id, e.direccion_comprador, "
+            f"e.referencia_ncf, e.codigo_modificacion "
+            f"FROM {schema}.ecf e WHERE e.ncf = $1",
+            ncf,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="NCF no encontrado")
+    if row["estado"] not in ("aprobado", "condicionado"):
+        raise HTTPException(status_code=422, detail=f"PDF solo disponible para e-CF aprobados. Estado actual: {row['estado']}")
+
+    async with db.acquire() as conn:
+        items = await conn.fetch(
+            f"SELECT descripcion, cantidad, precio_unitario, itbis_monto, "
+            f"(cantidad * precio_unitario - descuento) AS total "
+            f"FROM {schema}.ecf_items WHERE ecf_id = (SELECT id FROM {schema}.ecf WHERE ncf = $1) ORDER BY linea",
+            ncf,
+        )
+
+    pdf_data = {
+        "emisor_nombre": tenant["razon_social"],
+        "emisor_rnc": tenant["rnc"],
+        "emisor_direccion": tenant.get("direccion") or "",
+        "emisor_telefono": tenant.get("telefono") or "",
+        "tipo_nombre": TIPOS_ECF_NOMBRES.get(row["tipo_ecf"], f"e-CF Tipo {row['tipo_ecf']}"),
+        "ncf": row["ncf"],
+        "tipo_ecf": row["tipo_ecf"],
+        "fecha_emision": str(row["fecha_emision"]),
+        "fecha_vencimiento": "",
+        "receptor_nombre": row["nombre_comprador"] or "Consumidor Final",
+        "receptor_rnc": row["rnc_comprador"] or "N/A",
+        "receptor_direccion": row["direccion_comprador"] or "",
+        "items": [
+            {
+                "descripcion": i["descripcion"],
+                "cantidad": str(i["cantidad"]),
+                "precio_unitario": f"{i['precio_unitario']:,.2f}",
+                "itbis_monto": f"{i['itbis_monto']:,.2f}",
+                "total": f"{i['total']:,.2f}",
+            }
+            for i in items
+        ],
+        "subtotal": f"{row['subtotal']:,.2f}",
+        "itbis": f"{row['itbis']:,.2f}",
+        "total": f"{row['total']:,.2f}",
+        "moneda": row["moneda"] or "DOP",
+        "security_code": row["security_code"] or "",
+        "track_id": row["track_id"] or "",
+        "ambiente": tenant["ambiente"],
+    }
+
+    pdf_service = ECFPDFService()
+    pdf_bytes = await pdf_service.exportar_a_pdf(pdf_data)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={ncf}.pdf"},
     )
 
 
@@ -942,11 +1060,23 @@ async def aprobar_compra_comercial(
         cert_password=cert_password_bytes,
     )
 
+    # Intentar obtener la URL de recepción del proveedor en el directorio de la DGII
+    target_url = "/fe/aprobacioncomercial/api/ecf"
+    try:
+        async with DGIIClient(tenant["ambiente"]) as client:
+            client.set_certificate(cert["cert_data"], cert_password_bytes)
+            await client._authenticate()
+            dir_info = await client.consultar_directorio_receptores(compra["rnc_proveedor"])
+            if dir_info and dir_info.get("urlRecepcion"):
+                target_url = f"{dir_info['urlRecepcion'].rstrip('/')}/fe/aprobacioncomercial/api/ecf"
+    except Exception as e:
+        logger.warning("No se pudo obtener directorio para %s: %s", compra["rnc_proveedor"], e)
+
     async with DGIIClient(tenant["ambiente"]) as client:
         client.set_certificate(cert["cert_data"], cert_password_bytes)
         await client._authenticate()
         resp = await client._client.post(
-            "/fe/aprobacioncomercial/api/ecf",
+            target_url,
             content=xml_firmado,
             headers=client._auth_headers(),
         )
@@ -1005,11 +1135,23 @@ async def rechazar_compra_comercial(
         cert_password=cert_password_bytes,
     )
 
+    # Intentar obtener la URL de recepción del proveedor en el directorio de la DGII
+    target_url = "/fe/aprobacioncomercial/api/ecf"
+    try:
+        async with DGIIClient(tenant["ambiente"]) as client:
+            client.set_certificate(cert["cert_data"], cert_password_bytes)
+            await client._authenticate()
+            dir_info = await client.consultar_directorio_receptores(compra["rnc_proveedor"])
+            if dir_info and dir_info.get("urlRecepcion"):
+                target_url = f"{dir_info['urlRecepcion'].rstrip('/')}/fe/aprobacioncomercial/api/ecf"
+    except Exception as e:
+        logger.warning("No se pudo obtener directorio para %s: %s", compra["rnc_proveedor"], e)
+
     async with DGIIClient(tenant["ambiente"]) as client:
         client.set_certificate(cert["cert_data"], cert_password_bytes)
         await client._authenticate()
         resp = await client._client.post(
-            "/fe/aprobacioncomercial/api/ecf",
+            target_url,
             content=xml_firmado,
             headers=client._auth_headers(),
         )
@@ -1072,11 +1214,33 @@ async def _enviar_arecf_background(
         logger.error("Error enviando ARECF para NCF=%s: %s", ncf, exc)
 
 
+def _secreto_webhook(cifrado: str | None) -> str:
+    """Devuelve el secreto HMAC en claro. Si no está cifrado, se usa tal cual."""
+    if not cifrado:
+        return ""
+    try:
+        plano = CertVault().descifrar_campo(cifrado)
+        return plano or cifrado
+    except Exception:
+        return cifrado
+
+
+async def _notificar_recibida_odoo(db: asyncpg.Pool, tenant: dict, schema: str) -> None:
+    """Avisa a Odoo que entró un e-CF de proveedor, por el mismo webhook de compras."""
+    try:
+        tenant["odoo_webhook_secret"] = _secreto_webhook(tenant.get("odoo_webhook_secret"))
+        servicio = ECFRecibidasService(db, None)
+        await servicio._notificar_odoo(tenant, schema)
+    except Exception as exc:
+        logger.error("No se pudo avisar a Odoo la compra recibida: %s", exc)
+
+
 @app.post("/fe/recepcion/api/ecf", include_in_schema=False)
 async def recibir_ecf_externo(
     request: Request,
     db: asyncpg.Pool = Depends(get_db),
     redis: aioredis.Redis = Depends(get_redis),
+    _token: str = Depends(get_psfe_token),
 ):
     """Endpoint público para recibir e-CF de otros contribuyentes.
 
@@ -1101,6 +1265,42 @@ async def recibir_ecf_externo(
         rnc_receptor = (rnc_receptor_node.text or "").strip()
         ncf = (ncf_node.text or "").strip()
         rnc_emisor = (rnc_emisor_node.text or "").strip()
+
+        def _texto(tag: str) -> str:
+            nodo = root.find(f".//{{*}}{tag}")
+            return (nodo.text or "").strip() if nodo is not None else ""
+
+        nombre_emisor = _texto("RazonSocialEmisor")[:255]
+        try:
+            tipo_ecf = int(_texto("TipoeCF")) if _texto("TipoeCF") else None
+        except ValueError:
+            tipo_ecf = None
+        try:
+            fecha_comprobante = datetime.strptime(_texto("FechaEmision"), "%d-%m-%Y").date()
+        except ValueError:
+            fecha_comprobante = date.today()
+
+        def _monto(tag: str) -> Decimal:
+            crudo = _texto(tag).replace(",", "")
+            try:
+                return Decimal(crudo) if crudo else Decimal("0")
+            except Exception:
+                return Decimal("0")
+
+        total_monto = _monto("MontoTotal")
+        itbis_facturado = _monto("TotalITBIS")
+
+        # Validar formato NCF (E + 12 dígitos)
+        if not ncf or len(ncf) != 13 or not ncf.startswith("E"):
+            return Response(status_code=400, content="NCF inválido (debe ser E + 12 dígitos)")
+
+        # Validar presencia de firma XAdES
+        ns_ds = {"ds": "http://www.w3.org/2000/09/xmldsig#"}
+        signature_node = root.find(".//ds:Signature", ns_ds)
+        if signature_node is None:
+            logger.warning("e-CF recibido sin firma digital: NCF=%s emisor=%s", ncf, rnc_emisor)
+            return Response(status_code=400, content="XML rechazado: no contiene firma digital XAdES")
+
     except etree.XMLSyntaxError:
         return Response(status_code=400, content="XML mal formado")
     except Exception as exc:
@@ -1110,7 +1310,8 @@ async def recibir_ecf_externo(
     # 2. Identificar tenant receptor (incluye ambiente para ARECF)
     async with db.acquire() as conn:
         tenant = await conn.fetchrow(
-            "SELECT id, schema_name, rnc, ambiente FROM public.tenants "
+            "SELECT id, schema_name, rnc, ambiente, odoo_webhook_url, odoo_webhook_secret "
+            "FROM public.tenants "
             "WHERE rnc = $1 AND estado = 'activo' AND deleted_at IS NULL",
             rnc_receptor,
         )
@@ -1126,11 +1327,13 @@ async def recibir_ecf_externo(
 
     async with db.acquire() as conn:
         result = await conn.execute(
-            f"""INSERT INTO {schema}.compras (ncf, rnc_proveedor, xml_original, estado_odoo,
-                                              fecha_comprobante, total_monto)
-                VALUES ($1, $2, $3, 'nueva', CURRENT_DATE, 0)
+            f"""INSERT INTO {schema}.compras
+                    (ncf, rnc_proveedor, nombre_proveedor, tipo_ecf, xml_original,
+                     estado_odoo, fecha_comprobante, total_monto, itbis_facturado)
+                VALUES ($1, $2, $3, $4, $5, 'nueva', $6, $7, $8)
                 ON CONFLICT (ncf) DO NOTHING""",
-            ncf, rnc_emisor, xml_bytes,
+            ncf, rnc_emisor, nombre_emisor or None, tipo_ecf, xml_bytes,
+            fecha_comprobante, total_monto, itbis_facturado,
         )
 
     # "INSERT 0 1" → nuevo; "INSERT 0 0" → duplicado (no re-enviamos ARECF)
@@ -1143,6 +1346,8 @@ async def recibir_ecf_externo(
             tenant_id=str(tenant["id"]),
             ambiente=tenant["ambiente"] or "certificacion",
         ))
+        if tenant["odoo_webhook_url"]:
+            asyncio.create_task(_notificar_recibida_odoo(db, dict(tenant), schema))
 
     logger.info("e-CF recibido: NCF=%s emisor=%s receptor=%s", ncf, rnc_emisor, rnc_receptor)
     return Response(status_code=202, content="e-CF recibido correctamente")
@@ -1392,3 +1597,149 @@ async def metrics(
 
     body = "\n".join(lines) + "\n"
     return PlainTextResponse(body, media_type="text/plain; version=0.0.4")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Endpoints DGII PSFE — registrados ante la DGII como URLs del software
+# /fe/autenticacion/api/semilla
+# /fe/autenticacion/api/validacioncertificado
+# /fe/aprobacioncomercial/api/ecf
+# ─────────────────────────────────────────────────────────────────────────────
+
+_SEMILLA_TTL = 300  # 5 minutos — la semilla expira si no se usa
+
+
+@app.get("/fe/autenticacion/api/semilla", include_in_schema=False)
+async def psfe_semilla(
+    redis: aioredis.Redis = Depends(get_redis),
+):
+    """Genera una semilla XML para el flujo de autenticación del PSFE.
+
+    El llamante firma esta semilla con su .p12 y la envía a
+    /fe/autenticacion/api/validacioncertificado para obtener un token.
+    Formato según Semilla.xsd DGII: <SemillaModel><valor>...</valor><fecha>...</fecha></SemillaModel>
+    """
+    valor = secrets.token_hex(20).upper()
+    ahora = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    await redis.setex(f"psfe:semilla:{valor}", _SEMILLA_TTL, "1")
+    xml_semilla = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<SemillaModel>"
+        f"<valor>{valor}</valor>"
+        f"<fecha>{ahora}</fecha>"
+        "</SemillaModel>"
+    )
+    return Response(content=xml_semilla, media_type="application/xml")
+
+
+@app.post("/fe/autenticacion/api/validacioncertificado", include_in_schema=False)
+async def psfe_validacion_certificado(
+    request: Request,
+    redis: aioredis.Redis = Depends(get_redis),
+):
+    """Recibe la semilla firmada, valida que fue generada por este servidor
+    (anti-replay) y emite un token de sesión válido por 23 horas.
+
+    El token resultante puede usarse en Authorization: Bearer para los
+    endpoints de recepción y aprobación comercial.
+
+    La firma enveloped (rsa-sha256, c14n exclusiva) se verifica contra el
+    certificado X.509 embebido. La semilla solo se consume si esa firma cierra.
+    """
+    await _check_rate_limit_ip(request, redis)
+    xml_bytes = await request.body()
+    if not xml_bytes:
+        return Response(status_code=400, content="Body vacío")
+
+    try:
+        root = etree.fromstring(xml_bytes)
+        valor_node = root.find("valor") or root.find(".//{*}valor")
+        if valor_node is None:
+            return Response(status_code=400, content="XML inválido: falta <valor>")
+        valor = (valor_node.text or "").strip()
+    except etree.XMLSyntaxError:
+        return Response(status_code=400, content="XML mal formado")
+
+    try:
+        verificar_firma_xml(xml_bytes)
+    except FirmaInvalida as exc:
+        logger.info("PSFE auth rechazada: %s", exc)
+        return Response(status_code=401, content="Firma del certificado inválida")
+
+    # Verificar que la semilla fue generada por nosotros (anti-replay, un solo uso)
+    key = f"psfe:semilla:{valor}"
+    exists = await redis.get(key)
+    if not exists:
+        return Response(status_code=401, content="Semilla inválida o expirada")
+    await redis.delete(key)
+
+    token = secrets.token_urlsafe(32)
+    await redis.setex(f"psfe:token:{token}", 82800, "1")  # 23 horas
+    logger.info("PSFE auth: token emitido para semilla %s", valor[:8])
+    return JSONResponse({"token": token, "expira_en": 82800})
+
+
+@app.post("/fe/aprobacioncomercial/api/ecf", include_in_schema=False)
+async def psfe_recibir_aprobacion_comercial(
+    request: Request,
+    db: asyncpg.Pool = Depends(get_db),
+    redis: aioredis.Redis = Depends(get_redis),
+    _token: str = Depends(get_psfe_token),
+):
+    """Recibe una Aprobación o Rechazo Comercial (ACECF) de un comprador.
+
+    Según ACECF.xsd: Estado=1 (Aprobado), Estado=2 (Rechazado).
+    Actualiza la tabla ecf del emisor con el resultado comercial del comprador.
+    """
+    await _check_rate_limit_ip(request, redis)
+    xml_bytes = await request.body()
+    if not xml_bytes:
+        return Response(status_code=400, content="Body vacío")
+
+    try:
+        root = etree.fromstring(xml_bytes)
+        ncf_node    = root.find(".//eNCF")    or root.find(".//{*}eNCF")
+        emisor_node = root.find(".//RNCEmisor") or root.find(".//{*}RNCEmisor")
+        estado_node = root.find(".//Estado")   or root.find(".//{*}Estado")
+        motivo_node = root.find(".//DetalleMotivoRechazo") or root.find(".//{*}DetalleMotivoRechazo")
+
+        if ncf_node is None or emisor_node is None or estado_node is None:
+            return Response(status_code=400, content="XML inválido: faltan campos obligatorios")
+
+        ncf        = (ncf_node.text    or "").strip()
+        rnc_emisor = (emisor_node.text or "").strip()
+        estado     = (estado_node.text or "").strip()
+        motivo     = (motivo_node.text or "").strip() if motivo_node is not None else None
+
+        if estado not in ("1", "2"):
+            return Response(status_code=400, content="Estado ACECF inválido (debe ser 1 o 2)")
+    except etree.XMLSyntaxError:
+        return Response(status_code=400, content="XML mal formado")
+
+    # Localizar el tenant por RNCEmisor
+    async with db.acquire() as conn:
+        tenant = await conn.fetchrow(
+            "SELECT id, schema_name FROM public.tenants "
+            "WHERE rnc = $1 AND estado = 'activo' AND deleted_at IS NULL",
+            rnc_emisor,
+        )
+    if not tenant:
+        return Response(status_code=404, content="Emisor no registrado")
+
+    try:
+        schema = _safe_schema(tenant["schema_name"])
+    except ValueError:
+        return Response(status_code=500, content="Configuración inválida")
+
+    estado_acecf = "aprobado" if estado == "1" else "rechazado"
+    async with db.acquire() as conn:
+        await conn.execute(
+            f"UPDATE {schema}.ecf "
+            f"SET estado_acecf = $1, motivo_rechazo_acecf = $2, "
+            f"    acecf_recibido_at = NOW(), updated_at = NOW() "
+            f"WHERE ncf = $3",
+            estado_acecf, motivo, ncf,
+        )
+
+    logger.info("ACECF recibido: NCF=%s emisor=%s estado=%s", ncf, rnc_emisor, estado_acecf)
+    return Response(status_code=202, content="Aprobación comercial registrada")
