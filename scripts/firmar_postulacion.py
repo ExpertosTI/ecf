@@ -137,7 +137,7 @@ def main():
         print(f"[ERROR] No se encontró el .p12: {p12_path}", file=sys.stderr)
         sys.exit(1)
 
-    out_path = Path(args.out) if args.out else xml_path.with_stem(xml_path.stem + "_firmado")
+    out_path = Path(args.out) if args.out else xml_path
 
     print(f"[INFO] Leyendo XML:        {xml_path}")
     print(f"[INFO] Leyendo certificado: {p12_path}")

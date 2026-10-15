@@ -49,8 +49,9 @@ logger = logging.getLogger(__name__)
 async def main():
     logger.info("Iniciando ECF Queue Worker...")
 
+    from ecf_core.utils import sanitize_dsn
     db_pool = await asyncpg.create_pool(
-        dsn=os.environ["DATABASE_URL"],
+        dsn=sanitize_dsn(os.environ["DATABASE_URL"]),
         min_size=2,
         max_size=10,
     )

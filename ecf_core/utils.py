@@ -48,6 +48,20 @@ def safe_schema(name: str) -> str:
     return name
 
 
+def sanitize_dsn(dsn: str) -> str:
+    """Sanitiza el DSN de conexión PostgreSQL asegurando que contraseñas
+    con caracteres especiales (como '@') queden percent-encoded para asyncpg.
+    """
+    if not dsn:
+        return dsn
+    m = re.match(r'^(?P<proto>[a-zA-Z0-9_+]+://)(?P<user>[^:]+):(?P<pass>.*)@(?P<host>[^@/:]+)(?P<rest>.*)$', dsn)
+    if m:
+        import urllib.parse
+        raw_pass = urllib.parse.unquote_plus(m.group("pass"))
+        return f"{m.group('proto')}{m.group('user')}:{urllib.parse.quote_plus(raw_pass)}@{m.group('host')}{m.group('rest')}"
+    return dsn
+
+
 # RNC validation -------------------------------------------------------------
 #
 # Algoritmo oficial DGII para validación de RNC (9 dígitos) y Cédula (11 dígitos).

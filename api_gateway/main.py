@@ -64,8 +64,9 @@ async def lifespan(app: FastAPI):
     # Startup. Si los tests pre-inyectaron pools mock, no los pisamos.
     owns_resources = False
     if not getattr(app.state, "db_pool", None):
+        from ecf_core.utils import sanitize_dsn
         app.state.db_pool = await asyncpg.create_pool(
-            dsn=os.environ["DATABASE_URL"],
+            dsn=sanitize_dsn(os.environ["DATABASE_URL"]),
             min_size=5,
             max_size=20,
         )
@@ -99,11 +100,29 @@ async def lifespan(app: FastAPI):
 
 # App
 
-ALLOWED_ORIGINS = os.environ.get("ALLOWED_ORIGINS", "").split(",")
-ALLOWED_ORIGINS = [o.strip() for o in ALLOWED_ORIGINS if o.strip()]
+def _parse_allowed_origins(raw: str) -> list[str]:
+    origins = []
+    for item in raw.split(","):
+        cleaned = item.strip().strip("'\"").rstrip("/")
+        if cleaned:
+            origins.append(cleaned)
+    return origins
 
-if not ALLOWED_ORIGINS:
-    logger.warning("ALLOWED_ORIGINS no configurado — CORS deshabilitado")
+raw_origins = os.environ.get("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS = _parse_allowed_origins(raw_origins)
+
+# Siempre asegurar orígenes estándar de la plataforma y desarrollo local
+default_origins = [
+    "https://ecf.renace.tech",
+    "https://portal.ecf.renace.tech",
+    "https://app.renace.tech",
+    "http://localhost:8000",
+    "http://localhost:3000",
+    "http://127.0.0.1:8000",
+]
+for d in default_origins:
+    if d not in ALLOWED_ORIGINS:
+        ALLOWED_ORIGINS.append(d)
 
 app = FastAPI(
     title="RENECF — DGII Gateway",
@@ -113,13 +132,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-if ALLOWED_ORIGINS:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=ALLOWED_ORIGINS,
-        allow_methods=["POST", "GET", "PATCH", "DELETE"],
-        allow_headers=["X-API-Key", "Content-Type", "Authorization"],
-    )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"https://([a-zA-Z0-9-]+\.)*renace\.tech(:[0-9]+)?",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(admin_router)
 
@@ -165,10 +185,14 @@ if _ECF_AMBIENTE_SISTEMA in {"simulacion", "sim"}:
     async def validacion_certificado_mock():
         return JSONResponse(status_code=200, content={"token": "mock_token"})
 
-# ── Portal Admin (static SPA) ──
+# ── Portal Admin y Facturador Ligero (static SPAs) ──
 _portal_dir = pathlib.Path(__file__).resolve().parent.parent / "portal_admin"
 if _portal_dir.is_dir():
     app.mount("/portal", StaticFiles(directory=str(_portal_dir), html=True), name="portal")
+
+_facturador_dir = pathlib.Path(__file__).resolve().parent.parent / "facturador"
+if _facturador_dir.is_dir():
+    app.mount("/facturar", StaticFiles(directory=str(_facturador_dir), html=True), name="facturar")
 
 # Rate Limiting basado en Redis (soporta múltiples instancias)
 

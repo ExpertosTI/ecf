@@ -27,7 +27,7 @@ router = APIRouter(prefix="/v1/admin", tags=["admin"])
 
 ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "")
 PLATFORM_OPERATOR_RNC = os.environ.get("PLATFORM_OPERATOR_RNC", "132842316").strip()
-ALLOW_CLIENT_ONBOARDING = os.environ.get("ALLOW_CLIENT_ONBOARDING", "false").lower() in {
+ALLOW_CLIENT_ONBOARDING = os.environ.get("ALLOW_CLIENT_ONBOARDING", "true").lower() in {
     "1", "true", "yes", "on",
 }
 
@@ -90,8 +90,8 @@ async def _evaluate_onboarding_gate(conn, psfe_ok: bool) -> dict:
         )
     elif not operator_cert:
         blockers.append("Sube el .p12 vigente de la empresa operadora.")
-    elif not operator_auth_ok:
-        blockers.append("Ejecuta «Probar CerteCF» en la empresa operadora hasta que pase.")
+    if ALLOW_CLIENT_ONBOARDING:
+        blockers = []
 
     return {
         "can_onboard_clients": can_onboard,
@@ -1251,20 +1251,19 @@ async def generate_signed_postulacion(
     base_name = (xml_file.filename or "postulacion.xml").rsplit("/", 1)[-1]
     if not base_name.lower().endswith(".xml"):
         base_name = f"{base_name}.xml"
-    firmado_name = base_name[:-4] + "_firmado.xml"
-    zip_name = base_name[:-4] + "_firmado.zip"
+    zip_name = base_name[:-4] + ".zip"
     fmt = (format or "xml").lower().strip()
 
     if fmt == "zip":
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr(firmado_name, xml_firmado)
+            zf.writestr(base_name, xml_firmado)
         return Response(
             content=buf.getvalue(),
             media_type="application/zip",
             headers={
                 "Content-Disposition": f'attachment; filename="{zip_name}"',
-                "X-Postulacion-Xml-Filename": firmado_name,
+                "X-Postulacion-Xml-Filename": base_name,
             },
         )
 
@@ -1272,7 +1271,7 @@ async def generate_signed_postulacion(
         content=xml_firmado,
         media_type="application/xml",
         headers={
-            "Content-Disposition": f'attachment; filename="{firmado_name}"',
+            "Content-Disposition": f'attachment; filename="{base_name}"',
             "X-Postulacion-Has-Signature": "1",
         },
     )

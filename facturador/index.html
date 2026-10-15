@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RENECF — Facturador Electrónico DGII</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+            --bg-body: #0a0f1d;
+            --bg-surface: #111827;
+            --bg-card: #182234;
+            --bg-input: #0e1626;
+            --border: #243247;
+            --border-hover: #384c6c;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --primary-glow: rgba(59, 130, 246, 0.25);
+            --accent: #10b981;
+            --accent-glow: rgba(16, 185, 129, 0.2);
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        header {
+            background: rgba(17, 24, 39, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #2563eb, #10b981);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            color: white;
+            font-size: 1.1rem;
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .brand-info h1 {
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-info p {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+
+        .header-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .badge-env {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+
+        main {
+            flex: 1;
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 24px 20px;
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 24px;
+        }
+
+        @media (max-width: 992px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            box-shadow: var(--shadow-card);
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+        }
+
+        @media (max-width: 640px) {
+            .grid-2, .grid-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 0.88rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .input-group {
+            position: relative;
+            display: flex;
+        }
+
+        .input-group input {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+
+        .input-group button {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            padding: 0 16px;
+        }
+
+        .mono-val {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 10px;
+        }
+
+        .items-table th {
+            background: var(--bg-card);
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-align: left;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .items-table th:first-child { border-top-left-radius: var(--radius-sm); }
+        .items-table th:last-child { border-top-right-radius: var(--radius-sm); }
+
+        .items-table td {
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+
+        .items-table input, .items-table select {
+            padding: 6px 10px;
+            font-size: 0.82rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 18px;
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #1d4ed8, #1e40af);
+            transform: translateY(-1px);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-muted);
+            border-color: var(--border);
+        }
+
+        .btn-ghost:hover {
+            background: var(--bg-card);
+            color: var(--text-main);
+            border-color: var(--border-hover);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-sm {
+            padding: 4px 10px;
+            font-size: 0.75rem;
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .summary-row.total {
+            border-top: 1px solid var(--border);
+            margin-top: 8px;
+            padding-top: 12px;
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .rnc-status {
+            font-size: 0.72rem;
+            margin-top: 4px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: 600;
+        }
+
+        .rnc-status.valid { color: var(--accent); }
+        .rnc-status.invalid { color: var(--danger); }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: 20px;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            max-width: 540px;
+            width: 100%;
+            padding: 28px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.7);
+            position: relative;
+        }
+
+        .ecf-success-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .ecf-success-icon {
+            width: 56px;
+            height: 56px;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            margin: 0 auto 12px;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .ncf-display {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 12px;
+            border-radius: var(--radius-md);
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .ncf-display .val {
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            color: var(--primary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .qr-wrapper {
+            background: white;
+            padding: 12px;
+            border-radius: var(--radius-md);
+            width: 160px;
+            height: 160px;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="brand-container">
+            <div class="brand-logo">R</div>
+            <div class="brand-info">
+                <h1>RENECF Facturador</h1>
+                <p id="companyHeader">Emisor: RENACE EXPERTOS (132842316)</p>
+            </div>
+        </div>
+        <div class="header-meta">
+            <div class="badge-env" id="envBadge">
+                <span class="badge-dot"></span>
+                <span id="envLabel">CerteCF DGII</span>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="invoice-form-section">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">📝 Datos del Comprobante Fiscal (e-CF)</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted);">Norma DGII Ley 32-23</span>
+                </div>
+
+                <div class="grid-3">
+                    <div class="form-group">
+                        <label for="tipoEcf">Tipo de Comprobante</label>
+                        <select id="tipoEcf" onchange="handleTipoChange()">
+                            <option value="31">E31 — Factura de Crédito Fiscal</option>
+                            <option value="32" selected>E32 — Factura de Consumo Final</option>
+                            <option value="34">E34 — Nota de Crédito</option>
+                            <option value="33">E33 — Nota de Débito</option>
+                            <option value="44">E44 — Régimen Especial</option>
+                            <option value="45">E45 — Gubernamental</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="ncfRefGroup" style="display:none;">
+                        <label for="ncfModificado">NCF de Referencia (Afectado)</label>
+                        <input type="text" id="ncfModificado" class="mono-val" placeholder="E310000000001" maxlength="13">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="formaPago">Condición de Pago</label>
+                        <select id="formaPago">
+                            <option value="1">1 — Contado (Efectivo)</option>
+                            <option value="2">2 — A Crédito</option>
+                            <option value="3">3 — Tarjeta de Crédito / Débito</option>
+                            <option value="4">4 — Transferencia Bancaria</option>
+                            <option value="5">5 — Cheque</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="fechaEmision">Fecha de Emisión</label>
+                        <input type="date" id="fechaEmision">
+                    </div>
+                </div>
+
+                <div class="card" style="background:var(--bg-card); margin-top:12px; margin-bottom:12px;">
+                    <div class="card-header" style="border-bottom-color:rgba(255,255,255,0.06);">
+                        <span class="card-title" style="font-size:0.85rem;">👤 Cliente / Receptor</span>
+                        <span id="rncIndicator" class="rnc-status"></span>
+                    </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label for="rncReceptor">RNC / Cédula del Comprador</label>
+                            <div class="input-group">
+                                <input type="text" id="rncReceptor" class="mono-val" placeholder="131182267 o 001..." maxlength="11" oninput="validarDocEnVivo()">
+                                <button type="button" class="btn btn-ghost" onclick="consultarRncDgii()">Buscar</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="razonSocialReceptor">Nombre o Razón Social</label>
+                            <input type="text" id="razonSocialReceptor" placeholder="Cliente Contado / Empresa SRL">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-header" style="margin-top:20px;">
+                    <span class="card-title">📦 Líneas de la Factura (Productos / Servicios)</span>
+                    <button class="btn btn-ghost btn-sm" onclick="agregarLinea()">+ Añadir Línea</button>
+                </div>
+
+                <table class="items-table">
+                    <thead>
+                        <tr>
+                            <th style="width:45%;">Descripción del Servicio / Producto</th>
+                            <th style="width:12%;">Cant.</th>
+                            <th style="width:18%;">Precio Unitario (RD$)</th>
+                            <th style="width:15%;">ITBIS</th>
+                            <th style="width:10%;">Subtotal</th>
+                            <th style="width:40px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <aside>
+            <div class="card" style="position:sticky; top:80px;">
+                <div class="card-header">
+                    <span class="card-title">💵 Resumen Fiscal</span>
+                </div>
+
+                <div class="summary-row">
+                    <span>Subtotal Neto:</span>
+                    <span class="mono-val" id="sumSubtotal">RD$ 0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span>Monto Exento:</span>
+                    <span class="mono-val" id="sumExento">RD$ 0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span>ITBIS (18%):</span>
+                    <span class="mono-val" id="sumItbis18">RD$ 0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span>ITBIS (16%):</span>
+                    <span class="mono-val" id="sumItbis16">RD$ 0.00</span>
+                </div>
+                <div class="summary-row total">
+                    <span>Total Factura:</span>
+                    <span class="mono-val" id="sumTotal" style="color:var(--primary);">RD$ 0.00</span>
+                </div>
+
+                <div style="margin-top:24px;">
+                    <button class="btn btn-primary btn-block" id="btnEmitir" onclick="emitirFactura()">
+                        ⚡ Emitir Factura Electrónica
+                    </button>
+                    <p style="font-size:0.7rem; color:var(--text-dim); text-align:center; margin-top:8px;">
+                        Firma XAdES-BES y timbrado directo ante DGII
+                    </p>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <div class="modal-overlay" id="successModal">
+        <div class="modal-content">
+            <div class="ecf-success-header">
+                <div class="ecf-success-icon">✓</div>
+                <h2 style="font-size:1.25rem; font-weight:800;">¡Factura Aprobada por DGII!</h2>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">Comprobante Fiscal Electrónico Válido</p>
+            </div>
+
+            <div class="ncf-display">
+                <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">e-NCF Asignado</div>
+                <div class="val" id="modalNcf">E320000000001</div>
+                <div style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">
+                    Código de Seguridad: <strong class="mono-val" id="modalCodSeg" style="color:var(--text-main);">------</strong>
+                </div>
+            </div>
+
+            <div class="qr-wrapper" id="qrcode"></div>
+
+            <div class="grid-2" style="margin-top:16px;">
+                <button class="btn btn-primary btn-block" onclick="descargarPdf()">🖨️ Descargar PDF (RI)</button>
+                <button class="btn btn-ghost btn-block" onclick="descargarXml()">📄 Descargar XML</button>
+            </div>
+
+            <button class="btn btn-ghost btn-block btn-sm" style="margin-top:12px;" onclick="cerrarSuccessModal()">+ Nueva Factura</button>
+        </div>
+    </div>
+
+    <script>
+        let items = [
+            { id: 1, desc: 'Servicio de Facturación Electrónica', cant: 1, precio: 1500, itbis: 18 }
+        ];
+
+        let config = {
+            apiUrl: window.location.origin,
+            apiKey: localStorage.getItem('renecf_api_key') || '',
+            rncEmisor: '132842316',
+            ambiente: 'certificacion'
+        };
+
+        let lastEcfResponse = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('fechaEmision').value = today;
+            renderItems();
+            recalcularTotales();
+        });
+
+        function handleTipoChange() {
+            const tipo = document.getElementById('tipoEcf').value;
+            const refGroup = document.getElementById('ncfRefGroup');
+            if (tipo === '34' || tipo === '33') {
+                refGroup.style.display = 'block';
+            } else {
+                refGroup.style.display = 'none';
+            }
+        }
+
+        function validarRncDgii(rnc) {
+            if (!rnc || rnc.length !== 9 || !/^\d+$/.test(rnc)) return false;
+            const weights = [7, 9, 8, 6, 5, 4, 3, 2];
+            let sum = 0;
+            for (let i = 0; i < 8; i++) sum += parseInt(rnc[i]) * weights[i];
+            const mod = sum % 11;
+            let check = (mod === 0) ? 2 : (mod === 1) ? 1 : 11 - mod;
+            return check === parseInt(rnc[8]);
+        }
+
+        function validarCedulaDgii(cedula) {
+            if (!cedula || cedula.length !== 11 || !/^\d+$/.test(cedula)) return false;
+            const weights = [1, 2, 1, 2, 1, 2, 1, 2, 1, 2];
+            let sum = 0;
+            for (let i = 0; i < 10; i++) {
+                let prod = parseInt(cedula[i]) * weights[i];
+                if (prod > 9) prod -= 9;
+                sum += prod;
+            }
+            let check = (10 - (sum % 10)) % 10;
+            return check === parseInt(cedula[10]);
+        }
+
+        function validarDocEnVivo() {
+            const doc = document.getElementById('rncReceptor').value.trim();
+            const ind = document.getElementById('rncIndicator');
+            if (!doc) {
+                ind.textContent = '';
+                ind.className = 'rnc-status';
+                return;
+            }
+            if (doc.length === 9) {
+                if (validarRncDgii(doc)) {
+                    ind.textContent = '✓ RNC Oficial Válido';
+                    ind.className = 'rnc-status valid';
+                } else {
+                    ind.textContent = '✗ RNC Inválido (Mod-11)';
+                    ind.className = 'rnc-status invalid';
+                }
+            } else if (doc.length === 11) {
+                if (validarCedulaDgii(doc)) {
+                    ind.textContent = '✓ Cédula Oficial Válida';
+                    ind.className = 'rnc-status valid';
+                } else {
+                    ind.textContent = '✗ Cédula Inválida';
+                    ind.className = 'rnc-status invalid';
+                }
+            } else {
+                ind.textContent = `${doc.length}/9 dígitos`;
+                ind.className = 'rnc-status';
+            }
+        }
+
+        async function consultarRncDgii() {
+            const doc = document.getElementById('rncReceptor').value.trim();
+            if (!doc) return;
+            try {
+                const resp = await fetch(`${config.apiUrl}/v1/dgii/rnc/${doc}`, {
+                    headers: { 'X-API-Key': config.apiKey }
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.razon_social) {
+                        document.getElementById('razonSocialReceptor').value = data.razon_social;
+                    }
+                }
+            } catch (e) {
+                console.log("Consulta DGII offline, usar manual");
+            }
+        }
+
+        function renderItems() {
+            const tbody = document.getElementById('itemsBody');
+            tbody.innerHTML = '';
+            items.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <input type="text" value="${escapeHtml(item.desc)}" onchange="updateItem(${index}, 'desc', this.value)" placeholder="Descripción">
+                    </td>
+                    <td>
+                        <input type="number" min="1" step="1" value="${item.cant}" onchange="updateItem(${index}, 'cant', parseFloat(this.value) || 1)" style="text-align:center;">
+                    </td>
+                    <td>
+                        <input type="number" min="0" step="0.01" value="${item.precio}" onchange="updateItem(${index}, 'precio', parseFloat(this.value) || 0)" class="mono-val" style="text-align:right;">
+                    </td>
+                    <td>
+                        <select onchange="updateItem(${index}, 'itbis', parseFloat(this.value))">
+                            <option value="18" ${item.itbis === 18 ? 'selected' : ''}>18%</option>
+                            <option value="16" ${item.itbis === 16 ? 'selected' : ''}>16%</option>
+                            <option value="0" ${item.itbis === 0 ? 'selected' : ''}>Exento (0%)</option>
+                        </select>
+                    </td>
+                    <td class="mono-val" style="text-align:right; font-weight:600;">
+                        ${formatMoney(item.cant * item.precio)}
+                    </td>
+                    <td style="text-align:center;">
+                        ${items.length > 1 ? `<button type="button" class="btn btn-danger btn-sm" onclick="eliminarLinea(${index})">×</button>` : ''}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function agregarLinea() {
+            items.push({ id: Date.now(), desc: '', cant: 1, precio: 0, itbis: 18 });
+            renderItems();
+            recalcularTotales();
+        }
+
+        function eliminarLinea(index) {
+            items.splice(index, 1);
+            renderItems();
+            recalcularTotales();
+        }
+
+        function updateItem(index, key, val) {
+            items[index][key] = val;
+            recalcularTotales();
+        }
+
+        function recalcularTotales() {
+            let subtotal = 0;
+            let exento = 0;
+            let itbis18 = 0;
+            let itbis16 = 0;
+
+            items.forEach(it => {
+                const lineTotal = it.cant * it.precio;
+                if (it.itbis === 18) {
+                    subtotal += lineTotal;
+                    itbis18 += lineTotal * 0.18;
+                } else if (it.itbis === 16) {
+                    subtotal += lineTotal;
+                    itbis16 += lineTotal * 0.16;
+                } else {
+                    exento += lineTotal;
+                }
+            });
+
+            const total = subtotal + exento + itbis18 + itbis16;
+
+            document.getElementById('sumSubtotal').textContent = formatMoney(subtotal);
+            document.getElementById('sumExento').textContent = formatMoney(exento);
+            document.getElementById('sumItbis18').textContent = formatMoney(itbis18);
+            document.getElementById('sumItbis16').textContent = formatMoney(itbis16);
+            document.getElementById('sumTotal').textContent = formatMoney(total);
+        }
+
+        async function emitirFactura() {
+            const btn = document.getElementById('btnEmitir');
+            btn.disabled = true;
+            btn.textContent = '⏳ Timbrando e-CF ante DGII...';
+
+            const tipoEcf = parseInt(document.getElementById('tipoEcf').value);
+            const rncComprador = document.getElementById('rncReceptor').value.trim();
+            const razonSocial = document.getElementById('razonSocialReceptor').value.trim();
+            const ncfModificado = document.getElementById('ncfModificado').value.trim();
+            const formaPago = parseInt(document.getElementById('formaPago').value);
+
+            const payload = {
+                tipo_ecf: tipoEcf,
+                rnc_comprador: rncComprador || undefined,
+                razon_social_comprador: razonSocial || undefined,
+                forma_pago: formaPago,
+                ncf_modificado: (tipoEcf === 34 || tipoEcf === 33) ? ncfModificado : undefined,
+                items: items.map(it => ({
+                    descripcion: it.desc || 'Servicio General',
+                    cantidad: it.cant,
+                    precio_unitario: it.precio,
+                    itbis_tasa: it.itbis
+                }))
+            };
+
+            try {
+                const resp = await fetch(`${config.apiUrl}/v1/ecf/emitir`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': config.apiKey
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    lastEcfResponse = data;
+                    mostrarModalExito(data);
+                } else {
+                    alert(`Error al emitir e-CF: ${data.detail || JSON.stringify(data)}`);
+                }
+            } catch (err) {
+                alert(`Error de red o conexión al backend: ${err.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '⚡ Emitir Factura Electrónica';
+            }
+        }
+
+        function mostrarModalExito(data) {
+            document.getElementById('modalNcf').textContent = data.ncf || 'E320000000001';
+            document.getElementById('modalCodSeg').textContent = data.codigo_seguridad || '------';
+
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
+            const qrUrl = data.qr_url || `https://ecf.dgii.gov.do/testecf/consultatimbre?RncEmisor=${config.rncEmisor}&eNCF=${data.ncf}&CodigoSeguridad=${data.codigo_seguridad}`;
+            new QRCode(qrContainer, {
+                text: qrUrl,
+                width: 136,
+                height: 136,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+
+            document.getElementById('successModal').classList.add('active');
+        }
+
+        function cerrarSuccessModal() {
+            document.getElementById('successModal').classList.remove('active');
+            items = [{ id: Date.now(), desc: '', cant: 1, precio: 0, itbis: 18 }];
+            document.getElementById('rncReceptor').value = '';
+            document.getElementById('razonSocialReceptor').value = '';
+            document.getElementById('rncIndicator').textContent = '';
+            renderItems();
+            recalcularTotales();
+        }
+
+        function descargarPdf() {
+            if (!lastEcfResponse || !lastEcfResponse.ncf) return;
+            window.open(`${config.apiUrl}/v1/ecf/${lastEcfResponse.ncf}/pdf`, '_blank');
+        }
+
+        function descargarXml() {
+            if (!lastEcfResponse || !lastEcfResponse.ncf) return;
+            window.open(`${config.apiUrl}/v1/ecf/${lastEcfResponse.ncf}/xml`, '_blank');
+        }
+
+        function formatMoney(amount) {
+            return 'RD$ ' + Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function escapeHtml(text) {
+            return String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>

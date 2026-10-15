@@ -429,8 +429,9 @@ async def procesar_rfce_pendientes(db_pool: asyncpg.Pool):
 async def main():
     logger.info("Iniciando Renace e-CF Scheduler (cert + recibidas + ncf-seq + rfce + polling)...")
 
+    from ecf_core.utils import sanitize_dsn
     db_pool = await asyncpg.create_pool(
-        dsn=os.environ["DATABASE_URL"],
+        dsn=sanitize_dsn(os.environ["DATABASE_URL"]),
         min_size=1,
         max_size=5,
     )
