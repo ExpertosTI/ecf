@@ -1843,9 +1843,16 @@ async def test_tenant_dgii_auth(
     if not cert_info.get("cert_data"):
         raise HTTPException(status_code=400, detail="Sube el certificado .p12 del contribuyente primero")
 
+    p12_pass = cert_info.get("cert_password") or ""
+    if not p12_pass:
+        raise HTTPException(
+            status_code=400,
+            detail="Contraseña del certificado no configurada. Re-sube el certificado .p12 con su contraseña.",
+        )
+
     try:
         async with DGIIClient(ambiente=row["ambiente"]) as client:
-            client.set_certificate(cert_info["cert_data"], cert_info["cert_password"].encode("utf-8"))
+            client.set_certificate(cert_info["cert_data"], p12_pass.encode("utf-8"))
             mtls = await client.probar_conexion_mtls()
             if not mtls["ok"] and psfe["configured"]:
                 raise HTTPException(
@@ -1861,6 +1868,11 @@ async def test_tenant_dgii_auth(
             auth = await client.probar_autenticacion_contribuyente()
     except DGIIClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Error en prueba DGII para tenant %s: %s", tenant_id, exc)
+        raise HTTPException(status_code=502, detail=f"Falla en comunicación con DGII CerteCF: {exc}") from exc
 
     if not auth.get("ok"):
         raise HTTPException(
