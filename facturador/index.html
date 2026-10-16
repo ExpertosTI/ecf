@@ -2114,13 +2114,15 @@
         function descargarPdf(ncf) {
             const docNcf = ncf || (lastEcfResponse ? lastEcfResponse.ncf : null);
             if (!docNcf) return;
-            window.open(`${config.apiUrl}/v1/ecf/${docNcf}/pdf`, '_blank');
+            const url = `${config.apiUrl}/v1/ecf/${docNcf}/pdf?api_key=${encodeURIComponent(config.apiKey || '')}`;
+            window.open(url, '_blank');
         }
 
         function descargarXml(ncf) {
             const docNcf = ncf || (lastEcfResponse ? lastEcfResponse.ncf : null);
             if (!docNcf) return;
-            window.open(`${config.apiUrl}/v1/ecf/${docNcf}/xml`, '_blank');
+            const url = `${config.apiUrl}/v1/ecf/${docNcf}/xml?api_key=${encodeURIComponent(config.apiKey || '')}`;
+            window.open(url, '_blank');
         }
 
         // ══════════════════════════════════════════════════
