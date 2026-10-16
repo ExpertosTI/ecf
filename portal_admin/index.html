@@ -760,17 +760,20 @@
         <form id="loginForm">
             <div class="form-group" style="text-align:left;">
                 <label>URL del API</label>
-                <input type="url" id="apiUrl" value="https://ecf.renace.tech" required>
-                <div class="hint">Ej: https://ecf.renace.tech</div>
+                <input type="text" id="apiUrl" value="" required placeholder="Ej: https://ecf.renace.tech">
+                <div class="hint">URL base de la API (usa el dominio actual por defecto)</div>
             </div>
             <div class="form-group" style="text-align:left;">
                 <label>Admin API Key</label>
-                <input type="password" id="adminKey" placeholder="Pega tu ADMIN_API_KEY aquí" required autocomplete="off">
+                <div style="position: relative; display: flex; align-items: center;">
+                    <input type="password" id="adminKey" placeholder="Pega tu ADMIN_API_KEY aquí" required autocomplete="off" style="width: 100%; padding-right: 42px;">
+                    <button type="button" id="toggleKeyVis" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; color: var(--text-dim); font-size: 1.1rem; padding: 2px;" title="Mostrar/ocultar clave">👁️</button>
+                </div>
             </div>
             <button type="submit" class="btn btn-primary" style="width:100%; margin-top:8px; padding: 12px;">
                 Conectar
             </button>
-            <div id="loginError" style="color:var(--danger); font-size:0.8rem; margin-top:12px; display:none;"></div>
+            <div id="loginError" style="color:var(--danger); font-size:0.82rem; margin-top:12px; display:none; line-height:1.4;"></div>
         </form>
     </div>
 </div>
@@ -1306,7 +1309,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errEl = document.getElementById('loginError');
     errEl.style.display = 'none';
-    API_URL = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+    const rawUrl = document.getElementById('apiUrl').value.trim();
+    API_URL = rawUrl ? rawUrl.replace(/\/+$/, '') : (window.location.origin || '');
     ADMIN_KEY = document.getElementById('adminKey').value.trim();
     try {
         await api('/v1/admin/stats');
@@ -1314,7 +1318,15 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         sessionStorage.setItem('ecf_admin_key', ADMIN_KEY);
         enterApp();
     } catch (err) {
-        errEl.textContent = 'No se pudo conectar. Verifica la URL y la clave.';
+        let msg = err.message || 'Error de conexión';
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Disallowed CORS origin')) {
+            msg = 'No se pudo conectar con el servidor (posible bloqueo CORS o error de red). Verifica que la URL del API coincida con el dominio del servidor.';
+        } else if (msg.includes('Invalid admin credentials') || msg.includes('401')) {
+            msg = 'Clave incorrecta (401 Unauthorized). La ADMIN_API_KEY ingresada no coincide con la configurada en el servidor.';
+        } else if (msg.includes('Admin API not configured') || msg.includes('503')) {
+            msg = 'El servidor no tiene ADMIN_API_KEY configurada en su archivo .env (503 Service Unavailable).';
+        }
+        errEl.textContent = msg;
         errEl.style.display = 'block';
     }
 });
@@ -1330,14 +1342,34 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
     location.reload();
 });
 
-// Auto-login from session
-(function checkSession() {
+// Auto-login from session & inicializar valores
+(function initSession() {
+    const defaultOrigin = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : 'https://ecf.renace.tech';
+    const urlInput = document.getElementById('apiUrl');
     const url = sessionStorage.getItem('ecf_api_url');
     const key = sessionStorage.getItem('ecf_admin_key');
+
+    if (urlInput) {
+        urlInput.value = url || defaultOrigin;
+    }
+
+    const toggleBtn = document.getElementById('toggleKeyVis');
+    const keyInput = document.getElementById('adminKey');
+    if (toggleBtn && keyInput) {
+        toggleBtn.addEventListener('click', () => {
+            if (keyInput.type === 'password') {
+                keyInput.type = 'text';
+                toggleBtn.textContent = '🔒';
+            } else {
+                keyInput.type = 'password';
+                toggleBtn.textContent = '👁️';
+            }
+        });
+    }
+
     if (url && key) {
         API_URL = url;
         ADMIN_KEY = key;
-        document.getElementById('apiUrl').value = url;
         enterApp();
     }
 })();

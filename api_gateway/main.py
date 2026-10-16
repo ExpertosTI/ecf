@@ -286,26 +286,53 @@ async def get_redis() -> aioredis.Redis:
 
 async def get_tenant(
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    x_tenant_rnc: Optional[str] = Header(None, alias="X-Tenant-RNC"),
     db: asyncpg.Pool = Depends(get_db),
     redis: aioredis.Redis = Depends(get_redis),
 ) -> dict:
-    """Autentica y retorna el tenant por su API key."""
+    """Autentica y retorna el tenant por su API key o master ADMIN_API_KEY."""
     if not x_api_key:
         raise HTTPException(status_code=401, detail="X-API-Key requerido")
+
+    admin_master_key = os.environ.get("ADMIN_API_KEY", "").strip()
+    is_admin = bool(admin_master_key and x_api_key.strip() == admin_master_key)
+
     # Hash de la key para comparar con lo almacenado
     key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
 
-    # Rate limiting por tenant (Redis-based)
-    await _check_rate_limit(key_hash, redis)
+    if not is_admin:
+        # Rate limiting por tenant (Redis-based)
+        await _check_rate_limit(key_hash, redis)
 
     async with db.acquire() as conn:
-        tenant = await conn.fetchrow("""
-            SELECT id, rnc, razon_social, schema_name, ambiente,
-                   estado, ecf_emitidos_mes, max_ecf_mensual,
-                   cert_vencimiento, odoo_webhook_url, odoo_webhook_secret
-            FROM public.tenants
-            WHERE api_key = $1 AND deleted_at IS NULL
-        """, key_hash)
+        if is_admin:
+            if x_tenant_rnc:
+                tenant = await conn.fetchrow("""
+                    SELECT id, rnc, razon_social, schema_name, ambiente,
+                           estado, ecf_emitidos_mes, max_ecf_mensual,
+                           cert_vencimiento, odoo_webhook_url, odoo_webhook_secret
+                    FROM public.tenants
+                    WHERE rnc = $1 AND deleted_at IS NULL
+                    LIMIT 1
+                """, x_tenant_rnc.strip())
+            else:
+                tenant = await conn.fetchrow("""
+                    SELECT id, rnc, razon_social, schema_name, ambiente,
+                           estado, ecf_emitidos_mes, max_ecf_mensual,
+                           cert_vencimiento, odoo_webhook_url, odoo_webhook_secret
+                    FROM public.tenants
+                    WHERE (is_platform_operator = TRUE OR rnc = '132842316') AND deleted_at IS NULL
+                    ORDER BY is_platform_operator DESC, id ASC
+                    LIMIT 1
+                """)
+        else:
+            tenant = await conn.fetchrow("""
+                SELECT id, rnc, razon_social, schema_name, ambiente,
+                       estado, ecf_emitidos_mes, max_ecf_mensual,
+                       cert_vencimiento, odoo_webhook_url, odoo_webhook_secret
+                FROM public.tenants
+                WHERE api_key = $1 AND deleted_at IS NULL
+            """, key_hash)
 
     if not tenant:
         raise HTTPException(status_code=401, detail="API key inválida")
@@ -313,7 +340,7 @@ async def get_tenant(
     if tenant["estado"] != "activo":
         raise HTTPException(status_code=403, detail=f"Tenant en estado: {tenant['estado']}")
 
-    if tenant["ecf_emitidos_mes"] >= tenant["max_ecf_mensual"]:
+    if not is_admin and tenant["ecf_emitidos_mes"] >= tenant["max_ecf_mensual"]:
         raise HTTPException(status_code=429, detail="Límite mensual de e-CF alcanzado")
 
     # Verificar cert no vencido
@@ -602,7 +629,9 @@ async def consultar_rnc(
         # 2. Buscar en tabla dgii_rnc
         try:
             dgii_row = await conn.fetchrow(
-                "SELECT rnc, razon_social, actividad_economica, estado, regimen_pago FROM public.dgii_rnc WHERE rnc = $1",
+                "SELECT rnc, razon_social, actividad_economica, estado, regimen_pago "
+                "FROM public.dgii_rnc "
+                "WHERE regexp_replace(rnc, '[^0-9]', '', 'g') = $1 LIMIT 1",
                 rnc_clean,
             )
             if dgii_row:
