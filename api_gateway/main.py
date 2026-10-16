@@ -723,6 +723,113 @@ async def descargar_xml(
     )
 
 
+@app.get("/v1/ecf")
+async def listar_facturas(
+    limit: int = 50,
+    offset: int = 0,
+    tipo_ecf: Optional[int] = None,
+    estado: Optional[str] = None,
+    tenant: dict = Depends(get_tenant),
+    db: asyncpg.Pool = Depends(get_db),
+):
+    """Lista el historial de facturas emitidas por el tenant."""
+    schema = _safe_schema(tenant["schema_name"])
+    clauses = ["1=1"]
+    params = []
+    if tipo_ecf:
+        params.append(tipo_ecf)
+        clauses.append(f"tipo_ecf = ${len(params)}")
+    if estado:
+        params.append(estado)
+        clauses.append(f"estado = ${len(params)}")
+
+    where_str = " AND ".join(clauses)
+    async with db.acquire() as conn:
+        rows = await conn.fetch(f"""
+            SELECT ncf, tipo_ecf, rnc_comprador, nombre_comprador,
+                   subtotal, itbis, total, estado, codigo_seguridad, security_code, qr_url,
+                   fecha_emision, created_at, approved_at
+            FROM {schema}.ecf
+            WHERE {where_str}
+            ORDER BY created_at DESC
+            LIMIT {limit} OFFSET {offset}
+        """, *params)
+        total_count = await conn.fetchval(
+            f"SELECT COUNT(*) FROM {schema}.ecf WHERE {where_str}", *params
+        )
+
+    facturas = []
+    for r in rows:
+        d = dict(r)
+        d["codigo_seguridad"] = d.get("codigo_seguridad") or d.get("security_code")
+        for k in ("fecha_emision", "created_at", "approved_at"):
+            if d.get(k) and hasattr(d[k], "isoformat"):
+                d[k] = d[k].isoformat()
+        facturas.append(d)
+
+    return {"facturas": facturas, "total": total_count}
+
+
+@app.get("/v1/ecf/{ncf}/pdf")
+async def descargar_pdf(
+    ncf: str,
+    tenant: dict = Depends(get_tenant),
+    db: asyncpg.Pool = Depends(get_db),
+):
+    """Descarga o visualiza la Representación Impresa (PDF) oficial del e-CF."""
+    schema = _safe_schema(tenant["schema_name"])
+    async with db.acquire() as conn:
+        row = await conn.fetchrow(
+            f"SELECT ncf, tipo_ecf, rnc_comprador, nombre_comprador, "
+            f"subtotal, itbis, total, estado, codigo_seguridad, security_code, qr_url, "
+            f"fecha_emision, created_at FROM {schema}.ecf WHERE ncf = $1",
+            ncf,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="e-CF no encontrado")
+
+    data = {
+        "emisor_nombre": tenant["razon_social"],
+        "emisor_rnc": tenant["rnc"],
+        "emisor_direccion": tenant.get("direccion") or "Santo Domingo, R.D.",
+        "emisor_telefono": tenant.get("telefono") or "",
+        "tipo_nombre": f"Factura Electrónica (E{row['tipo_ecf']})",
+        "tipo_ecf": row["tipo_ecf"],
+        "ncf": row["ncf"],
+        "fecha_emision": str(row["fecha_emision"] or ""),
+        "fecha_vencimiento": "",
+        "receptor_nombre": row["nombre_comprador"] or "Cliente Final",
+        "receptor_rnc": row["rnc_comprador"] or "",
+        "receptor_telefono": "",
+        "items": [
+            {
+                "descripcion": "Servicios Profesionales / Facturación",
+                "cantidad": 1,
+                "precio_unitario": float(row["subtotal"] or 0),
+                "monto": float(row["subtotal"] or 0),
+            }
+        ],
+        "subtotal": float(row["subtotal"] or 0),
+        "itbis": float(row["itbis"] or 0),
+        "total": float(row["total"] or 0),
+        "security_code": row["codigo_seguridad"] or row["security_code"] or "",
+        "ambiente": tenant.get("ambiente") or "certificacion",
+    }
+
+    from ecf_core.pdf_service import ECFPDFService
+    pdf_service = ECFPDFService()
+    try:
+        pdf_bytes = await pdf_service.exportar_a_pdf(data)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename={ncf}.pdf"}
+        )
+    except Exception:
+        html_content = pdf_service.generar_pdf_html(data)
+        return Response(content=html_content, media_type="text/html")
+
+
 @app.get("/v1/reportes/606")
 async def reporte_606(
     anio: int, mes: int,
