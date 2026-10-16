@@ -51,10 +51,16 @@ class CertVault:
     def descifrar(self, ciphertext: bytes, iv: bytes, tag: bytes) -> bytes:
         """
         Descifra y verifica autenticidad del .p12.
-        Lanza InvalidTag si los datos fueron manipulados.
+        Lanza CertVaultError si los datos fueron manipulados o cambió la VAULT_MASTER_KEY.
         """
         ct_with_tag = ciphertext + tag
-        return self._aesgcm.decrypt(iv, ct_with_tag, None)
+        try:
+            return self._aesgcm.decrypt(iv, ct_with_tag, None)
+        except Exception as e:
+            raise CertVaultError(
+                "No se pudo descifrar el certificado .p12 (la llave VAULT_MASTER_KEY no coincide con la usada al guardarlo). "
+                "Por favor, re-sube el archivo .p12 y su contraseña en la pestaña 'Certificados' del portal."
+            ) from e
 
     # --- Cifrado de campos sensibles (cert_password, webhook_secret) ---
 
@@ -86,7 +92,10 @@ class CertVault:
         except CertVaultError:
             raise
         except Exception as e:
-            raise CertVaultError(f"Error descifrando campo: {e}") from e
+            raise CertVaultError(
+                "No se pudo descifrar la contraseña del certificado (posible cambio de VAULT_MASTER_KEY). "
+                "Por favor, re-sube el .p12 con su contraseña."
+            ) from e
 
     def extraer_metadatos(self, p12_data: bytes, password: bytes) -> dict:
         """Extrae metadatos del certificado para almacenar en DB."""
