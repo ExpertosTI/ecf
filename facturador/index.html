@@ -54,10 +54,10 @@
 
         /* ── Header Renace ── */
         header {
-            background: rgba(14, 23, 38, 0.92);
+            background: rgba(14, 23, 38, 0.94);
             backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border);
-            padding: 12px 28px;
+            padding: 12px 24px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -69,19 +69,18 @@
         .brand-logo-wrap {
             display: flex;
             align-items: center;
-            gap: 14px;
+            gap: 12px;
             text-decoration: none;
         }
 
-        /* Logo Renace Vectorial Oficial */
         .renace-logo-svg {
             display: flex;
             align-items: center;
-            height: 32px;
+            height: 28px;
         }
 
         .renace-logo-svg svg {
-            height: 32px;
+            height: 28px;
             width: auto;
             display: block;
         }
@@ -92,19 +91,24 @@
             border-left: 1px solid var(--border);
             padding-left: 12px;
             margin-left: 4px;
-            line-height: 1.35;
+            line-height: 1.3;
         }
 
         .brand-sub strong {
             color: var(--text-main);
             display: block;
             font-size: 0.8rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 320px;
         }
 
         .header-actions {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
         .badge-env {
@@ -142,7 +146,7 @@
             max-width: 1260px;
             width: 100%;
             margin: 0 auto;
-            padding: 24px 20px 48px;
+            padding: 22px 20px 48px;
             display: grid;
             grid-template-columns: 1fr 360px;
             gap: 24px;
@@ -168,7 +172,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 18px;
+            margin-bottom: 16px;
             padding-bottom: 12px;
             border-bottom: 1px solid var(--border);
         }
@@ -182,17 +186,15 @@
             gap: 8px;
         }
 
-        /* Quick Type Selectors */
+        /* Quick Type Selectors (NO duplicates) */
         .type-pill-group {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             gap: 8px;
             margin-bottom: 18px;
-            flex-wrap: wrap;
         }
 
         .type-pill {
-            flex: 1;
-            min-width: 130px;
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: var(--radius-sm);
@@ -211,14 +213,14 @@
 
         .type-pill.active {
             border-color: var(--primary);
-            background: rgba(0, 135, 255, 0.15);
+            background: rgba(0, 135, 255, 0.16);
             box-shadow: 0 0 0 1px var(--primary), 0 4px 14px var(--primary-glow);
         }
 
         .type-pill .code {
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.88rem;
-            font-weight: 700;
+            font-weight: 800;
             color: var(--cyan);
             display: block;
         }
@@ -226,7 +228,8 @@
         .type-pill .label {
             font-size: 0.72rem;
             color: var(--text-muted);
-            margin-top: 3px;
+            margin-top: 2px;
+            line-height: 1.25;
         }
 
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -421,16 +424,17 @@
         }
 
         .rnc-status {
-            font-size: 0.72rem;
+            font-size: 0.74rem;
             margin-top: 4px;
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
             font-weight: 700;
         }
 
         .rnc-status.valid { color: var(--accent); }
         .rnc-status.invalid { color: var(--danger); }
+        .rnc-status.loading { color: var(--cyan); }
 
         /* Modal Base */
         .modal-overlay {
@@ -460,15 +464,31 @@
             position: relative;
             max-height: 90vh;
             overflow-y: auto;
-            animation: modalIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: modalIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .modal-content.modal-lg {
             max-width: 780px;
         }
 
+        .modal-top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+        }
+
+        .modal-actions-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
         @keyframes modalIn {
-            from { opacity: 0; transform: scale(0.96) translateY(10px); }
+            from { opacity: 0; transform: scale(0.96) translateY(8px); }
             to { opacity: 1; transform: scale(1) translateY(0); }
         }
 
@@ -521,19 +541,19 @@
             justify-content: center;
         }
 
-        .close-modal-btn {
-            position: absolute;
-            top: 18px;
-            right: 18px;
+        .close-icon-btn {
             background: transparent;
             border: none;
             color: var(--text-dim);
             font-size: 1.5rem;
             cursor: pointer;
             line-height: 1;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.15s ease;
         }
 
-        .close-modal-btn:hover { color: var(--text-main); }
+        .close-icon-btn:hover { color: var(--text-main); background: rgba(255,255,255,0.08); }
 
         /* Toast notifications */
         .toast-container {
@@ -671,7 +691,8 @@
                     <span style="font-size:0.75rem; color:var(--text-muted);">Cumplimiento DGII Ley 32-23</span>
                 </div>
 
-                <!-- Quick Type Selectors -->
+                <!-- Single Pill Selector (NO DUPLICATES) -->
+                <label style="margin-bottom:8px;">Tipo de Comprobante Fiscal Electrónico</label>
                 <div class="type-pill-group">
                     <div class="type-pill" onclick="seleccionarTipoEcf(31)" id="pill-31">
                         <span class="code">E31</span>
@@ -699,21 +720,12 @@
                     </div>
                 </div>
 
-                <div class="grid-3">
-                    <div class="form-group">
-                        <label for="tipoEcfSelect">Tipo e-CF</label>
-                        <select id="tipoEcfSelect" onchange="onTipoEcfChange(this.value)">
-                            <option value="31">E31 — Factura Crédito Fiscal</option>
-                            <option value="32" selected>E32 — Factura Consumo Final</option>
-                            <option value="34">E34 — Nota de Crédito</option>
-                            <option value="33">E33 — Nota de Débito</option>
-                            <option value="44">E44 — Régimen Especial</option>
-                            <option value="45">E45 — Gubernamental</option>
-                        </select>
-                    </div>
+                <!-- Hidden Input holding the selected type -->
+                <input type="hidden" id="tipoEcfSelect" value="32">
 
+                <div class="grid-2" style="margin-top:14px;">
                     <div class="form-group" id="ncfRefGroup" style="display:none;">
-                        <label for="ncfModificado">NCF Afectado (Referencia)</label>
+                        <label for="ncfModificado">NCF Afectado (Referencia e-CF)</label>
                         <input type="text" id="ncfModificado" class="mono-val" placeholder="E310000000001" maxlength="13">
                     </div>
 
@@ -734,8 +746,8 @@
                     </div>
                 </div>
 
-                <!-- Receptor Data -->
-                <div class="card" style="background:var(--bg-card); margin-top:12px; margin-bottom:12px;">
+                <!-- Receptor Data (Intelligent Auto-lookup) -->
+                <div class="card" style="background:var(--bg-card); margin-top:14px; margin-bottom:14px;">
                     <div class="card-header" style="border-bottom-color:rgba(255,255,255,0.06); margin-bottom:12px;">
                         <span class="card-title" style="font-size:0.85rem;">👤 Datos del Comprador / Receptor</span>
                         <div style="display:flex; align-items:center; gap:8px;">
@@ -747,16 +759,16 @@
                     </div>
                     <div class="grid-2">
                         <div class="form-group" style="position:relative;">
-                            <label for="rncReceptor">RNC / Cédula del Cliente</label>
+                            <label for="rncReceptor">RNC / Cédula del Cliente (Búsqueda Automática)</label>
                             <div class="input-group">
-                                <input type="text" id="rncReceptor" class="mono-val" placeholder="131182267 o 001..." maxlength="11" oninput="onRncInput()" autocomplete="off">
-                                <button type="button" class="btn btn-ghost" onclick="consultarRncDgii()">Buscar</button>
+                                <input type="text" id="rncReceptor" class="mono-val" placeholder="Ingresa 9 u 11 dígitos..." maxlength="11" oninput="onRncInputAuto()" autocomplete="off">
+                                <button type="button" class="btn btn-ghost" onclick="consultarRncDgiiDirecto()">Buscar</button>
                             </div>
                             <div class="autocomplete-dropdown" id="rncAutocomplete"></div>
                         </div>
                         <div class="form-group">
-                            <label for="razonSocialReceptor">Razón Social o Nombre</label>
-                            <input type="text" id="razonSocialReceptor" placeholder="Cliente Contado / Empresa SRL">
+                            <label for="razonSocialReceptor">Razón Social o Nombre Oficial</label>
+                            <input type="text" id="razonSocialReceptor" placeholder="Completado automáticamente por DGII">
                         </div>
                     </div>
                 </div>
@@ -815,7 +827,7 @@
                     <button class="btn btn-primary btn-block" id="btnEmitir" onclick="emitirFactura()">
                         ⚡ Emitir Factura Electrónica
                     </button>
-                    <button class="btn btn-accent btn-block btn-sm" onclick="guardarComoRecurrente()">
+                    <button class="btn btn-accent btn-block btn-sm" onclick="abrirModalNuevaRecurrente()">
                         🔁 Guardar como Factura Recurrente
                     </button>
                     <p style="font-size:0.72rem; color:var(--text-dim); text-align:center; margin-top:2px;">
@@ -834,12 +846,55 @@
         </aside>
     </main>
 
+    <!-- Modal Guardar Factura Recurrente (NO NATIVE PROMPT) -->
+    <div class="modal-overlay" id="guardarRecurrenteModal">
+        <div class="modal-content">
+            <div class="modal-top-bar">
+                <span class="card-title">🔁 Guardar Factura Recurrente</span>
+                <button class="close-icon-btn" onclick="cerrarModalNuevaRecurrente()">×</button>
+            </div>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:16px;">
+                Guarda esta factura como plantilla automática periódica para emitirla en 1 solo clic.
+            </p>
+
+            <div class="form-group">
+                <label for="recNombre">Nombre de la Plantilla</label>
+                <input type="text" id="recNombre" placeholder="Ej: Iguala Mensual de Soporte TI">
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="recFrecuencia">Frecuencia</label>
+                    <select id="recFrecuencia">
+                        <option value="Mensual" selected>Mensual</option>
+                        <option value="Quincenal">Quincenal</option>
+                        <option value="Semanal">Semanal</option>
+                        <option value="Trimestral">Trimestral</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="recDia">Día de Facturación</label>
+                    <select id="recDia">
+                        <option value="1">Día 1 de cada mes</option>
+                        <option value="15">Día 15 de cada mes</option>
+                        <option value="30">Fin de mes</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-top:20px; display:flex; gap:12px;">
+                <button class="btn btn-primary btn-block" onclick="confirmarGuardarRecurrente()">Guardar Plantilla</button>
+                <button class="btn btn-ghost" onclick="cerrarModalNuevaRecurrente()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Ajustes de Empresa -->
     <div class="modal-overlay" id="ajustesModal">
         <div class="modal-content">
-            <button class="close-modal-btn" onclick="cerrarAjustesModal()">×</button>
-            <div class="card-header" style="margin-bottom:16px;">
+            <div class="modal-top-bar">
                 <span class="card-title">⚙️ Ajustes de Empresa Emisora</span>
+                <button class="close-icon-btn" onclick="cerrarAjustesModal()">×</button>
             </div>
 
             <div class="form-group">
@@ -893,10 +948,12 @@
     <!-- Modal Directorio de Contactos -->
     <div class="modal-overlay" id="contactosModal">
         <div class="modal-content modal-lg">
-            <button class="close-modal-btn" onclick="cerrarModalContactos()">×</button>
-            <div class="card-header" style="margin-bottom:16px;">
+            <div class="modal-top-bar">
                 <span class="card-title">👥 Directorio de Contactos Guardados</span>
-                <button class="btn btn-primary btn-sm" onclick="mostrarFormNuevoContacto()">+ Nuevo Contacto</button>
+                <div class="modal-actions-right">
+                    <button class="btn btn-primary btn-sm" onclick="mostrarFormNuevoContacto()">+ Nuevo Contacto</button>
+                    <button class="close-icon-btn" onclick="cerrarModalContactos()">×</button>
+                </div>
             </div>
 
             <!-- New contact quick form -->
@@ -905,11 +962,11 @@
                 <div class="grid-2">
                     <div class="form-group">
                         <label>RNC / Cédula</label>
-                        <input type="text" id="nuevoContactoRnc" class="mono-val" placeholder="131182267">
+                        <input type="text" id="nuevoContactoRnc" class="mono-val" placeholder="131182267" oninput="onNuevoContactoRncInput(this.value)">
                     </div>
                     <div class="form-group">
                         <label>Razón Social / Nombre</label>
-                        <input type="text" id="nuevoContactoNombre" placeholder="Nombre de la empresa">
+                        <input type="text" id="nuevoContactoNombre" placeholder="Nombre oficial">
                     </div>
                 </div>
                 <div class="grid-2">
@@ -941,9 +998,9 @@
     <!-- Modal Facturas Recurrentes -->
     <div class="modal-overlay" id="recurrentesModal">
         <div class="modal-content modal-lg">
-            <button class="close-modal-btn" onclick="cerrarModalRecurrentes()">×</button>
-            <div class="card-header" style="margin-bottom:16px;">
+            <div class="modal-top-bar">
                 <span class="card-title">🔁 Plantillas de Facturación Recurrente</span>
+                <button class="close-icon-btn" onclick="cerrarModalRecurrentes()">×</button>
             </div>
             <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:16px;">
                 Emite tus facturas periódicas (igualas mensuales, suscripciones, mantenimiento) con 1 solo clic sin reescribir datos.
@@ -958,7 +1015,10 @@
     <!-- Modal Éxito / Factura Emitida -->
     <div class="modal-overlay" id="successModal">
         <div class="modal-content">
-            <button class="close-modal-btn" onclick="cerrarSuccessModal()">×</button>
+            <div class="modal-top-bar">
+                <span class="card-title">✓ Comprobante Timbrado</span>
+                <button class="close-icon-btn" onclick="cerrarSuccessModal()">×</button>
+            </div>
             <div class="ecf-success-header">
                 <div class="ecf-success-icon">✓</div>
                 <h2 style="font-size:1.35rem; font-weight:800;">¡Factura Aprobada por DGII!</h2>
@@ -984,7 +1044,7 @@
         </div>
     </div>
 
-    <!-- Toast Container -->
+    <!-- Toast Container (NO BROWSER ALERTS) -->
     <div class="toast-container" id="toastContainer"></div>
 
     <script>
@@ -1004,16 +1064,16 @@
             correo: localStorage.getItem('renecf_correo') || 'info@renace.tech'
         };
 
-        // Saved Contacts (Pre-seed Brito Castro if empty)
+        // Saved Contacts
         let contactos = JSON.parse(localStorage.getItem('renecf_saved_contacts') || 'null');
         if (!contactos) {
             contactos = [
                 {
                     rnc: '131182267',
-                    nombre: 'BRITO CASTRO SRL',
-                    telefono: '(809) 555-0199',
+                    nombre: 'SERVICIOS DE TRANSPORTE Y ENVIOS BRITO CASTRO SRL',
+                    telefono: '(809) 809-8548',
                     correo: 'administracion@britocastro.com',
-                    tipoEcf: '31'
+                    tipoEcf: 31
                 }
             ];
             localStorage.setItem('renecf_saved_contacts', JSON.stringify(contactos));
@@ -1023,6 +1083,7 @@
         let recurrentes = JSON.parse(localStorage.getItem('renecf_recurring_invoices') || '[]');
 
         let lastEcfResponse = null;
+        let rncDebounceTimer = null;
 
         document.addEventListener('DOMContentLoaded', () => {
             const today = new Date().toISOString().split('T')[0];
@@ -1033,7 +1094,7 @@
             recalcularTotales();
         });
 
-        // Toast Helper
+        // Toast Notification System (NO ugly alert)
         function toast(msg, type = 'info') {
             const container = document.getElementById('toastContainer');
             const el = document.createElement('div');
@@ -1071,23 +1132,16 @@
             if (badge) badge.textContent = recurrentes.length;
         }
 
+        // Pill Selector logic (NO duplicates)
         function seleccionarTipoEcf(tipo) {
             document.querySelectorAll('.type-pill').forEach(p => p.classList.remove('active'));
             const pill = document.getElementById(`pill-${tipo}`);
             if (pill) pill.classList.add('active');
 
-            const select = document.getElementById('tipoEcfSelect');
-            select.value = String(tipo);
-            onTipoEcfChange(String(tipo));
-        }
-
-        function onTipoEcfChange(tipo) {
-            document.querySelectorAll('.type-pill').forEach(p => p.classList.remove('active'));
-            const pill = document.getElementById(`pill-${tipo}`);
-            if (pill) pill.classList.add('active');
+            document.getElementById('tipoEcfSelect').value = String(tipo);
 
             const refGroup = document.getElementById('ncfRefGroup');
-            if (tipo === '34' || tipo === '33') {
+            if (tipo === 34 || tipo === 33 || tipo === '34' || tipo === '33') {
                 refGroup.style.display = 'block';
             } else {
                 refGroup.style.display = 'none';
@@ -1118,38 +1172,88 @@
             return check === parseInt(cedula[10]);
         }
 
-        function onRncInput() {
-            validarDocEnVivo();
-            sugerirContactos();
-        }
-
-        function validarDocEnVivo() {
+        // Intelligent Live RNC consultation on typing
+        function onRncInputAuto() {
             const doc = document.getElementById('rncReceptor').value.trim();
+            sugerirContactos();
+
             const ind = document.getElementById('rncIndicator');
             if (!doc) {
                 ind.textContent = '';
                 ind.className = 'rnc-status';
                 return;
             }
-            if (doc.length === 9) {
-                if (validarRncDgii(doc)) {
-                    ind.textContent = '✓ RNC Válido DGII (Mod-11)';
-                    ind.className = 'rnc-status valid';
-                } else {
-                    ind.textContent = '✗ RNC Inválido';
-                    ind.className = 'rnc-status invalid';
-                }
-            } else if (doc.length === 11) {
-                if (validarCedulaDgii(doc)) {
-                    ind.textContent = '✓ Cédula Oficial Válida';
-                    ind.className = 'rnc-status valid';
-                } else {
-                    ind.textContent = '✗ Cédula Inválida';
-                    ind.className = 'rnc-status invalid';
-                }
+
+            if (doc.length === 9 || doc.length === 11) {
+                clearTimeout(rncDebounceTimer);
+                rncDebounceTimer = setTimeout(() => {
+                    consultarRncDgiiDirecto();
+                }, 350);
             } else {
                 ind.textContent = `${doc.length}/9 dígitos`;
                 ind.className = 'rnc-status';
+            }
+        }
+
+        async function consultarRncDgiiDirecto() {
+            const doc = document.getElementById('rncReceptor').value.trim();
+            const ind = document.getElementById('rncIndicator');
+            if (!doc) return;
+
+            // First check saved contacts
+            const localContact = contactos.find(c => c.rnc === doc);
+            if (localContact) {
+                document.getElementById('razonSocialReceptor').value = localContact.nombre;
+                ind.textContent = `✓ ${localContact.nombre} (Contactos)`;
+                ind.className = 'rnc-status valid';
+                if (localContact.tipoEcf) seleccionarTipoEcf(localContact.tipoEcf);
+                return;
+            }
+
+            // Check Mod-11
+            const esRnc = doc.length === 9 && validarRncDgii(doc);
+            const esCed = doc.length === 11 && validarCedulaDgii(doc);
+
+            if (!esRnc && !esCed) {
+                ind.textContent = '✗ Dígito verificador inválido (Mod-11 DGII)';
+                ind.className = 'rnc-status invalid';
+                return;
+            }
+
+            ind.textContent = '🔄 Consultando DGII en tiempo real...';
+            ind.className = 'rnc-status loading';
+
+            try {
+                // Call dedicated endpoint on backend
+                const resp = await fetch(`${config.apiUrl}/v1/dgii/rnc/${doc}`, {
+                    headers: { 'X-API-Key': config.apiKey }
+                });
+
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.razon_social) {
+                        document.getElementById('razonSocialReceptor').value = data.razon_social;
+                        ind.textContent = `✓ ${data.razon_social} · Verificado DGII`;
+                        ind.className = 'rnc-status valid';
+                    } else {
+                        ind.textContent = `✓ RNC Válido DGII (${data.tipo || 'Empresa'})`;
+                        ind.className = 'rnc-status valid';
+                    }
+
+                    // Intelligent Comprobante suggestion
+                    if (data.sugerencia_ecf) {
+                        seleccionarTipoEcf(data.sugerencia_ecf);
+                    }
+                } else {
+                    // Even if not in local padron, Mod-11 is valid
+                    ind.textContent = esRnc ? '✓ RNC Válido DGII (Empresa)' : '✓ Cédula Válida DGII';
+                    ind.className = 'rnc-status valid';
+                    seleccionarTipoEcf(esRnc ? 31 : 32);
+                }
+            } catch (e) {
+                ind.textContent = esRnc ? '✓ RNC Válido (Mod-11)' : '✓ Cédula Válida';
+                ind.className = 'rnc-status valid';
+                seleccionarTipoEcf(esRnc ? 31 : 32);
             }
         }
 
@@ -1160,7 +1264,7 @@
                 dropdown.style.display = 'none';
                 return;
             }
-            const matches = contactos.filter(c => c.rnc.includes(query) || c.nombre.toLowerCase().includes(query));
+            const matches = contactos.filter(c => c.rnc.includes(query) || (c.nombre && c.nombre.toLowerCase().includes(query)));
             if (!matches.length) {
                 dropdown.style.display = 'none';
                 return;
@@ -1169,7 +1273,7 @@
             dropdown.innerHTML = matches.map(c => `
                 <div class="autocomplete-item" onclick="seleccionarContacto('${c.rnc}')">
                     <span><strong>${c.rnc}</strong> · ${escapeHtml(c.nombre)}</span>
-                    <span style="font-size:0.7rem; color:var(--cyan);">Usar</span>
+                    <span style="font-size:0.7rem; color:var(--cyan); font-weight:700;">Usar</span>
                 </div>
             `).join('');
             dropdown.style.display = 'block';
@@ -1182,37 +1286,16 @@
             document.getElementById('razonSocialReceptor').value = c.nombre;
             if (c.tipoEcf) seleccionarTipoEcf(parseInt(c.tipoEcf));
             document.getElementById('rncAutocomplete').style.display = 'none';
-            validarDocEnVivo();
-            toast(`Cliente ${c.nombre} cargado`, 'success');
-        }
-
-        async function consultarRncDgii() {
-            const doc = document.getElementById('rncReceptor').value.trim();
-            if (!doc) return;
-            toast("Consultando RNC ante DGII...", "info");
-            try {
-                const resp = await fetch(`${config.apiUrl}/v1/dgii/rnc/${doc}`, {
-                    headers: { 'X-API-Key': config.apiKey }
-                });
-                if (resp.ok) {
-                    const data = await resp.json();
-                    if (data.razon_social) {
-                        document.getElementById('razonSocialReceptor').value = data.razon_social;
-                        toast(`✓ RNC encontrado: ${data.razon_social}`, "success");
-                    }
-                } else {
-                    toast("No se encontró RNC en base DGII local", "info");
-                }
-            } catch (e) {
-                console.log("Consulta DGII offline");
-            }
+            document.getElementById('rncIndicator').textContent = `✓ ${c.nombre} (Contactos)`;
+            document.getElementById('rncIndicator').className = 'rnc-status valid';
+            toast(`Cliente "${c.nombre}" cargado`, 'success');
         }
 
         // Contact Management
         function guardarClienteActualEnContactos() {
             const rnc = document.getElementById('rncReceptor').value.trim();
             const nombre = document.getElementById('razonSocialReceptor').value.trim();
-            const tipoEcf = document.getElementById('tipoEcfSelect').value;
+            const tipoEcf = parseInt(document.getElementById('tipoEcfSelect').value);
 
             if (!rnc || !nombre) {
                 toast("Ingresa el RNC y el Nombre del cliente para guardarlo", "error");
@@ -1223,10 +1306,10 @@
             if (existingIndex >= 0) {
                 contactos[existingIndex].nombre = nombre;
                 contactos[existingIndex].tipoEcf = tipoEcf;
-                toast("Contacto actualizado", "success");
+                toast("Contacto actualizado en tu agenda", "success");
             } else {
                 contactos.push({ rnc, nombre, tipoEcf });
-                toast(`Contacto "${nombre}" guardado con éxito`, "success");
+                toast(`✓ Contacto "${nombre}" guardado con éxito`, "success");
             }
             localStorage.setItem('renecf_saved_contacts', JSON.stringify(contactos));
         }
@@ -1253,6 +1336,23 @@
             document.getElementById('nuevoContactoEmail').value = '';
         }
 
+        async function onNuevoContactoRncInput(val) {
+            const clean = val.replace(/\D/g, '');
+            if (clean.length === 9 || clean.length === 11) {
+                try {
+                    const resp = await fetch(`${config.apiUrl}/v1/dgii/rnc/${clean}`, {
+                        headers: { 'X-API-Key': config.apiKey }
+                    });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        if (data.razon_social) {
+                            document.getElementById('nuevoContactoNombre').value = data.razon_social;
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+
         function guardarNuevoContactoDesdeForm() {
             const rnc = document.getElementById('nuevoContactoRnc').value.trim();
             const nombre = document.getElementById('nuevoContactoNombre').value.trim();
@@ -1260,33 +1360,32 @@
             const email = document.getElementById('nuevoContactoEmail').value.trim();
 
             if (!rnc || !nombre) {
-                toast("RNC y Nombre son obligatorios", "error");
+                toast("RNC y Nombre son requeridos", "error");
                 return;
             }
 
             const existing = contactos.findIndex(c => c.rnc === rnc);
             if (existing >= 0) {
-                contactos[existing] = { rnc, nombre, telefono: tel, correo: email };
+                contactos[existing] = { rnc, nombre, telefono: tel, correo: email, tipoEcf: rnc.length === 9 ? 31 : 32 };
             } else {
-                contactos.push({ rnc, nombre, telefono: tel, correo: email });
+                contactos.push({ rnc, nombre, telefono: tel, correo: email, tipoEcf: rnc.length === 9 ? 31 : 32 });
             }
             localStorage.setItem('renecf_saved_contacts', JSON.stringify(contactos));
-            toast(`Contacto ${nombre} guardado`, "success");
+            toast(`Contacto "${nombre}" guardado`, "success");
             ocultarFormNuevoContacto();
             renderListaContactos(contactos);
         }
 
         function eliminarContacto(rnc) {
-            if (!confirm(`¿Eliminar contacto con RNC ${rnc}?`)) return;
             contactos = contactos.filter(c => c.rnc !== rnc);
             localStorage.setItem('renecf_saved_contacts', JSON.stringify(contactos));
             renderListaContactos(contactos);
-            toast("Contacto eliminado", "info");
+            toast("Contacto eliminado de la agenda", "info");
         }
 
         function filtrarContactos(q) {
             const query = q.toLowerCase();
-            const filtrados = contactos.filter(c => c.rnc.includes(query) || c.nombre.toLowerCase().includes(query));
+            const filtrados = contactos.filter(c => c.rnc.includes(query) || (c.nombre && c.nombre.toLowerCase().includes(query)));
             renderListaContactos(filtrados);
         }
 
@@ -1314,24 +1413,39 @@
             `).join('');
         }
 
-        // Recurring Invoices Management
-        function guardarComoRecurrente() {
-            const razonSocial = document.getElementById('razonSocialReceptor').value.trim() || 'Cliente General';
+        // Recurring Invoices (NO PROMPT)
+        function abrirModalNuevaRecurrente() {
+            const razon = document.getElementById('razonSocialReceptor').value.trim() || 'Cliente';
+            document.getElementById('recNombre').value = `Iguala Mensual - ${razon}`;
+            document.getElementById('guardarRecurrenteModal').classList.add('active');
+        }
+
+        function cerrarModalNuevaRecurrente() {
+            document.getElementById('guardarRecurrenteModal').classList.remove('active');
+        }
+
+        function confirmarGuardarRecurrente() {
+            const nombre = document.getElementById('recNombre').value.trim();
+            const frecuencia = document.getElementById('recFrecuencia').value;
+            const dia = document.getElementById('recDia').value;
+
+            if (!nombre) {
+                toast("Ingresa un nombre para la plantilla", "error");
+                return;
+            }
+
             const rnc = document.getElementById('rncReceptor').value.trim();
+            const razon = document.getElementById('razonSocialReceptor').value.trim() || 'Cliente General';
             const tipoEcf = parseInt(document.getElementById('tipoEcfSelect').value);
             const formaPago = parseInt(document.getElementById('formaPago').value);
 
-            const nombrePlantilla = prompt("Nombre de la Factura Recurrente (Ejemplo: Iguala Mensual Soporte TI):", `Factura Recurrente - ${razonSocial}`);
-            if (!nombrePlantilla) return;
-
-            const frecuencia = prompt("Frecuencia de emisión (Mensual, Quincenal, Semanal):", "Mensual") || "Mensual";
-
             const template = {
                 id: Date.now(),
-                nombre: nombrePlantilla,
+                nombre: nombre,
                 frecuencia: frecuencia,
+                dia: dia,
                 rncComprador: rnc,
-                razonSocial: razonSocial,
+                razonSocial: razon,
                 tipoEcf: tipoEcf,
                 formaPago: formaPago,
                 items: JSON.parse(JSON.stringify(items)),
@@ -1341,7 +1455,8 @@
             recurrentes.push(template);
             localStorage.setItem('renecf_recurring_invoices', JSON.stringify(recurrentes));
             actualizarBadgeRecurrentes();
-            toast(`✓ Plantilla "${nombrePlantilla}" guardada como recurrente`, "success");
+            cerrarModalNuevaRecurrente();
+            toast(`✓ Plantilla "${nombre}" guardada correctamente`, "success");
         }
 
         function abrirModalRecurrentes() {
@@ -1356,7 +1471,7 @@
         function renderListaRecurrentes() {
             const container = document.getElementById('listaRecurrentesContainer');
             if (!recurrentes.length) {
-                container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-dim);">No tienes plantillas de facturación recurrente configuradas.<br><span style="font-size:0.8rem;">Guarda una factura actual con el botón "🔁 Guardar como Factura Recurrente".</span></div>';
+                container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-dim);">No tienes plantillas de facturación recurrente guardadas.<br><span style="font-size:0.8rem; color:var(--text-muted);">Guarda una factura actual con el botón "🔁 Guardar como Factura Recurrente".</span></div>';
                 return;
             }
 
@@ -1398,7 +1513,7 @@
             items = JSON.parse(JSON.stringify(rec.items));
             renderItems();
             recalcularTotales();
-            validarDocEnVivo();
+            consultarRncDgiiDirecto();
 
             cerrarModalRecurrentes();
             toast(`Plantilla "${rec.nombre}" cargada en el formulario`, "info");
@@ -1410,8 +1525,6 @@
         }
 
         function eliminarRecurrente(idx) {
-            const rec = recurrentes[idx];
-            if (!confirm(`¿Eliminar la plantilla recurrente "${rec.nombre}"?`)) return;
             recurrentes.splice(idx, 1);
             localStorage.setItem('renecf_recurring_invoices', JSON.stringify(recurrentes));
             actualizarBadgeRecurrentes();
